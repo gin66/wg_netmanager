@@ -9,6 +9,7 @@ use yaml_rust::YamlLoader;
 mod configuration;
 mod unconnected;
 
+use unconnected::*;
 use configuration::*;
 
 fn main() -> Result<(), std::io::Error> {
@@ -85,13 +86,18 @@ fn main() -> Result<(), std::io::Error> {
 
     let polling_interval = time::Duration::from_millis(1000);
     let static_config = StaticConfiguration::new(verbosity, "wg0", "10.1.1.1");
+    let wg_dev = WireguardDeviceLinux::init(&static_config);
+
     let mut dynamic_config = DynamicConfiguration::WithoutDevice;
     loop {
         println!("Main loop");
         thread::sleep(polling_interval);
         use DynamicConfiguration::*;
         dynamic_config = match dynamic_config {
-            WithoutDevice => unconnected::bring_up_device(&static_config),
+            WithoutDevice =>  {
+                wg_dev.bring_up_device()?;
+                Unconfigured
+            },
             Unconfigured => unconnected::initial_connect(&static_config),
             _ => Unconfigured,
         }

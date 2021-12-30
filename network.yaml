@@ -1,5 +1,27 @@
+# This is an example config file for a wireguard network
+#
+# A network uses ONE shared private key.
+# Any new network participant can use this key to join any wireguard network at any current node
+#
+# In order to join a network following steps to be applied:
+# - set up wireguard interface with ip as defined in <newParticipant>.
+# - every active wireguard node receives packets from <newParticipant> with <privateKey>
+# - Then a (UDP ?) connection is established, so that the new participant receives initial network information
+# - With this information the wireguard interface is reconfigured as an active wireguard node
+#
+# If two new participants join at the same time, then one may be the lucky one to receive the initial UDP packet.
+# The loosing particpant has to try again
+#
+self:
+  name: client1
+  wgIp: 10.1.1.2
+
 network:
   privateKey: YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=
+  ipRange: 10.1.0.0/16
+  newParticipant: 10.1.128.128
 
 peers:
-- 192.168.1.1:50000
+  - publicIp: 192.168.1.1:50000
+    wgIp: 10.1.1.1
+

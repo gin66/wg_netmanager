@@ -1,9 +1,30 @@
 use std::fs::File;
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
+use std::{thread, time};
 
 use clap::{App, Arg};
 use yaml_rust::YamlLoader;
+
+enum Verbosity {
+    Silent,
+    Info,
+    All
+}
+impl Verbosity {
+    fn info(&self) -> bool {
+        match self {
+            Verbosity::Info | Verbosity::All => true,
+            _ => false
+        }
+    }
+    fn all(&self) -> bool {
+        match self {
+            Verbosity::All => true,
+            _ => false
+        }
+    }
+}
 
 fn main() -> Result<(), std::io::Error> {
     let matches = App::new("Wireguard Network Manager")
@@ -19,10 +40,10 @@ fn main() -> Result<(), std::io::Error> {
                 .takes_value(true),
         )
         .arg(
-            Arg::with_name("peer")
-                .short("i")
-                .long("ip")
-                .help("IP of a peer to connect to"),
+            Arg::with_name("listen_port")
+                .short("l")
+                .long("listen")
+                .help("Static listen port"),
         )
         .arg(
             Arg::with_name("v")
@@ -38,6 +59,12 @@ fn main() -> Result<(), std::io::Error> {
         )
         .get_matches();
 
+    let verbosity = match matches.occurrences_of("v") {
+        0 => Verbosity::Silent,
+        1 => Verbosity::Info,
+        2 | _ => Verbosity::All,
+    };
+
     let config = matches.value_of("config").unwrap_or("network.yaml");
 
     let mut file = File::open(config)?;
@@ -45,11 +72,16 @@ fn main() -> Result<(), std::io::Error> {
     file.read_to_string(&mut content)?;
     let conf = YamlLoader::load_from_str(&content).unwrap();
 
-    println!("{:?}", conf);
+    if verbosity.all() {
+        println!("Raw configuration:");
+        println!("{:?}", conf);
+    }
 
     let network = &conf[0]["network"];
     let private_key = &network["privateKey"].as_str().unwrap();
-    println!("{}", private_key);
+    if verbosity.all() {
+        println!("Network private key from config file: {}", private_key);
+    }
 
     let mut cmd = Command::new("wg")
         .arg("pubkey")
@@ -61,8 +93,16 @@ fn main() -> Result<(), std::io::Error> {
     cmd.wait()?;
 
     let mut out = String::new();
-    cmd.stdout.unwrap().read_to_string(&mut out);
-    println!("{}", out);
+    cmd.stdout.unwrap().read_to_string(&mut out)?;
+    if verbosity.info() {
+        println!("Network public key: {}", out);
+    }
+
+    let polling_interval = time::Duration::from_millis(1000);
+    loop {
+        println!("HERE");
+        thread::sleep(polling_interval);
+    }
 
     Ok(())
 }

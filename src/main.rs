@@ -1,6 +1,10 @@
-use clap::{App, Arg};
+use std::fs::File;
+use std::io::Read;
 
-fn main() {
+use clap::{App, Arg};
+use yaml_rust::YamlLoader;
+
+fn main() -> Result<(), std::io::Error> {
     let matches = App::new("Wireguard Network Manager")
         .version("0.1")
         .author("Jochen Kiemes <jochen@kiemes.de>")
@@ -32,4 +36,15 @@ fn main() {
                 .index(1),
         )
         .get_matches();
+
+    let config = matches.value_of("config").unwrap_or("network.yaml");
+
+    let mut file = File::open(config)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    let conf = YamlLoader::load_from_str(&content);
+
+    println!("{:?}", conf);
+
+    Ok(())
 }

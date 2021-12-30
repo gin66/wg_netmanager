@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 clap = "2.34.0"
+yaml-rust = "0.4.5"

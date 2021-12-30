@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use wg_netmanager::configuration::*;
-    use wg_netmanager::unconnected::*;
+    use wg_netmanager::wg_dev::*;
 
     #[test]
     fn test_check_device_fail() {

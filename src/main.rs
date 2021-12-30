@@ -6,11 +6,9 @@ use std::{thread, time};
 use clap::{App, Arg};
 use yaml_rust::YamlLoader;
 
-mod configuration;
-mod unconnected;
-
-use unconnected::*;
-use configuration::*;
+use wg_netmanager::unconnected::*;
+use wg_netmanager::configuration::*;
+use wg_netmanager::wg_dev::*;
 
 fn main() -> Result<(), std::io::Error> {
     let matches = App::new("Wireguard Network Manager")
@@ -98,7 +96,7 @@ fn main() -> Result<(), std::io::Error> {
                 wg_dev.bring_up_device()?;
                 Unconfigured
             },
-            Unconfigured => unconnected::initial_connect(&static_config),
+            Unconfigured => initial_connect(&static_config),
             _ => Unconfigured,
         }
     }

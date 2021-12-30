@@ -6,25 +6,10 @@ use std::{thread, time};
 use clap::{App, Arg};
 use yaml_rust::YamlLoader;
 
-enum Verbosity {
-    Silent,
-    Info,
-    All
-}
-impl Verbosity {
-    fn info(&self) -> bool {
-        match self {
-            Verbosity::Info | Verbosity::All => true,
-            _ => false
-        }
-    }
-    fn all(&self) -> bool {
-        match self {
-            Verbosity::All => true,
-            _ => false
-        }
-    }
-}
+mod configuration;
+mod unconnected;
+
+use configuration::*;
 
 fn main() -> Result<(), std::io::Error> {
     let matches = App::new("Wireguard Network Manager")
@@ -99,10 +84,14 @@ fn main() -> Result<(), std::io::Error> {
     }
 
     let polling_interval = time::Duration::from_millis(1000);
+    let static_config = StaticConfiguration::new(verbosity);
+    let mut opt_dynamic_config: Option<DynamicConfiguration> = None;
     loop {
-        println!("HERE");
+        println!("Main loop");
         thread::sleep(polling_interval);
+        opt_dynamic_config = match opt_dynamic_config {
+            None => unconnected::initial_connect(&static_config),
+            Some(_) => None,
+        }
     }
-
-    Ok(())
 }

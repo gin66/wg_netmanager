@@ -19,17 +19,21 @@ impl Verbosity {
 }
 
 pub struct StaticConfiguration {
-    verbosity: Verbosity,
+    pub verbosity: Verbosity,
+    pub wg_name: String,
+    pub unconnected_ip: String,
 }
 
 impl StaticConfiguration {
-    pub fn new(verbosity: Verbosity) -> Self {
-        StaticConfiguration { verbosity }
+    pub fn new<T: Into<String>>(verbosity: Verbosity, wg_name: T, unconnected_ip: T) -> Self {
+        StaticConfiguration { verbosity, wg_name: wg_name.into(), unconnected_ip: unconnected_ip.into() }
     }
 }
 
 pub enum DynamicConfiguration {
+    WithoutDevice,
     Unconfigured,
     Disconnected,
     Connected,
 }
+

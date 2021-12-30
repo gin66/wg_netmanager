@@ -84,14 +84,16 @@ fn main() -> Result<(), std::io::Error> {
     }
 
     let polling_interval = time::Duration::from_millis(1000);
-    let static_config = StaticConfiguration::new(verbosity);
-    let mut opt_dynamic_config: Option<DynamicConfiguration> = None;
+    let static_config = StaticConfiguration::new(verbosity, "wg0", "10.1.1.1");
+    let mut dynamic_config = DynamicConfiguration::WithoutDevice;
     loop {
         println!("Main loop");
         thread::sleep(polling_interval);
-        opt_dynamic_config = match opt_dynamic_config {
-            None => unconnected::initial_connect(&static_config),
-            Some(_) => None,
+        use DynamicConfiguration::*;
+        dynamic_config = match dynamic_config {
+            WithoutDevice => unconnected::bring_up_device(&static_config),
+            Unconfigured => unconnected::initial_connect(&static_config),
+            _ => Unconfigured,
         }
     }
 }

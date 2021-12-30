@@ -1,5 +1,6 @@
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, Write};
+use std::process::{Command, Stdio};
 
 use clap::{App, Arg};
 use yaml_rust::YamlLoader;
@@ -42,9 +43,26 @@ fn main() -> Result<(), std::io::Error> {
     let mut file = File::open(config)?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;
-    let conf = YamlLoader::load_from_str(&content);
+    let conf = YamlLoader::load_from_str(&content).unwrap();
 
     println!("{:?}", conf);
+
+    let network = &conf[0]["network"];
+    let private_key = &network["privateKey"].as_str().unwrap();
+    println!("{}", private_key);
+
+    let mut cmd = Command::new("wg")
+        .arg("pubkey")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    write!(cmd.stdin.as_ref().unwrap(), "{}", private_key)?;
+
+    cmd.wait()?;
+
+    let mut out = String::new();
+    cmd.stdout.unwrap().read_to_string(&mut out);
+    println!("{}", out);
 
     Ok(())
 }

@@ -329,12 +329,30 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
 
                 Running { socket, dynamic_peers }
             }
-            Running{ socket, dynamic_peers } => {
-                println!("Send advertisement to new participant");
-                let advertisement = UdpAdvertisement::from_config(&static_config);
-                let buf = serde_json::to_vec(&advertisement).unwrap();
-                let destination = format!("{}:{}",static_config.new_participant_ip,LISTEN_PORT);
-                socket.send_to(&buf, destination).ok();
+            Running{ socket, mut dynamic_peers } => {
+                let mut buf = [0; 1000];
+                match socket.recv(&mut buf) {
+                    Ok(received) => {
+                        println!("received {} bytes {:?}", received, &buf[..received]);
+                        match serde_json::from_slice::<UdpAdvertisement>(&buf[..received]) {
+                            Ok(ad) => {
+                                println!("Send advertisement to new participant");
+                                let advertisement = UdpAdvertisement::from_config(&static_config);
+                                let buf = serde_json::to_vec(&advertisement).unwrap();
+                                let destination = format!("{}:{}",static_config.new_participant_ip,LISTEN_PORT);
+                                socket.send_to(&buf, destination).ok();
+
+                                dynamic_peers.add_peer(ad);
+                            }
+                            Err(e) => {
+                                println!("Error in json decode: {:?}", e);
+                            }
+                        }
+                    },
+                    Err(e) =>  {
+                    }
+                }
+
 
                 Running { socket, dynamic_peers }
             }

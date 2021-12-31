@@ -68,7 +68,7 @@ impl WireguardDevice for WireguardDeviceLinux {
             .unwrap();
 
         if status2.success() {
-            println!("Interface {} created", self.device_name);
+            println!("Interface {} up", self.device_name);
         } else {
         }
         Ok(())

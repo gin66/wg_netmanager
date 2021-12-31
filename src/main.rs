@@ -209,6 +209,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
         dynamic_config = match dynamic_config {
             WithoutDevice => {
                 wg_dev.bring_up_device()?;
+                wg_dev.set_ip(&static_config.new_participant_ip)?;
                 Unconfigured
             }
             Unconfigured => {
@@ -247,6 +248,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
             WithoutDevice => {
                 wg_dev.bring_up_device()?;
                 wg_dev_listener.bring_up_device()?;
+                wg_dev_listener.set_ip(&static_config.new_participant_listener_ip)?;
                 Unconfigured
             }
             Unconfigured => {

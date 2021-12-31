@@ -1,5 +1,5 @@
-use std::process::{Command, Stdio};
 use std::io::Write;
+use std::process::{Command, Stdio};
 
 use crate::configuration::*;
 
@@ -21,8 +21,8 @@ impl WireguardDevice for WireguardDeviceLinux {
     fn init(config: &StaticConfiguration) -> Self {
         WireguardDeviceLinux {
             verbosity: config.verbosity,
-            device_name: config.wg_name.clone()
-        } 
+            device_name: config.wg_name.clone(),
+        }
     }
     fn check_device(&self) -> std::io::Result<bool> {
         if self.verbosity.info() {
@@ -55,8 +55,7 @@ impl WireguardDevice for WireguardDeviceLinux {
 
         if status.success() {
             println!("Interface {} created", self.device_name);
-        }
-        else {
+        } else {
         }
 
         let status2 = Command::new("sudo")
@@ -70,8 +69,7 @@ impl WireguardDevice for WireguardDeviceLinux {
 
         if status2.success() {
             println!("Interface {} created", self.device_name);
-        }
-        else {
+        } else {
         }
         Ok(())
     }
@@ -90,8 +88,7 @@ impl WireguardDevice for WireguardDeviceLinux {
 
         if status.success() {
             println!("Interface {} created", self.device_name);
-        }
-        else {
+        } else {
         }
         Ok(())
     }
@@ -112,8 +109,7 @@ impl WireguardDevice for WireguardDeviceLinux {
 
         if status.success() {
             println!("Interface {} created", self.device_name);
-        }
-        else {
+        } else {
         }
         Ok(())
     }
@@ -132,9 +128,10 @@ impl WireguardDevice for WireguardDeviceLinux {
             .arg(&*fname)
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
-            .spawn().map_err(|e| format!("{:?}",e))?;
+            .spawn()
+            .map_err(|e| format!("{:?}", e))?;
 
-        write!(cmd_tee.stdin.as_ref().unwrap(), "{}", conf).map_err(|e| format!("{:?}",e));
+        write!(cmd_tee.stdin.as_ref().unwrap(), "{}", conf).map_err(|e| format!("{:?}", e));
 
         println!("temp file {}", fname);
         let result = Command::new("sudo")
@@ -154,8 +151,7 @@ impl WireguardDevice for WireguardDeviceLinux {
 
         if result.status.success() {
             Ok(())
-        }
-        else {
+        } else {
             Err(String::from_utf8_lossy(&result.stderr).into_owned())
         }
     }

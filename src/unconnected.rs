@@ -2,7 +2,6 @@ use std::process::{Command, Stdio};
 
 use crate::configuration::*;
 
-
 pub fn initial_connect(config: &StaticConfiguration) -> DynamicConfiguration {
     if config.verbosity.info() {
         println!("Initialize unconnected wireguard interface");
@@ -14,7 +13,7 @@ pub fn initial_connect(config: &StaticConfiguration) -> DynamicConfiguration {
         .arg(&config.unconnected_ip)
         .output()
         .unwrap();
-    println!("{:?}",output);
+    println!("{:?}", output);
 
     DynamicConfiguration::Unconfigured
 }

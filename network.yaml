@@ -10,7 +10,11 @@
 # - With this information the wireguard interface is reconfigured as an active wireguard node
 #
 # If two new participants join at the same time, then one may be the lucky one to receive the initial UDP packet.
-# The loosing particpant has to try again
+# The loosing participant has to try again
+#
+# Every network participant with static public IP and fixed port will open up two wireguard interfaces:
+# - first for new participants to join the network - port <wgJoinPort>
+# - second to perform the actual vpn communication - port <wgPort>
 #
 self:
   name: client1
@@ -20,8 +24,11 @@ network:
   privateKey: YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=
   ipRange: 10.1.0.0/16
   newParticipant: 10.1.128.128
+  newParticipantListener: 10.1.128.129
 
 peers:
-  - publicIp: 192.168.1.1:50000
+  - publicIp: 192.168.1.1
+    wgPort: 50000
+    wgJoinPort: 50001
     wgIp: 10.1.1.1
 

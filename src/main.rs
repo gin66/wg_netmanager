@@ -6,8 +6,8 @@ use std::{thread, time};
 use clap::{App, Arg};
 use yaml_rust::YamlLoader;
 
-use wg_netmanager::unconnected::*;
 use wg_netmanager::configuration::*;
+use wg_netmanager::unconnected::*;
 use wg_netmanager::wg_dev::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -83,7 +83,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let polling_interval = time::Duration::from_millis(1000);
-    let static_config = StaticConfiguration::new(verbosity, "wg0", "10.1.1.1");
+    let static_config = StaticConfiguration::new(verbosity, "wg0", "10.1.1.1", "private key");
     let wg_dev = WireguardDeviceLinux::init(&static_config);
 
     let mut dynamic_config = DynamicConfiguration::WithoutDevice;
@@ -92,10 +92,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         thread::sleep(polling_interval);
         use DynamicConfiguration::*;
         dynamic_config = match dynamic_config {
-            WithoutDevice =>  {
+            WithoutDevice => {
                 wg_dev.bring_up_device()?;
                 Unconfigured
-            },
+            }
             Unconfigured => initial_connect(&static_config),
             _ => Unconfigured,
         }

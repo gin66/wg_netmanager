@@ -157,9 +157,11 @@ impl StaticConfiguration {
         lines.join("\n")
     }
     pub fn as_conf_for_listener(&self) -> String {
+        let peer = &self.peers[self.myself_as_peer.unwrap()];
         let mut lines: Vec<String> = vec![];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.private_key_listener));
+        lines.push(format!("ListenPort = {}", peer.join_port));
         lines.push("".to_string());
         lines.push("[Peer]".to_string());
         lines.push(format!("PublicKey = {}", self.public_key_new_participant));

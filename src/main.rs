@@ -209,6 +209,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
         .expect("Error setting Ctrl-C handler");
 
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
+    let wg_dev_listener = WireguardDeviceLinux::init("wg_listener", static_config.verbosity);
 
     let mut dynamic_config = DynamicConfiguration::WithoutDevice;
     let polling_interval = time::Duration::from_millis(1000);
@@ -218,14 +219,15 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
         dynamic_config = match dynamic_config {
             WithoutDevice => {
                 wg_dev.bring_up_device()?;
+                wg_dev_listener.bring_up_device()?;
                 Unconfigured
             }
             Unconfigured => {
-                let conf = static_config.as_conf_for_new_participant(0);
+                let conf = static_config.as_conf_for_listener();
                 if static_config.verbosity.all() {
                     println!("Configuration for join:\n{}\n", conf);
                 }
-                wg_dev.set_conf(&conf)?;
+                wg_dev_listener.set_conf(&conf)?;
                 ConfiguredForJoin
             }
             ConfiguredForJoin => ConfiguredForJoin,
@@ -234,6 +236,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
         }
     }
 
+    wg_dev_listener.take_down_device()?;
     wg_dev.take_down_device()?;
     Ok(())
 }

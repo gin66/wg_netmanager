@@ -26,7 +26,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn check_device(&self) -> std::io::Result<bool> {
         if self.verbosity.info() {
-            println!("Check for device");
+            println!("Check for device {}", self.device_name);
         }
 
         let status = Command::new("ip")

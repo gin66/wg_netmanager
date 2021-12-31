@@ -221,14 +221,13 @@ impl DynamicPeerList {
        use UdpAdvertisement::*;
        match from_advertisement {
             ListenerAdvertisement { public_key, wg_ip, name, } => {
-                self.updated = true;
                 self.peer.insert(wg_ip, (public_key, name));
             }
             ClientAdvertisement { public_key, wg_ip, name, } => {
-                self.updated = true;
                 self.peer.insert(wg_ip, (public_key, name));
             }
        }
+       self.updated = true;
    }
 }
 

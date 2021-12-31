@@ -350,6 +350,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                         }
 
                         if dynamic_peers.updated {
+                            println!("Update peers");
                             dynamic_peers.updated = false;
                             let conf = static_config.as_conf_as_peer(Some(&dynamic_peers));
                             if static_config.verbosity.all() {

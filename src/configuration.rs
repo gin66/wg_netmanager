@@ -89,11 +89,21 @@ impl StaticConfigurationBuilder {
         self
     }
     pub fn build(self) -> StaticConfiguration {
+        let mut myself_as_peer: Option<usize> = None;
+        for (i,peer) in self.peers.iter().enumerate() {
+            if &peer.wg_ip == self.wg_ip.as_ref().unwrap() {
+                println!("FOUND");
+                myself_as_peer = Some(i);
+                break;
+            }
+        }
+
         StaticConfiguration {
             verbosity: self.verbosity.unwrap(),
             name: self.name.unwrap(),
             wg_ip: self.wg_ip.unwrap(),
             wg_name: self.wg_name.unwrap(),
+            myself_as_peer,
             new_participant_ip: self.new_participant_ip.unwrap(),
             new_participant_listener_ip: self.new_participant_listener_ip.unwrap(),
             private_key_listener: self.private_key_listener.unwrap(),
@@ -111,6 +121,7 @@ pub struct StaticConfiguration {
     pub name: String,
     pub wg_ip: String,
     pub wg_name: String,
+    myself_as_peer: Option<usize>,
     pub new_participant_ip: String,
     pub new_participant_listener_ip: String,
     pub private_key_listener: String,
@@ -123,6 +134,9 @@ pub struct StaticConfiguration {
 impl StaticConfiguration {
     pub fn new() -> StaticConfigurationBuilder {
         StaticConfigurationBuilder::new()
+    }
+    pub fn is_listener(&self) -> bool {
+        self.myself_as_peer.is_some()
     }
     pub fn as_conf_for_new_participant(&self, for_peer: usize) -> String {
         let mut lines: Vec<String> = vec![];

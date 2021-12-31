@@ -210,6 +210,8 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
             WithoutDevice => {
                 wg_dev.bring_up_device()?;
                 wg_dev.set_ip(&static_config.new_participant_ip)?;
+                let route = format!("{}/32", static_config.new_participant_listener_ip);
+                wg_dev.add_route(&route);
                 Unconfigured
             }
             Unconfigured => {
@@ -249,6 +251,8 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 wg_dev.bring_up_device()?;
                 wg_dev_listener.bring_up_device()?;
                 wg_dev_listener.set_ip(&static_config.new_participant_listener_ip)?;
+                let route = format!("{}/32", static_config.new_participant_ip);
+                wg_dev_listener.add_route(&route);
                 Unconfigured
             }
             Unconfigured => {

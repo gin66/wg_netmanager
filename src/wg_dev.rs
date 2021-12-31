@@ -9,6 +9,7 @@ pub trait WireguardDevice {
     fn bring_up_device(&self) -> std::io::Result<()>;
     fn take_down_device(&self) -> std::io::Result<()>;
     fn set_ip(&self, ip: &str) -> std::io::Result<()>;
+    fn add_route(&self, route: &str) -> std::io::Result<()>;
     fn set_conf(&self, conf: &str) -> Result<(), String>;
 }
 
@@ -108,7 +109,28 @@ impl WireguardDevice for WireguardDeviceLinux {
             .unwrap();
 
         if status.success() {
-            println!("Interface {} created", self.device_name);
+            println!("Interface {} set ip", self.device_name);
+        } else {
+        }
+        Ok(())
+    }
+    fn add_route(&self, route: &str) -> std::io::Result<()> {
+        if self.verbosity.info() {
+            println!("Set route {}", route);
+        }
+
+        let status = Command::new("sudo")
+            .arg("ip")
+            .arg("route")
+            .arg("add")
+            .arg(route)
+            .arg("dev")
+            .arg(&self.device_name)
+            .status()
+            .unwrap();
+
+        if status.success() {
+            println!("Interface {} set route", self.device_name);
         } else {
         }
         Ok(())

@@ -2,7 +2,9 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::{thread, time};
+use std::sync::mpsc::channel;
 
+use ctrlc;
 use clap::{App, Arg};
 use yaml_rust::YamlLoader;
 
@@ -11,6 +13,11 @@ use wg_netmanager::unconnected::*;
 use wg_netmanager::wg_dev::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let (tx, rx) = channel();
+        
+    ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
+                    .expect("Error setting Ctrl-C handler");
+
     let matches = App::new("Wireguard Network Manager")
         .version("0.1")
         .author("Jochen Kiemes <jochen@kiemes.de>")
@@ -49,6 +56,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         2 | _ => Verbosity::All,
     };
 
+    let interface = matches.value_of("interface").unwrap();
+
     let config = matches.value_of("config").unwrap_or("network.yaml");
 
     let mut file = File::open(config)?;
@@ -66,6 +75,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if verbosity.all() {
         println!("Network private key from config file: {}", private_key);
     }
+    let new_participant_ip = &network["newParticipant"].as_str().unwrap();
+    let new_participant_listener_ip = &network["newParticipantListener"].as_str().unwrap();
 
     let mut cmd = Command::new("wg")
         .arg("pubkey")
@@ -76,28 +87,40 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     cmd.wait()?;
 
-    let mut out = String::new();
-    cmd.stdout.unwrap().read_to_string(&mut out)?;
+    let mut public_key = String::new();
+    cmd.stdout.unwrap().read_to_string(&mut public_key)?;
     if verbosity.info() {
-        println!("Network public key: {}", out);
+        println!("Network public key: {}", public_key);
     }
 
     let polling_interval = time::Duration::from_millis(1000);
-    let static_config = StaticConfiguration::new(verbosity, "wg0", "10.1.1.1", "private key");
+    let static_config = StaticConfiguration::new(verbosity, interface, "10.1.1.1", new_participant_ip, new_participant_listener_ip, &public_key, private_key);
     let wg_dev = WireguardDeviceLinux::init(&static_config);
 
     let mut dynamic_config = DynamicConfiguration::WithoutDevice;
-    loop {
-        println!("Main loop");
-        thread::sleep(polling_interval);
+    while rx.recv_timeout(polling_interval).is_err() {
         use DynamicConfiguration::*;
+        println!("Main loop");
         dynamic_config = match dynamic_config {
             WithoutDevice => {
                 wg_dev.bring_up_device()?;
                 Unconfigured
             }
-            Unconfigured => initial_connect(&static_config),
-            _ => Unconfigured,
+            Unconfigured => {
+                let conf = static_config.as_conf();
+                if verbosity.all() {
+                    println!("Configuration for join:\n{}\n", conf);
+                }
+                wg_dev.set_conf(&conf);
+                ConfiguredForJoin
+            },
+            ConfiguredForJoin => Unconfigured,
+            Connected => Connected,
+            Disconnected => Disconnected,
         }
     }
+
+    wg_dev.take_down_device();
+
+    Ok(())
 }

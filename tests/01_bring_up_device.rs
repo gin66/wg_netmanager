@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn test_check_device_fail() {
-        let sc = StaticConfiguration::new(Verbosity::All, "wgx", "10.1.1.1", "dummy key");
+        let sc = StaticConfiguration::new(Verbosity::All, "wgx", "10.1.1.1", "participant_ip","participant_listener_ip","pubkey","privkey");
         let wg_dev = WireguardDeviceLinux::init(&sc);
         let dc = wg_dev.check_device().unwrap();
         assert!(!dc);
@@ -13,7 +13,7 @@ mod tests {
 
     #[test]
     fn test_bring_up_device() {
-        let sc = StaticConfiguration::new(Verbosity::All, "wgy", "10.1.1.1", "dummy key");
+        let sc = StaticConfiguration::new(Verbosity::All, "wgy", "10.1.1.1", "participant_ip","participant_listener_ip","pubkey","privkey");
         let wg_dev = WireguardDeviceLinux::init(&sc);
 
         let dev_present_before = wg_dev.check_device().unwrap();
@@ -32,7 +32,7 @@ mod tests {
 
     #[test]
     fn test_bring_up_device_with_ip() {
-        let sc = StaticConfiguration::new(Verbosity::All, "wgy", "10.1.1.1", "dummy key");
+        let sc = StaticConfiguration::new(Verbosity::All, "wgy", "10.1.1.1", "participant_ip","participant_listener_ip","pubkey","privkey");
         let wg_dev = WireguardDeviceLinux::init(&sc);
 
         let dev_present_before = wg_dev.check_device().unwrap();
@@ -57,6 +57,9 @@ mod tests {
             Verbosity::All,
             "wgz",
             "10.1.1.1",
+            "172.16.1.2",
+            "172.16.1.1",
+            "5jdkklXgy65sx67HJziWmHWXv49s2xxx/mUsQ9leDzk=",
             "YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=",
         );
         let wg_dev = WireguardDeviceLinux::init(&sc);

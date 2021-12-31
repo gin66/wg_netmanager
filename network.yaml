@@ -16,6 +16,11 @@
 # - first for new participants to join the network - port <wgJoinPort>
 # - second to perform the actual vpn communication - port <wgPort>
 #
+# Private address ranges:
+# 10.0.0.0/8 IP addresses: 10.0.0.0 – 10.255.255.255
+# 172.16.0.0/12 IP addresses: 172.16.0.0 – 172.31.255.255
+# 192.168.0.0/16 IP addresses: 192.168.0.0 – 192.168.255.255
+#
 self:
   name: client1
   wgIp: 10.1.1.2
@@ -23,8 +28,8 @@ self:
 network:
   privateKey: YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=
   ipRange: 10.1.0.0/16
-  newParticipant: 10.1.128.128
-  newParticipantListener: 10.1.128.129
+  newParticipant: 172.16.1.2
+  newParticipantListener: 172.16.1.1
 
 peers:
   - publicIp: 192.168.1.1

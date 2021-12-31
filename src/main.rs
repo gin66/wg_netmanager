@@ -303,6 +303,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
         dynamic_config = match dynamic_config {
             WithoutDevice => {
                 wg_dev.bring_up_device()?;
+                wg_dev.set_ip(&static_config.wg_ip)?;
                 wg_dev_listener.bring_up_device()?;
                 wg_dev_listener.set_ip(&static_config.new_participant_listener_ip)?;
                 let route = format!("{}/32", static_config.new_participant_ip);

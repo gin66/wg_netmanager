@@ -312,7 +312,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 println!("Send advertisement");
                 let advertisement = UdpAdvertisement::from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
-                let destination = format!("{}:{}",static_config.new_participant_listener_ip,LISTEN_PORT);
+                let destination = format!("{}:{}",static_config.new_participant_ip,LISTEN_PORT);
                 socket.send_to(&buf, destination).ok();
 
                 ConfiguredForJoin { socket }

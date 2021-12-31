@@ -199,10 +199,13 @@ impl StaticConfiguration {
         lines.push("".to_string());
 
         if let Some(peers) = dynamic_peers {
-            for (wg_ip,(public_key,_name)) in peers.peer.iter() {
+            for (wg_ip,(public_key,_name,opt_endpoint)) in peers.peer.iter() {
                 lines.push("[Peer]".to_string());
                 lines.push(format!("PublicKey = {}", public_key));
                 lines.push(format!("AllowedIPs = {}/32", wg_ip));
+                if let Some(endpoint) = opt_endpoint {
+                    lines.push(format!("EndPoint = {}", endpoint));
+                }
                 lines.push("".to_string());
             }
         }
@@ -214,17 +217,17 @@ impl StaticConfiguration {
 #[derive(Default)]
 pub struct DynamicPeerList {
     pub updated: bool,
-    pub peer: HashMap<String,(String,String)>,
+    pub peer: HashMap<String,(String,String,Option<String>)>,
 }
 impl DynamicPeerList {
    pub fn add_peer(&mut self, from_advertisement: UdpAdvertisement) {
        use UdpAdvertisement::*;
        match from_advertisement {
-            ListenerAdvertisement { public_key, wg_ip, name, } => {
-                self.peer.insert(wg_ip, (public_key, name));
+            ListenerAdvertisement { public_key, wg_ip, name, endpoint, } => {
+                self.peer.insert(wg_ip, (public_key, name, Some(endpoint)));
             }
             ClientAdvertisement { public_key, wg_ip, name, } => {
-                self.peer.insert(wg_ip, (public_key, name));
+                self.peer.insert(wg_ip, (public_key, name, None));
             }
        }
        self.updated = true;
@@ -265,6 +268,7 @@ pub enum UdpAdvertisement {
         public_key: String,
         wg_ip: String,
         name: String,
+        endpoint: String,
     },
     ClientAdvertisement {
         public_key: String,
@@ -275,10 +279,12 @@ pub enum UdpAdvertisement {
 impl UdpAdvertisement {
     pub fn from_config(static_config: &StaticConfiguration) -> Self {
         if static_config.is_listener() {
+            let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
             UdpAdvertisement::ListenerAdvertisement {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),
+                endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
             }
         }
         else {

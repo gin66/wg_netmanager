@@ -10,7 +10,7 @@ use wg_netmanager::unconnected::*;
 use wg_netmanager::configuration::*;
 use wg_netmanager::wg_dev::*;
 
-fn main() -> Result<(), std::io::Error> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("Wireguard Network Manager")
         .version("0.1")
         .author("Jochen Kiemes <jochen@kiemes.de>")

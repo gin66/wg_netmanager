@@ -1,4 +1,5 @@
 use std::process::{Command, Stdio};
+use std::io::Write;
 
 use crate::configuration::*;
 
@@ -7,6 +8,8 @@ pub trait WireguardDevice {
     fn check_device(&self) -> std::io::Result<bool>;
     fn bring_up_device(&self) -> std::io::Result<()>;
     fn take_down_device(&self) -> std::io::Result<()>;
+    fn set_ip(&self, ip: &str) -> std::io::Result<()>;
+    fn set_conf(&self, conf: &str) -> Result<(), String>;
 }
 
 pub struct WireguardDeviceLinux {
@@ -55,6 +58,21 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         else {
         }
+
+        let status2 = Command::new("sudo")
+            .arg("ip")
+            .arg("link")
+            .arg("set")
+            .arg(&self.device_name)
+            .arg("up")
+            .status()
+            .unwrap();
+
+        if status2.success() {
+            println!("Interface {} created", self.device_name);
+        }
+        else {
+        }
         Ok(())
     }
     fn take_down_device(&self) -> std::io::Result<()> {
@@ -76,5 +94,69 @@ impl WireguardDevice for WireguardDeviceLinux {
         else {
         }
         Ok(())
+    }
+    fn set_ip(&self, ip: &str) -> std::io::Result<()> {
+        if self.verbosity.info() {
+            println!("Set IP {}", ip);
+        }
+
+        let status = Command::new("sudo")
+            .arg("ip")
+            .arg("addr")
+            .arg("add")
+            .arg(ip)
+            .arg("dev")
+            .arg(&self.device_name)
+            .status()
+            .unwrap();
+
+        if status.success() {
+            println!("Interface {} created", self.device_name);
+        }
+        else {
+        }
+        Ok(())
+    }
+    fn set_conf(&self, conf: &str) -> Result<(), String> {
+        let output = Command::new("sudo")
+            .arg("mktemp")
+            .arg("/tmp/wg_XXXXXXXXXX")
+            .output()
+            .unwrap();
+        let tmpfname = String::from_utf8_lossy(&output.stdout);
+        let fname = tmpfname.trim();
+
+        let cmd_tee = Command::new("sudo")
+            .arg("tee")
+            .arg("-a")
+            .arg(&*fname)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .spawn().map_err(|e| format!("{:?}",e))?;
+
+        write!(cmd_tee.stdin.as_ref().unwrap(), "{}", conf).map_err(|e| format!("{:?}",e));
+
+        println!("temp file {}", fname);
+        let result = Command::new("sudo")
+            .arg("wg")
+            .arg("setconf")
+            .arg(&self.device_name)
+            .arg(&*fname)
+            .output()
+            .unwrap();
+        println!("status {:?}", result);
+
+        let output = Command::new("sudo")
+            .arg("rm")
+            .arg(&*fname)
+            .status()
+            .unwrap();
+
+        if result.status.success() {
+            Ok(())
+        }
+        else {
+            Err(String::from_utf8_lossy(&result.stderr).into_owned())
+        }
     }
 }

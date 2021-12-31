@@ -29,8 +29,9 @@ pub struct PublicPeer {
 #[derive(Default)]
 pub struct StaticConfigurationBuilder {
     verbosity: Option<Verbosity>,
+    name: Option<String>,
+    wg_ip: Option<String>,
     wg_name: Option<String>,
-    unconnected_ip: Option<String>,
     new_participant_ip: Option<String>,
     new_participant_listener_ip: Option<String>,
     private_key_listener: Option<String>,
@@ -47,12 +48,16 @@ impl StaticConfigurationBuilder {
         self.verbosity = Some(verbosity);
         self
     }
-    pub fn wg_name<T: Into<String>>(mut self, wg_name: T) -> Self {
-        self.wg_name = Some(wg_name.into());
+    pub fn name<T: Into<String>>(mut self, name: T) -> Self {
+        self.name = Some(name.into());
         self
     }
-    pub fn unconnected_ip<T: Into<String>>(mut self, unconnected_ip: T) -> Self {
-        self.unconnected_ip = Some(unconnected_ip.into());
+    pub fn wg_ip<T: Into<String>>(mut self, wg_ip: T) -> Self {
+        self.wg_ip = Some(wg_ip.into());
+        self
+    }
+    pub fn wg_name<T: Into<String>>(mut self, wg_name: T) -> Self {
+        self.wg_name = Some(wg_name.into());
         self
     }
     pub fn new_participant_ip<T: Into<String>>(mut self, new_participant_ip: T) -> Self {
@@ -86,8 +91,9 @@ impl StaticConfigurationBuilder {
     pub fn build(self) -> StaticConfiguration {
         StaticConfiguration {
             verbosity: self.verbosity.unwrap(),
+            name: self.name.unwrap(),
+            wg_ip: self.wg_ip.unwrap(),
             wg_name: self.wg_name.unwrap(),
-            unconnected_ip: self.unconnected_ip.unwrap(),
             new_participant_ip: self.new_participant_ip.unwrap(),
             new_participant_listener_ip: self.new_participant_listener_ip.unwrap(),
             private_key_listener: self.private_key_listener.unwrap(),
@@ -102,8 +108,9 @@ impl StaticConfigurationBuilder {
 
 pub struct StaticConfiguration {
     pub verbosity: Verbosity,
+    pub name: String,
+    pub wg_ip: String,
     pub wg_name: String,
-    pub unconnected_ip: String,
     pub new_participant_ip: String,
     pub new_participant_listener_ip: String,
     pub private_key_listener: String,
@@ -132,7 +139,6 @@ impl StaticConfiguration {
     }
     pub fn as_conf_for_listener(&self) -> String {
         let mut lines: Vec<String> = vec![];
-        let peer = &self.peers[0];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.private_key_listener));
         lines.push("".to_string());

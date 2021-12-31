@@ -21,10 +21,6 @@
 # 172.16.0.0/12 IP addresses: 172.16.0.0 – 172.31.255.255
 # 192.168.0.0/16 IP addresses: 192.168.0.0 – 192.168.255.255
 #
-self:
-  name: client1
-  wgIp: 10.1.1.2
-
 network:
   privateKeyListener: YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=
   privateKeyNewParticipant: 8MXAa0cfyBqEMFR0dgtxz+AJ465FWYxSxnl4LykI0GA=

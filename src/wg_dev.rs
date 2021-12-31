@@ -131,7 +131,7 @@ impl WireguardDevice for WireguardDeviceLinux {
             .spawn()
             .map_err(|e| format!("{:?}", e))?;
 
-        write!(cmd_tee.stdin.as_ref().unwrap(), "{}", conf).map_err(|e| format!("{:?}", e));
+        write!(cmd_tee.stdin.as_ref().unwrap(), "{}", conf).map_err(|e| format!("{:?}", e)).unwrap();
 
         println!("temp file {}", fname);
         let result = Command::new("sudo")
@@ -143,7 +143,7 @@ impl WireguardDevice for WireguardDeviceLinux {
             .unwrap();
         println!("status {:?}", result);
 
-        let output = Command::new("sudo")
+        let _output = Command::new("sudo")
             .arg("rm")
             .arg(&*fname)
             .status()

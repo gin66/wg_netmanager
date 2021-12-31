@@ -1,7 +1,7 @@
 use std::fs::File;
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
-use std::{thread, time};
+use std::time;
 use std::sync::mpsc::channel;
 
 use ctrlc;
@@ -9,7 +9,6 @@ use clap::{App, Arg};
 use yaml_rust::YamlLoader;
 
 use wg_netmanager::configuration::*;
-use wg_netmanager::unconnected::*;
 use wg_netmanager::wg_dev::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -48,6 +47,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .required(true)
                 .index(1),
         )
+        .arg(
+            Arg::with_name("wg_ip")
+                .help("Sets the wireguard private ip")
+                .required(true)
+                .index(2),
+        )
+        .arg(
+            Arg::with_name("name")
+                .help("Sets the name for this computer")
+                .required(true)
+                .index(3),
+        )
         .get_matches();
 
     let verbosity = match matches.occurrences_of("v") {
@@ -57,6 +68,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     let interface = matches.value_of("interface").unwrap();
+    let wg_ip = matches.value_of("wg_ip").unwrap();
+    let computer_name = matches.value_of("name").unwrap();
 
     let config = matches.value_of("config").unwrap_or("network.yaml");
 
@@ -129,8 +142,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let polling_interval = time::Duration::from_millis(1000);
     let static_config = StaticConfiguration::new()
         .verbosity(verbosity)
+        .name(computer_name)
+        .wg_ip(wg_ip)
         .wg_name(interface)
-        .unconnected_ip("10.1.1.1")
         .new_participant_ip(*new_participant_ip)
         .new_participant_listener_ip(*new_participant_listener_ip)
         .public_key_listener(public_key_listener)
@@ -155,7 +169,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if verbosity.all() {
                     println!("Configuration for join:\n{}\n", conf);
                 }
-                wg_dev.set_conf(&conf);
+                wg_dev.set_conf(&conf)?;
                 ConfiguredForJoin
             },
             ConfiguredForJoin => ConfiguredForJoin,
@@ -164,7 +178,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    wg_dev.take_down_device();
+    wg_dev.take_down_device()?;
 
     Ok(())
 }

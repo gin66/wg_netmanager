@@ -45,28 +45,28 @@ impl StaticConfigurationBuilder {
         self.verbosity = Some(verbosity);
         self
     }
-    pub fn wg_name(mut self, wg_name: String) -> Self {
-        self.wg_name = Some(wg_name);
+    pub fn wg_name<T: Into<String>>(mut self, wg_name: T) -> Self {
+        self.wg_name = Some(wg_name.into());
         self
     }
-    pub fn unconnected_ip(mut self, unconnected_ip: String) -> Self {
-        self.unconnected_ip = Some(unconnected_ip);
+    pub fn unconnected_ip<T: Into<String>>(mut self, unconnected_ip: T) -> Self {
+        self.unconnected_ip = Some(unconnected_ip.into());
         self
     }
-    pub fn new_participant_ip(mut self, new_participant_ip: String) -> Self {
-        self.new_participant_ip = Some(new_participant_ip);
+    pub fn new_participant_ip<T: Into<String>>(mut self, new_participant_ip: T) -> Self {
+        self.new_participant_ip = Some(new_participant_ip.into());
         self
     }
-    pub fn new_participant_listener_ip(mut self, new_participant_listener_ip: String) -> Self {
-        self.new_participant_listener_ip = Some(new_participant_listener_ip);
+    pub fn new_participant_listener_ip<T: Into<String>>(mut self, new_participant_listener_ip: T) -> Self {
+        self.new_participant_listener_ip = Some(new_participant_listener_ip.into());
         self
     }
-    pub fn private_key(mut self, private_key: String) -> Self {
-        self.private_key = Some(private_key);
+    pub fn private_key<T: Into<String>>(mut self, private_key: T) -> Self {
+        self.private_key = Some(private_key.into());
         self
     }
-    pub fn public_key(mut self, public_key: String) -> Self {
-        self.public_key = Some(public_key);
+    pub fn public_key<T: Into<String>>(mut self, public_key: T) -> Self {
+        self.public_key = Some(public_key.into());
         self
     }
     pub fn build(self) -> StaticConfiguration {
@@ -96,25 +96,8 @@ pub struct StaticConfiguration {
 }
 
 impl StaticConfiguration {
-    pub fn new<T: Into<String>>(
-        verbosity: Verbosity,
-        wg_name: T,
-        unconnected_ip: T,
-        new_participant_ip: T,
-        new_participant_listener_ip: T,
-        public_key: T,
-        private_key: T,
-    ) -> Self {
-        StaticConfiguration {
-            verbosity,
-            wg_name: wg_name.into(),
-            unconnected_ip: unconnected_ip.into(),
-            new_participant_ip: new_participant_ip.into(),
-            new_participant_listener_ip: new_participant_listener_ip.into(),
-            public_key: public_key.into(),
-            private_key: private_key.into(),
-            peers: vec![],
-        }
+    pub fn new() -> StaticConfigurationBuilder {
+        StaticConfigurationBuilder::new()
     }
     pub fn as_conf(&self) -> String {
         let mut lines: Vec<String> = vec![];

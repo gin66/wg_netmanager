@@ -94,7 +94,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let polling_interval = time::Duration::from_millis(1000);
-    let static_config = StaticConfiguration::new(verbosity, interface, "10.1.1.1", new_participant_ip, new_participant_listener_ip, &public_key, private_key);
+    let static_config = StaticConfiguration::new()
+        .verbosity(verbosity)
+        .wg_name(interface)
+        .unconnected_ip("10.1.1.1")
+        .new_participant_ip(*new_participant_ip)
+        .new_participant_listener_ip(*new_participant_listener_ip)
+        .public_key(&public_key)
+        .private_key(*private_key)
+        .build();
     let wg_dev = WireguardDeviceLinux::init(&static_config);
 
     let mut dynamic_config = DynamicConfiguration::WithoutDevice;

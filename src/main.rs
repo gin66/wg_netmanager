@@ -208,7 +208,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
     let polling_interval = time::Duration::from_millis(1000);
     while rx.recv_timeout(polling_interval).is_err() {
         use DynamicConfigurationClient::*;
-        println!("Main loop");
+        println!("Main loop client");
         dynamic_config = match dynamic_config {
             WithoutDevice => {
                 wg_dev.bring_up_device()?;
@@ -280,7 +280,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
     let polling_interval = time::Duration::from_millis(1000);
     while rx.recv_timeout(polling_interval).is_err() {
         use DynamicConfigurationListener::*;
-        println!("Main loop");
+        println!("Main loop listener");
         dynamic_config = match dynamic_config {
             WithoutDevice => {
                 wg_dev.bring_up_device()?;

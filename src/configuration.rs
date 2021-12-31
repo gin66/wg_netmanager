@@ -33,8 +33,10 @@ pub struct StaticConfigurationBuilder {
     unconnected_ip: Option<String>,
     new_participant_ip: Option<String>,
     new_participant_listener_ip: Option<String>,
-    private_key: Option<String>,
-    public_key: Option<String>,
+    private_key_listener: Option<String>,
+    public_key_listener: Option<String>,
+    private_key_new_participant: Option<String>,
+    public_key_new_participant: Option<String>,
     peers: Vec<PublicPeer>,
 }
 impl StaticConfigurationBuilder {
@@ -61,12 +63,24 @@ impl StaticConfigurationBuilder {
         self.new_participant_listener_ip = Some(new_participant_listener_ip.into());
         self
     }
-    pub fn private_key<T: Into<String>>(mut self, private_key: T) -> Self {
-        self.private_key = Some(private_key.into());
+    pub fn private_key_listener<T: Into<String>>(mut self, private_key: T) -> Self {
+        self.private_key_listener = Some(private_key.into());
         self
     }
-    pub fn public_key<T: Into<String>>(mut self, public_key: T) -> Self {
-        self.public_key = Some(public_key.into());
+    pub fn public_key_listener<T: Into<String>>(mut self, public_key: T) -> Self {
+        self.public_key_listener = Some(public_key.into());
+        self
+    }
+    pub fn private_key_new_participant<T: Into<String>>(mut self, private_key: T) -> Self {
+        self.private_key_new_participant = Some(private_key.into());
+        self
+    }
+    pub fn public_key_new_participant<T: Into<String>>(mut self, public_key: T) -> Self {
+        self.public_key_new_participant = Some(public_key.into());
+        self
+    }
+    pub fn peers(mut self, peers: Vec<PublicPeer>) -> Self {
+        self.peers = peers;
         self
     }
     pub fn build(self) -> StaticConfiguration {
@@ -76,8 +90,10 @@ impl StaticConfigurationBuilder {
             unconnected_ip: self.unconnected_ip.unwrap(),
             new_participant_ip: self.new_participant_ip.unwrap(),
             new_participant_listener_ip: self.new_participant_listener_ip.unwrap(),
-            private_key: self.private_key.unwrap(),
-            public_key: self.public_key.unwrap(),
+            private_key_listener: self.private_key_listener.unwrap(),
+            public_key_listener: self.public_key_listener.unwrap(),
+            private_key_new_participant: self.private_key_new_participant.unwrap(),
+            public_key_new_participant: self.public_key_new_participant.unwrap(),
             peers: self.peers,
         }
     }
@@ -90,8 +106,10 @@ pub struct StaticConfiguration {
     pub unconnected_ip: String,
     pub new_participant_ip: String,
     pub new_participant_listener_ip: String,
-    pub private_key: String,
-    pub public_key: String,
+    pub private_key_listener: String,
+    pub public_key_listener: String,
+    pub private_key_new_participant: String,
+    pub public_key_new_participant: String,
     peers: Vec<PublicPeer>,
 }
 
@@ -99,15 +117,16 @@ impl StaticConfiguration {
     pub fn new() -> StaticConfigurationBuilder {
         StaticConfigurationBuilder::new()
     }
-    pub fn as_conf(&self) -> String {
+    pub fn as_conf(&self, for_peer: usize) -> String {
         let mut lines: Vec<String> = vec![];
+        let peer = &self.peers[for_peer];
         lines.push("[Interface]".to_string());
-        lines.push(format!("PrivateKey = {}", self.private_key));
+        lines.push(format!("PrivateKey = {}", self.private_key_new_participant));
         lines.push("".to_string());
         lines.push("[Peer]".to_string());
-        lines.push(format!("PublicKey = {}", self.public_key));
+        lines.push(format!("PublicKey = {}", self.public_key_listener));
         lines.push(format!("AllowedIPs = {}/32", self.new_participant_listener_ip));
-        lines.push(format!("EndPoint = {}", "A"));
+        lines.push(format!("EndPoint = {}:{}", peer.public_ip, peer.join_port));
         lines.push("".to_string());
         lines.join("\n")
     }

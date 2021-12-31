@@ -26,7 +26,8 @@ self:
   wgIp: 10.1.1.2
 
 network:
-  privateKey: YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=
+  privateKeyListener: YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=
+  privateKeyNewParticipant: 8MXAa0cfyBqEMFR0dgtxz+AJ465FWYxSxnl4LykI0GA=
   ipRange: 10.1.0.0/16
   newParticipant: 172.16.1.2
   newParticipantListener: 172.16.1.1

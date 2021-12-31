@@ -71,27 +71,60 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let network = &conf[0]["network"];
-    let private_key = &network["privateKey"].as_str().unwrap();
+    let private_key_listener = &network["privateKeyListener"].as_str().unwrap();
+    let private_key_new_participant = &network["privateKeyNewParticipant"].as_str().unwrap();
     if verbosity.all() {
-        println!("Network private key from config file: {}", private_key);
+        println!("Network private key from config file listener: {}", private_key_listener);
+        println!("Network private key from config file new participant: {}", private_key_new_participant);
     }
     let new_participant_ip = &network["newParticipant"].as_str().unwrap();
     let new_participant_listener_ip = &network["newParticipantListener"].as_str().unwrap();
+
+    let mut peers: Vec<PublicPeer> = vec![];
+    for p in conf[0]["peers"].as_vec() {
+        println!("{:?}",p);
+        let public_ip = p[0]["publicIp"].as_str().unwrap().to_string();
+        let join_port = p[0]["wgJoinPort"].as_i64().unwrap() as u16;
+        let comm_port = p[0]["wgPort"].as_i64().unwrap() as u16;
+        let wg_ip = p[0]["wgIp"].as_str().unwrap().to_string();
+        let pp = PublicPeer {
+            public_ip,
+            join_port,
+            comm_port,
+            wg_ip,
+        };
+        peers.push(pp);
+    }
+
+    
+    let mut cmd = Command::new("wg")
+        .arg("pubkey")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    write!(cmd.stdin.as_ref().unwrap(), "{}", private_key_listener)?;
+    cmd.wait()?;
+    let mut public_key = String::new();
+    cmd.stdout.unwrap().read_to_string(&mut public_key)?;
+    let public_key_listener = public_key.trim();
+    if verbosity.info() {
+        println!("Network public key listener: {}", public_key_listener);
+    }
 
     let mut cmd = Command::new("wg")
         .arg("pubkey")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
-    write!(cmd.stdin.as_ref().unwrap(), "{}", private_key)?;
-
+    write!(cmd.stdin.as_ref().unwrap(), "{}", private_key_new_participant)?;
     cmd.wait()?;
-
     let mut public_key = String::new();
     cmd.stdout.unwrap().read_to_string(&mut public_key)?;
+    let public_key_new_participant = public_key.trim();
     if verbosity.info() {
-        println!("Network public key: {}", public_key);
+        println!("Network public key new participant: {}", public_key_new_participant);
     }
+
 
     let polling_interval = time::Duration::from_millis(1000);
     let static_config = StaticConfiguration::new()
@@ -100,8 +133,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unconnected_ip("10.1.1.1")
         .new_participant_ip(*new_participant_ip)
         .new_participant_listener_ip(*new_participant_listener_ip)
-        .public_key(&public_key)
-        .private_key(*private_key)
+        .public_key_listener(public_key_listener)
+        .public_key_new_participant(public_key_new_participant)
+        .private_key_listener(*private_key_listener)
+        .private_key_new_participant(*private_key_new_participant)
+        .peers(peers)
         .build();
     let wg_dev = WireguardDeviceLinux::init(&static_config);
 
@@ -115,14 +151,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Unconfigured
             }
             Unconfigured => {
-                let conf = static_config.as_conf();
+                let conf = static_config.as_conf(0);
                 if verbosity.all() {
                     println!("Configuration for join:\n{}\n", conf);
                 }
                 wg_dev.set_conf(&conf);
                 ConfiguredForJoin
             },
-            ConfiguredForJoin => Unconfigured,
+            ConfiguredForJoin => ConfiguredForJoin,
             Connected => Connected,
             Disconnected => Disconnected,
         }

@@ -190,7 +190,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         let tmpfname = String::from_utf8_lossy(&output.stdout);
         let fname = tmpfname.trim();
 
-        let cmd_tee = Command::new("sudo")
+        let mut cmd_tee = Command::new("sudo")
             .arg("tee")
             .arg("-a")
             .arg(&*fname)
@@ -202,6 +202,8 @@ impl WireguardDevice for WireguardDeviceLinux {
         write!(cmd_tee.stdin.as_ref().unwrap(), "{}", conf)
             .map_err(|e| format!("{:?}", e))
             .unwrap();
+
+        let result = cmd_tee.wait().unwrap();
 
         println!("temp file {}", fname);
         let mut cmd = Command::new("sudo")

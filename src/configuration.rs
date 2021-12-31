@@ -64,7 +64,10 @@ impl StaticConfigurationBuilder {
         self.new_participant_ip = Some(new_participant_ip.into());
         self
     }
-    pub fn new_participant_listener_ip<T: Into<String>>(mut self, new_participant_listener_ip: T) -> Self {
+    pub fn new_participant_listener_ip<T: Into<String>>(
+        mut self,
+        new_participant_listener_ip: T,
+    ) -> Self {
         self.new_participant_listener_ip = Some(new_participant_listener_ip.into());
         self
     }
@@ -90,7 +93,7 @@ impl StaticConfigurationBuilder {
     }
     pub fn build(self) -> StaticConfiguration {
         let mut myself_as_peer: Option<usize> = None;
-        for (i,peer) in self.peers.iter().enumerate() {
+        for (i, peer) in self.peers.iter().enumerate() {
             if &peer.wg_ip == self.wg_ip.as_ref().unwrap() {
                 println!("FOUND");
                 myself_as_peer = Some(i);
@@ -114,7 +117,6 @@ impl StaticConfigurationBuilder {
         }
     }
 }
-
 
 pub struct StaticConfiguration {
     pub verbosity: Verbosity,
@@ -146,7 +148,10 @@ impl StaticConfiguration {
         lines.push("".to_string());
         lines.push("[Peer]".to_string());
         lines.push(format!("PublicKey = {}", self.public_key_listener));
-        lines.push(format!("AllowedIPs = {}/32", self.new_participant_listener_ip));
+        lines.push(format!(
+            "AllowedIPs = {}/32",
+            self.new_participant_listener_ip
+        ));
         lines.push(format!("EndPoint = {}:{}", peer.public_ip, peer.join_port));
         lines.push("".to_string());
         lines.join("\n")

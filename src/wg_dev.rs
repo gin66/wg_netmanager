@@ -131,7 +131,9 @@ impl WireguardDevice for WireguardDeviceLinux {
             .spawn()
             .map_err(|e| format!("{:?}", e))?;
 
-        write!(cmd_tee.stdin.as_ref().unwrap(), "{}", conf).map_err(|e| format!("{:?}", e)).unwrap();
+        write!(cmd_tee.stdin.as_ref().unwrap(), "{}", conf)
+            .map_err(|e| format!("{:?}", e))
+            .unwrap();
 
         println!("temp file {}", fname);
         let result = Command::new("sudo")

@@ -1,11 +1,11 @@
 use std::fs::File;
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
-use std::time;
 use std::sync::mpsc::channel;
+use std::time;
 
-use ctrlc;
 use clap::{App, Arg};
+use ctrlc;
 use yaml_rust::YamlLoader;
 
 use wg_netmanager::configuration::*;
@@ -82,15 +82,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let private_key_listener = &network["privateKeyListener"].as_str().unwrap();
     let private_key_new_participant = &network["privateKeyNewParticipant"].as_str().unwrap();
     if verbosity.all() {
-        println!("Network private key from config file listener: {}", private_key_listener);
-        println!("Network private key from config file new participant: {}", private_key_new_participant);
+        println!(
+            "Network private key from config file listener: {}",
+            private_key_listener
+        );
+        println!(
+            "Network private key from config file new participant: {}",
+            private_key_new_participant
+        );
     }
     let new_participant_ip = &network["newParticipant"].as_str().unwrap();
     let new_participant_listener_ip = &network["newParticipantListener"].as_str().unwrap();
 
     let mut peers: Vec<PublicPeer> = vec![];
     for p in conf[0]["peers"].as_vec() {
-        println!("{:?}",p);
+        println!("{:?}", p);
         let public_ip = p[0]["publicIp"].as_str().unwrap().to_string();
         let join_port = p[0]["wgJoinPort"].as_i64().unwrap() as u16;
         let comm_port = p[0]["wgPort"].as_i64().unwrap() as u16;
@@ -104,7 +110,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         peers.push(pp);
     }
 
-    
     let mut cmd = Command::new("wg")
         .arg("pubkey")
         .stdin(Stdio::piped())
@@ -124,15 +129,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()?;
-    write!(cmd.stdin.as_ref().unwrap(), "{}", private_key_new_participant)?;
+    write!(
+        cmd.stdin.as_ref().unwrap(),
+        "{}",
+        private_key_new_participant
+    )?;
     cmd.wait()?;
     let mut public_key = String::new();
     cmd.stdout.unwrap().read_to_string(&mut public_key)?;
     let public_key_new_participant = public_key.trim();
     if verbosity.info() {
-        println!("Network public key new participant: {}", public_key_new_participant);
+        println!(
+            "Network public key new participant: {}",
+            public_key_new_participant
+        );
     }
-
 
     let static_config = StaticConfiguration::new()
         .verbosity(verbosity)
@@ -150,17 +161,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if static_config.is_listener() {
         loop_listener(static_config)
-    }
-    else {
+    } else {
         loop_client(static_config)
     }
 }
 
 fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::error::Error>> {
     let (tx, rx) = channel();
-        
+
     ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
-                    .expect("Error setting Ctrl-C handler");
+        .expect("Error setting Ctrl-C handler");
 
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
 
@@ -181,7 +191,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 }
                 wg_dev.set_conf(&conf)?;
                 ConfiguredForJoin
-            },
+            }
             ConfiguredForJoin => ConfiguredForJoin,
             Connected => Connected,
             Disconnected => Disconnected,
@@ -191,13 +201,12 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
     wg_dev.take_down_device()?;
     Ok(())
 }
-
 
 fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::error::Error>> {
     let (tx, rx) = channel();
-        
+
     ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
-                    .expect("Error setting Ctrl-C handler");
+        .expect("Error setting Ctrl-C handler");
 
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
 
@@ -218,7 +227,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 }
                 wg_dev.set_conf(&conf)?;
                 ConfiguredForJoin
-            },
+            }
             ConfiguredForJoin => ConfiguredForJoin,
             Connected => Connected,
             Disconnected => Disconnected,
@@ -228,4 +237,3 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
     wg_dev.take_down_device()?;
     Ok(())
 }
-

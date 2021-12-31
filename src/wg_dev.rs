@@ -1,10 +1,10 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-use crate::configuration::*;
+use crate::configuration::Verbosity;
 
 pub trait WireguardDevice {
-    fn init(config: &StaticConfiguration) -> Self;
+    fn init<T: Into<String>>(wg_name: T, verbosity: Verbosity) -> Self;
     fn check_device(&self) -> std::io::Result<bool>;
     fn bring_up_device(&self) -> std::io::Result<()>;
     fn take_down_device(&self) -> std::io::Result<()>;
@@ -18,10 +18,10 @@ pub struct WireguardDeviceLinux {
 }
 
 impl WireguardDevice for WireguardDeviceLinux {
-    fn init(config: &StaticConfiguration) -> Self {
+    fn init<T: Into<String>>(wg_name: T, verbosity: Verbosity) -> Self {
         WireguardDeviceLinux {
-            verbosity: config.verbosity,
-            device_name: config.wg_name.clone(),
+            verbosity: verbosity,
+            device_name: wg_name.into(),
         }
     }
     fn check_device(&self) -> std::io::Result<bool> {

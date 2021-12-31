@@ -153,7 +153,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .private_key_new_participant(*private_key_new_participant)
         .peers(peers)
         .build();
-    let wg_dev = WireguardDeviceLinux::init(&static_config);
+    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, verbosity);
 
     let mut dynamic_config = DynamicConfiguration::WithoutDevice;
     while rx.recv_timeout(polling_interval).is_err() {

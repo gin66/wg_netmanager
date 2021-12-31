@@ -1,3 +1,6 @@
+use std::net::UdpSocket;
+use serde::{Deserialize, Serialize};
+
 #[derive(Clone, Copy)]
 pub enum Verbosity {
     Silent,
@@ -194,10 +197,58 @@ impl StaticConfiguration {
     }
 }
 
-pub enum DynamicConfiguration {
+pub enum DynamicConfigurationListener {
     WithoutDevice,
     Unconfigured,
-    ConfiguredForJoin,
+    ConfiguredForJoin {
+        socket: UdpSocket,
+    },
     Connected,
     Disconnected,
+}
+pub enum DynamicConfigurationClient {
+    WithoutDevice,
+    Unconfigured,
+    ConfiguredForJoin {
+        socket: UdpSocket,
+    },
+    WaitForAdvertisement {
+        socket: UdpSocket,
+        cnt: u8,
+    },
+    Connected,
+    Disconnected,
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum UdpAdvertisement {
+    // TODO: Change from String to &str
+    ListenerAdvertisement {
+        public_key: String,
+        wg_ip: String,
+        name: String,
+    },
+    ClientAdvertisement {
+        public_key: String,
+        wg_ip: String,
+        name: String,
+    }
+}
+impl UdpAdvertisement {
+    pub fn from_config(static_config: &StaticConfiguration) -> Self {
+        if static_config.is_listener() {
+            UdpAdvertisement::ListenerAdvertisement {
+                public_key: static_config.my_public_key.clone(),
+                wg_ip: static_config.wg_ip.clone(),
+                name: static_config.name.clone(),
+            }
+        }
+        else {
+            UdpAdvertisement::ClientAdvertisement {
+                public_key: static_config.my_public_key.clone(),
+                wg_ip: static_config.wg_ip.clone(),
+                name: static_config.name.clone(),
+            }
+        }
+    }
 }

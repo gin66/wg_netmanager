@@ -31,6 +31,10 @@ network:
   newParticipantListener: 172.16.1.1
 
 peers:
+  - publicIp: 192.168.1.212
+    wgPort: 50000
+    wgJoinPort: 50001
+    wgIp: 10.1.1.2
   - publicIp: 192.168.1.70
     wgPort: 50000
     wgJoinPort: 50001

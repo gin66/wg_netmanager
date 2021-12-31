@@ -3,6 +3,7 @@ use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::channel;
 use std::time;
+use std::net::UdpSocket;
 
 use clap::{App, Arg};
 use ctrlc;
@@ -10,6 +11,8 @@ use yaml_rust::YamlLoader;
 
 use wg_netmanager::configuration::*;
 use wg_netmanager::wg_dev::*;
+
+static LISTEN_PORT: u16 = 55555;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("Wireguard Network Manager")
@@ -201,17 +204,17 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
 
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
 
-    let mut dynamic_config = DynamicConfiguration::WithoutDevice;
+    let mut dynamic_config = DynamicConfigurationClient::WithoutDevice;
     let polling_interval = time::Duration::from_millis(1000);
     while rx.recv_timeout(polling_interval).is_err() {
-        use DynamicConfiguration::*;
+        use DynamicConfigurationClient::*;
         println!("Main loop");
         dynamic_config = match dynamic_config {
             WithoutDevice => {
                 wg_dev.bring_up_device()?;
                 wg_dev.set_ip(&static_config.new_participant_ip)?;
                 let route = format!("{}/32", static_config.new_participant_listener_ip);
-                wg_dev.add_route(&route);
+                wg_dev.add_route(&route)?;
                 Unconfigured
             }
             Unconfigured => {
@@ -220,9 +223,41 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                     println!("Configuration for join:\n{}\n", conf);
                 }
                 wg_dev.set_conf(&conf)?;
-                ConfiguredForJoin
+                let socket = UdpSocket::bind(format!("{}:{}", static_config.new_participant_ip, LISTEN_PORT))?;
+                socket.set_nonblocking(true).unwrap();
+
+                ConfiguredForJoin { socket }
             }
-            ConfiguredForJoin => ConfiguredForJoin,
+            ConfiguredForJoin{socket} => {
+                println!("Send advertisement");
+                let advertisement = UdpAdvertisement::from_config(&static_config);
+                let buf = serde_json::to_vec(&advertisement).unwrap();
+                let destination = format!("{}:{}",static_config.new_participant_listener_ip,LISTEN_PORT);
+                socket.send_to(&buf, destination).ok();
+                WaitForAdvertisement{socket, cnt: 0}
+            }
+            WaitForAdvertisement{socket, cnt} => {
+                if cnt >= 5 {
+                    ConfiguredForJoin{socket}
+                }
+                else {
+                    let mut buf = [0; 1000];
+                    match socket.recv(&mut buf) {
+                        Ok(received) => {
+                            println!("received {} bytes {:?}", received, &buf[..received]);
+                            match serde_json::from_slice::<UdpAdvertisement>(&buf) {
+                                Ok(ad) => {
+                                    Connected
+                                }
+                                Err(_) => ConfiguredForJoin{socket}
+                            }
+                        },
+                        Err(e) =>  {
+                            WaitForAdvertisement{ socket, cnt: cnt+1 }
+                        }
+                    }
+                }
+            }
             Connected => Connected,
             Disconnected => Disconnected,
         }
@@ -241,10 +276,10 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
     let wg_dev_listener = WireguardDeviceLinux::init("wg_listener", static_config.verbosity);
 
-    let mut dynamic_config = DynamicConfiguration::WithoutDevice;
+    let mut dynamic_config = DynamicConfigurationListener::WithoutDevice;
     let polling_interval = time::Duration::from_millis(1000);
     while rx.recv_timeout(polling_interval).is_err() {
-        use DynamicConfiguration::*;
+        use DynamicConfigurationListener::*;
         println!("Main loop");
         dynamic_config = match dynamic_config {
             WithoutDevice => {
@@ -252,7 +287,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 wg_dev_listener.bring_up_device()?;
                 wg_dev_listener.set_ip(&static_config.new_participant_listener_ip)?;
                 let route = format!("{}/32", static_config.new_participant_ip);
-                wg_dev_listener.add_route(&route);
+                wg_dev_listener.add_route(&route)?;
                 Unconfigured
             }
             Unconfigured => {
@@ -268,9 +303,20 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 }
                 wg_dev.set_conf(&conf)?;
 
-                ConfiguredForJoin
+                let socket = UdpSocket::bind(format!("{}:{}", static_config.new_participant_listener_ip, LISTEN_PORT))?;
+                socket.set_nonblocking(true).unwrap();
+
+                ConfiguredForJoin { socket }
             }
-            ConfiguredForJoin => ConfiguredForJoin,
+            ConfiguredForJoin{ socket } => {
+                println!("Send advertisement");
+                let advertisement = UdpAdvertisement::from_config(&static_config);
+                let buf = serde_json::to_vec(&advertisement).unwrap();
+                let destination = format!("{}:{}",static_config.new_participant_listener_ip,LISTEN_PORT);
+                socket.send_to(&buf, destination).ok();
+
+                ConfiguredForJoin { socket }
+            }
             Connected => Connected,
             Disconnected => Disconnected,
         }

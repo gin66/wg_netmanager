@@ -211,7 +211,7 @@ impl WireguardDevice for WireguardDeviceLinux {
             .arg(&*fname)
             .spawn()
             .unwrap();
-        let result = cmd.wait().unwrap();
+        let result = cmd.wait_with_output().unwrap();
         println!("wg syncconf: {:?}", result);
 
         let _output = Command::new("sudo")
@@ -220,7 +220,7 @@ impl WireguardDevice for WireguardDeviceLinux {
             .status()
             .unwrap();
 
-        if result.success() {
+        if result.status.success() {
             Ok(())
         } else {
             Err(format!("ERROR"))

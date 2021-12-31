@@ -245,11 +245,14 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                     match socket.recv(&mut buf) {
                         Ok(received) => {
                             println!("received {} bytes {:?}", received, &buf[..received]);
-                            match serde_json::from_slice::<UdpAdvertisement>(&buf) {
+                            match serde_json::from_slice::<UdpAdvertisement>(&buf[..received]) {
                                 Ok(ad) => {
                                     Connected
                                 }
-                                Err(_) => ConfiguredForJoin{socket}
+                                Err(e) => {
+                                    println!("Error in json decode: {:?}", e);
+                                    ConfiguredForJoin{socket}
+                                }
                             }
                         },
                         Err(e) =>  {

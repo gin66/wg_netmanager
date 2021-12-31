@@ -11,6 +11,7 @@ pub trait WireguardDevice {
     fn set_ip(&self, ip: &str) -> std::io::Result<()>;
     fn add_route(&self, route: &str) -> std::io::Result<()>;
     fn set_conf(&self, conf: &str) -> Result<(), String>;
+    fn sync_conf(&self, conf: &str) -> Result<(), String>;
 }
 
 pub struct WireguardDeviceLinux {
@@ -167,6 +168,51 @@ impl WireguardDevice for WireguardDeviceLinux {
             .unwrap();
         let result = cmd.wait().unwrap();
         println!("wg setconf: {:?}", result);
+
+        let _output = Command::new("sudo")
+            .arg("rm")
+            .arg(&*fname)
+            .status()
+            .unwrap();
+
+        if result.success() {
+            Ok(())
+        } else {
+            Err(format!("ERROR"))
+        }
+    }
+    fn sync_conf(&self, conf: &str) -> Result<(), String> {
+        let output = Command::new("sudo")
+            .arg("mktemp")
+            .arg("/tmp/wg_XXXXXXXXXX")
+            .output()
+            .unwrap();
+        let tmpfname = String::from_utf8_lossy(&output.stdout);
+        let fname = tmpfname.trim();
+
+        let cmd_tee = Command::new("sudo")
+            .arg("tee")
+            .arg("-a")
+            .arg(&*fname)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .spawn()
+            .map_err(|e| format!("{:?}", e))?;
+
+        write!(cmd_tee.stdin.as_ref().unwrap(), "{}", conf)
+            .map_err(|e| format!("{:?}", e))
+            .unwrap();
+
+        println!("temp file {}", fname);
+        let mut cmd = Command::new("sudo")
+            .arg("wg")
+            .arg("syncconf")
+            .arg(&self.device_name)
+            .arg(&*fname)
+            .spawn()
+            .unwrap();
+        let result = cmd.wait().unwrap();
+        println!("wg syncconf: {:?}", result);
 
         let _output = Command::new("sudo")
             .arg("rm")

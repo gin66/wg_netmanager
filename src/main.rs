@@ -348,6 +348,18 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                                 println!("Error in json decode: {:?}", e);
                             }
                         }
+
+                        if dynamic_peers.updated {
+                            dynamic_peers.updated = false;
+                            let conf = static_config.as_conf_as_peer(Some(&dynamic_peers));
+                            if static_config.verbosity.all() {
+                                println!("Configuration as peer\n{}\n", conf);
+                            }
+                            wg_dev.sync_conf(&conf)?;
+                            for (wg_ip,_) in dynamic_peers.peer.iter() {
+                                wg_dev.add_route(&format!("{}/32", wg_ip))?;
+                            }
+                        }
                     },
                     Err(e) =>  {
                     }

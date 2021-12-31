@@ -158,14 +158,15 @@ impl WireguardDevice for WireguardDeviceLinux {
             .unwrap();
 
         println!("temp file {}", fname);
-        let result = Command::new("sudo")
+        let mut cmd = Command::new("sudo")
             .arg("wg")
             .arg("setconf")
             .arg(&self.device_name)
             .arg(&*fname)
-            .output()
+            .spawn()
             .unwrap();
-        println!("status {:?}", result);
+        let result = cmd.wait().unwrap();
+        println!("wg setconf: {:?}", result);
 
         let _output = Command::new("sudo")
             .arg("rm")
@@ -173,10 +174,10 @@ impl WireguardDevice for WireguardDeviceLinux {
             .status()
             .unwrap();
 
-        if result.status.success() {
+        if result.success() {
             Ok(())
         } else {
-            Err(String::from_utf8_lossy(&result.stderr).into_owned())
+            Err(format!("ERROR"))
         }
     }
 }

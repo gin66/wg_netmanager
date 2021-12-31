@@ -110,6 +110,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         peers.push(pp);
     }
 
+    let output = Command::new("wg")
+        .arg("genkey")
+        .stdout(Stdio::piped())
+        .output()?
+        .stdout;
+    let raw_private_key = String::from_utf8_lossy(&output);
+    let my_private_key= raw_private_key.trim();
+    if verbosity.info() {
+        println!("Network private key: {}", my_private_key);
+    }
+    let mut cmd = Command::new("wg")
+        .arg("pubkey")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()?;
+    write!(cmd.stdin.as_ref().unwrap(), "{}", my_private_key)?;
+    cmd.wait()?;
+    let mut public_key = String::new();
+    cmd.stdout.unwrap().read_to_string(&mut public_key)?;
+    let my_public_key= public_key.trim();
+    if verbosity.info() {
+        println!("Network public key: {}", my_public_key);
+    }
+
     let mut cmd = Command::new("wg")
         .arg("pubkey")
         .stdin(Stdio::piped())
@@ -152,6 +176,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .wg_name(interface)
         .new_participant_ip(*new_participant_ip)
         .new_participant_listener_ip(*new_participant_listener_ip)
+        .my_public_key(my_public_key)
+        .my_private_key(my_private_key)
+        .my_public_key(my_public_key)
         .public_key_listener(public_key_listener)
         .public_key_new_participant(public_key_new_participant)
         .private_key_listener(*private_key_listener)
@@ -228,6 +255,13 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                     println!("Configuration for join:\n{}\n", conf);
                 }
                 wg_dev_listener.set_conf(&conf)?;
+
+                let conf = static_config.as_conf_as_peer();
+                if static_config.verbosity.all() {
+                    println!("Configuration as peer\n{}\n", conf);
+                }
+                wg_dev.set_conf(&conf)?;
+
                 ConfiguredForJoin
             }
             ConfiguredForJoin => ConfiguredForJoin,

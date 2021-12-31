@@ -151,7 +151,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Unconfigured
             }
             Unconfigured => {
-                let conf = static_config.as_conf(0);
+                let conf = static_config.as_conf_for_new_participant(0);
                 if verbosity.all() {
                     println!("Configuration for join:\n{}\n", conf);
                 }

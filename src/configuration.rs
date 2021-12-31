@@ -117,7 +117,7 @@ impl StaticConfiguration {
     pub fn new() -> StaticConfigurationBuilder {
         StaticConfigurationBuilder::new()
     }
-    pub fn as_conf(&self, for_peer: usize) -> String {
+    pub fn as_conf_for_new_participant(&self, for_peer: usize) -> String {
         let mut lines: Vec<String> = vec![];
         let peer = &self.peers[for_peer];
         lines.push("[Interface]".to_string());
@@ -127,6 +127,18 @@ impl StaticConfiguration {
         lines.push(format!("PublicKey = {}", self.public_key_listener));
         lines.push(format!("AllowedIPs = {}/32", self.new_participant_listener_ip));
         lines.push(format!("EndPoint = {}:{}", peer.public_ip, peer.join_port));
+        lines.push("".to_string());
+        lines.join("\n")
+    }
+    pub fn as_conf_for_listener(&self) -> String {
+        let mut lines: Vec<String> = vec![];
+        let peer = &self.peers[0];
+        lines.push("[Interface]".to_string());
+        lines.push(format!("PrivateKey = {}", self.private_key_listener));
+        lines.push("".to_string());
+        lines.push("[Peer]".to_string());
+        lines.push(format!("PublicKey = {}", self.public_key_new_participant));
+        lines.push(format!("AllowedIPs = {}/32", self.new_participant_ip));
         lines.push("".to_string());
         lines.join("\n")
     }

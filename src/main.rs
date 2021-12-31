@@ -229,7 +229,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 ConfiguredForJoin { socket }
             }
             ConfiguredForJoin{socket} => {
-                println!("Send advertisement");
+                println!("Send advertisement to listener");
                 let advertisement = UdpAdvertisement::from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 let destination = format!("{}:{}",static_config.new_participant_listener_ip,LISTEN_PORT);
@@ -309,7 +309,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 ConfiguredForJoin { socket }
             }
             ConfiguredForJoin{ socket } => {
-                println!("Send advertisement");
+                println!("Send advertisement to new participant");
                 let advertisement = UdpAdvertisement::from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 let destination = format!("{}:{}",static_config.new_participant_ip,LISTEN_PORT);

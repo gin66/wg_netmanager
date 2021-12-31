@@ -12,11 +12,6 @@ use wg_netmanager::configuration::*;
 use wg_netmanager::wg_dev::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (tx, rx) = channel();
-        
-    ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
-                    .expect("Error setting Ctrl-C handler");
-
     let matches = App::new("Wireguard Network Manager")
         .version("0.1")
         .author("Jochen Kiemes <jochen@kiemes.de>")
@@ -139,7 +134,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
 
-    let polling_interval = time::Duration::from_millis(1000);
     let static_config = StaticConfiguration::new()
         .verbosity(verbosity)
         .name(computer_name)
@@ -153,9 +147,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .private_key_new_participant(*private_key_new_participant)
         .peers(peers)
         .build();
-    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, verbosity);
+
+    if static_config.is_listener() {
+        loop_listener(static_config)
+    }
+    else {
+        loop_client(static_config)
+    }
+}
+
+fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::error::Error>> {
+    let (tx, rx) = channel();
+        
+    ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
+                    .expect("Error setting Ctrl-C handler");
+
+    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
 
     let mut dynamic_config = DynamicConfiguration::WithoutDevice;
+    let polling_interval = time::Duration::from_millis(1000);
     while rx.recv_timeout(polling_interval).is_err() {
         use DynamicConfiguration::*;
         println!("Main loop");
@@ -166,7 +176,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             Unconfigured => {
                 let conf = static_config.as_conf_for_new_participant(0);
-                if verbosity.all() {
+                if static_config.verbosity.all() {
                     println!("Configuration for join:\n{}\n", conf);
                 }
                 wg_dev.set_conf(&conf)?;
@@ -179,6 +189,43 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     wg_dev.take_down_device()?;
-
     Ok(())
 }
+
+
+fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::error::Error>> {
+    let (tx, rx) = channel();
+        
+    ctrlc::set_handler(move || tx.send(()).expect("Could not send signal on channel."))
+                    .expect("Error setting Ctrl-C handler");
+
+    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
+
+    let mut dynamic_config = DynamicConfiguration::WithoutDevice;
+    let polling_interval = time::Duration::from_millis(1000);
+    while rx.recv_timeout(polling_interval).is_err() {
+        use DynamicConfiguration::*;
+        println!("Main loop");
+        dynamic_config = match dynamic_config {
+            WithoutDevice => {
+                wg_dev.bring_up_device()?;
+                Unconfigured
+            }
+            Unconfigured => {
+                let conf = static_config.as_conf_for_new_participant(0);
+                if static_config.verbosity.all() {
+                    println!("Configuration for join:\n{}\n", conf);
+                }
+                wg_dev.set_conf(&conf)?;
+                ConfiguredForJoin
+            },
+            ConfiguredForJoin => ConfiguredForJoin,
+            Connected => Connected,
+            Disconnected => Disconnected,
+        }
+    }
+
+    wg_dev.take_down_device()?;
+    Ok(())
+}
+

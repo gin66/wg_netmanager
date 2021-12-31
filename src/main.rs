@@ -247,7 +247,8 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                             println!("received {} bytes {:?}", received, &buf[..received]);
                             match serde_json::from_slice::<UdpAdvertisement>(&buf[..received]) {
                                 Ok(ad) => {
-                                    Connected
+                                    wg_dev.take_down_device()?;
+                                    AdvertisementReceived { ad }
                                 }
                                 Err(e) => {
                                     println!("Error in json decode: {:?}", e);
@@ -261,7 +262,22 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                     }
                 }
             }
-            Connected => Connected,
+            AdvertisementReceived { ad } => {
+                let mut dynamic_peers = DynamicPeerList::default();
+                dynamic_peers.add_peer(ad);
+                let conf = static_config.as_conf_as_peer(Some(&dynamic_peers));
+                if static_config.verbosity.all() {
+                    println!("Configuration as peer\n{}\n", conf);
+                }
+                wg_dev.bring_up_device()?;
+                wg_dev.set_ip(&static_config.wg_ip)?;
+                wg_dev.set_conf(&conf)?;
+                for (wg_ip,_) in dynamic_peers.peer.iter() {
+                    wg_dev.add_route(&format!("{}/32", wg_ip));
+                }
+                Connected { dynamic_peers }
+            }
+            Connected { dynamic_peers } => Connected { dynamic_peers },
             Disconnected => Disconnected,
         }
     }
@@ -300,7 +316,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 }
                 wg_dev_listener.set_conf(&conf)?;
 
-                let conf = static_config.as_conf_as_peer();
+                let conf = static_config.as_conf_as_peer(None);
                 if static_config.verbosity.all() {
                     println!("Configuration as peer\n{}\n", conf);
                 }
@@ -309,19 +325,19 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 let socket = UdpSocket::bind(format!("{}:{}", static_config.new_participant_listener_ip, LISTEN_PORT))?;
                 socket.set_nonblocking(true).unwrap();
 
-                ConfiguredForJoin { socket }
+                let dynamic_peers = DynamicPeerList::default();
+
+                Running { socket, dynamic_peers }
             }
-            ConfiguredForJoin{ socket } => {
+            Running{ socket, dynamic_peers } => {
                 println!("Send advertisement to new participant");
                 let advertisement = UdpAdvertisement::from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 let destination = format!("{}:{}",static_config.new_participant_ip,LISTEN_PORT);
                 socket.send_to(&buf, destination).ok();
 
-                ConfiguredForJoin { socket }
+                Running { socket, dynamic_peers }
             }
-            Connected => Connected,
-            Disconnected => Disconnected,
         }
     }
 

@@ -1,4 +1,6 @@
 use std::net::UdpSocket;
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy)]
@@ -186,25 +188,57 @@ impl StaticConfiguration {
         lines.push("".to_string());
         lines.join("\n")
     }
-    pub fn as_conf_as_peer(&self) -> String {
-        let peer = &self.peers[self.myself_as_peer.unwrap()];
+    pub fn as_conf_as_peer(&self, dynamic_peers: Option<&DynamicPeerList>) -> String {
         let mut lines: Vec<String> = vec![];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.my_private_key));
-        lines.push(format!("ListenPort = {}", peer.comm_port));
+        if let Some(myself) = self.myself_as_peer {
+            let peer = &self.peers[myself];
+            lines.push(format!("ListenPort = {}", peer.comm_port));
+        }
         lines.push("".to_string());
+
+        if let Some(peers) = dynamic_peers {
+            for (wg_ip,(public_key,_name)) in peers.peer.iter() {
+                lines.push("[Peer]".to_string());
+                lines.push(format!("PublicKey = {}", public_key));
+                lines.push(format!("AllowedIPs = {}/32", wg_ip));
+                lines.push("".to_string());
+            }
+        }
+
         lines.join("\n")
     }
+}
+
+#[derive(Default)]
+pub struct DynamicPeerList {
+    pub updated: bool,
+    pub peer: HashMap<String,(String,String)>,
+}
+impl DynamicPeerList {
+   pub fn add_peer(&mut self, from_advertisement: UdpAdvertisement) {
+       use UdpAdvertisement::*;
+       match from_advertisement {
+            ListenerAdvertisement { public_key, wg_ip, name, } => {
+                self.updated = true;
+                self.peer.insert(wg_ip, (public_key, name));
+            }
+            ClientAdvertisement { public_key, wg_ip, name, } => {
+                self.updated = true;
+                self.peer.insert(wg_ip, (public_key, name));
+            }
+       }
+   }
 }
 
 pub enum DynamicConfigurationListener {
     WithoutDevice,
     Unconfigured,
-    ConfiguredForJoin {
+    Running {
         socket: UdpSocket,
+        dynamic_peers: DynamicPeerList,
     },
-    Connected,
-    Disconnected,
 }
 pub enum DynamicConfigurationClient {
     WithoutDevice,
@@ -216,7 +250,12 @@ pub enum DynamicConfigurationClient {
         socket: UdpSocket,
         cnt: u8,
     },
-    Connected,
+    AdvertisementReceived {
+        ad: UdpAdvertisement,
+    },
+    Connected {
+        dynamic_peers: DynamicPeerList,
+    },
     Disconnected,
 }
 

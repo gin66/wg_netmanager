@@ -221,7 +221,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
             }
             ConfiguredForJoin { peer_index } => {
                 let port = format!(
-                    "{}",
+                    "{}:0",
                     static_config.new_participant_ip
                 );
                 println!("bind to {}",port);

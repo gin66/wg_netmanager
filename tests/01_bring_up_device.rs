@@ -2,6 +2,7 @@
 mod tests {
     use wg_netmanager::configuration::*;
     use wg_netmanager::wg_dev::*;
+    use wg_netmanager::wg_dev_linuxkernel::*;
 
     fn demo_config() -> StaticConfigurationBuilder {
         StaticConfiguration::new()
@@ -19,16 +20,14 @@ mod tests {
 
     #[test]
     fn test_check_device_fail() {
-        let sc = demo_config().wg_name("wgtest0").build();
-        let wg_dev = WireguardDeviceLinux::init(&sc);
+        let wg_dev = WireguardDeviceLinux::init("wgtest0", Verbosity::All);
         let dc = wg_dev.check_device().unwrap();
         assert!(!dc);
     }
 
     #[test]
     fn test_bring_up_device() {
-        let sc = demo_config().wg_name("wgtest1").build();
-        let wg_dev = WireguardDeviceLinux::init(&sc);
+        let wg_dev = WireguardDeviceLinux::init("wgtest1", Verbosity::All);
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
@@ -46,8 +45,7 @@ mod tests {
 
     #[test]
     fn test_bring_up_device_with_ip() {
-        let sc = demo_config().wg_name("wgtest2").build();
-        let wg_dev = WireguardDeviceLinux::init(&sc);
+        let wg_dev = WireguardDeviceLinux::init("wgtest2", Verbosity::All);
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
@@ -67,8 +65,7 @@ mod tests {
 
     #[test]
     fn test_bring_up_device_with_ip_and_key() {
-        let sc = demo_config().wg_name("wgtest3").build();
-        let wg_dev = WireguardDeviceLinux::init(&sc);
+        let wg_dev = WireguardDeviceLinux::init("wgtest3", Verbosity::All);
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);

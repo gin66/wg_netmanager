@@ -376,7 +376,7 @@ impl DynamicPeerList {
         let mut ping_peers = vec![];
         while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
-                if peer.lastseen.elapsed().as_secs() < 30 {
+                if peer.lastseen.elapsed().as_secs() < 20 { // 60/3 (div 2 may not work)
                     break;
                 }
                 ping_peers.push((wg_ip.to_string(), peer.admin_port));

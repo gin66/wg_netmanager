@@ -325,11 +325,11 @@ fn loop_client(
                             }
                             let ping_peers = dynamic_peers.check_ping_timeouts();
                             for (wg_ip, udp_port) in ping_peers {
-                                println!("Found ping peer {}...send ping", wg_ip);
                                 let ping =
                                     UdpPacket::ping_from_config(&static_config);
                                 let buf = serde_json::to_vec(&ping).unwrap();
                                 let destination = format!("{}:{}", wg_ip, udp_port);
+                                println!("Found ping peer {}...send ping", destination);
                                 socket.send_to(&buf, destination).ok();
                             }
                             Connected

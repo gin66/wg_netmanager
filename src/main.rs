@@ -243,6 +243,14 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 WaitForAdvertisement { peer_index, socket, cnt: 0 }
             }
             WaitForAdvertisement { peer_index, socket, cnt } => {
+                let advertisement = UdpAdvertisement::from_config(&static_config);
+                let buf = serde_json::to_vec(&advertisement).unwrap();
+                let destination = format!(
+                    "{}:{}",
+                    static_config.new_participant_listener_ip, LISTEN_PORT
+                );
+                println!("Send advertisement to listener {} {}", peer_index, destination);
+                socket.send_to(&buf, destination).ok();
                 if cnt >= 5 {
                     // timeout, so try next peer
                     let new_peer_index = (peer_index + 1) % static_config.peer_cnt;

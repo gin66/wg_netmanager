@@ -227,8 +227,8 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
             }
             ConfiguredForJoin { peer_index } => {
                 let socket = UdpSocket::bind(format!(
-                    "{}",
-                    static_config.new_participant_ip //, LISTEN_PORT
+                    "{}:{}",
+                    static_config.new_participant_ip, LISTEN_PORT
                 ))?;
                 socket.set_nonblocking(true).unwrap();
 
@@ -333,8 +333,8 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 wg_dev.set_conf(&conf)?;
 
                 let socket = UdpSocket::bind(format!(
-                    "0.0.0.0:{}",
-                    //static_config.new_participant_listener_ip, 
+                    "{}:{}",
+                    static_config.new_participant_listener_ip, 
                     LISTEN_PORT
                 ))?;
                 socket.set_nonblocking(true).unwrap();
@@ -381,8 +381,8 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                             }
                         }
                     }
-                    Err(e) => {
-                        println!("{:?}",e);
+                    Err(_e) => {
+                        //println!("{:?}",e);
                     }
                 }
 

@@ -11,4 +11,5 @@ Todos:
 * check availability of used shell commands (ip/wg)
 * include boringtun, if kernel does not provide wireguard interface
 * find a solution for sudo
-* sharei unbound UDP socket addresses between clients
+* share unbound UDP socket addresses between clients
+* put udp comm port info into advertisement

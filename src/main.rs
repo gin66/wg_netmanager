@@ -314,18 +314,30 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                         Connected
                     }
                     Connected => {
+                        // any timeout comes here
                         if dynamic_peers.peer.is_empty() {
                             wg_dev.take_down_device()?;
                             WithoutDevice
                         }
                         else {
-                            // any timeout comes here
                             let dead_peers = dynamic_peers.check_timeouts();
                             for wg_ip in dead_peers {
                                 println!("Found dead peer {}", wg_ip);
                                 dynamic_peers.remove_peer(&wg_ip);
                                 wg_dev.del_route(&format!("{}/32", wg_ip))?;
                                 tx.send(Event::PeerListChange).unwrap();
+                            }
+                            let ping_peers = dynamic_peers.check_ping_timeouts();
+                            for (wg_ip, udp_port) in ping_peers {
+                                println!("Found ping peer {}...send advertisement", wg_ip);
+                                let advertisement = UdpPacket::advertisement_from_config(&static_config);
+                                let buf = serde_json::to_vec(&advertisement).unwrap();
+                                let destination = format!(
+                                    "{}:{}",
+                                    wg_ip,
+                                    udp_port
+                                );
+                                socket.send_to(&buf, destination).ok();
                             }
                             Connected
                         }

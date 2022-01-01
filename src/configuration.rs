@@ -235,7 +235,8 @@ pub struct DynamicPeer {
 #[derive(Default)]
 pub struct DynamicPeerList {
     pub peer: HashMap<String, DynamicPeer>,
-    pub fifo: Vec<String>,
+    pub fifo_dead: Vec<String>,
+    pub fifo_ping: Vec<String>,
 }
 impl DynamicPeerList {
     pub fn add_peer(&mut self, from_advertisement: UdpPacket) -> Option<String> {
@@ -247,7 +248,8 @@ impl DynamicPeerList {
                 name,
                 endpoint,
             } => {
-                self.fifo.push(wg_ip.clone());
+                self.fifo_dead.push(wg_ip.clone());
+                self.fifo_ping.push(wg_ip.clone());
                 let lastseen = Instant::now();
                 let key = wg_ip.clone();
                 let new_wg_ip = wg_ip.clone();
@@ -263,7 +265,8 @@ impl DynamicPeerList {
                 wg_ip,
                 name,
             } => {
-                self.fifo.push(wg_ip.clone());
+                self.fifo_dead.push(wg_ip.clone());
+                self.fifo_ping.push(wg_ip.clone());
                 let lastseen = Instant::now();
                 let key = wg_ip.clone();
                 let new_wg_ip = wg_ip.clone();
@@ -278,16 +281,29 @@ impl DynamicPeerList {
     }
     pub fn check_timeouts(&mut self) -> Vec<String> {
         let mut dead_peers = vec![];
-        while let Some(wg_ip) = self.fifo.first().as_ref() {
+        while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
                 if peer.lastseen.elapsed().as_secs() < 60 {
                     break;
                 }
                 dead_peers.push(wg_ip.to_string());
             }
-            self.fifo.remove(0);
+            self.fifo_dead.remove(0);
         }
         dead_peers
+    }
+    pub fn check_ping_timeouts(&mut self) -> Vec<(String, u16)> {
+        let mut ping_peers = vec![];
+        while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
+            if let Some(peer) = self.peer.get(*wg_ip) {
+                if peer.lastseen.elapsed().as_secs() < 30 {
+                    break;
+                }
+                ping_peers.push((wg_ip.to_string(), 55555 /*peer.comm_port*/));
+            }
+            self.fifo_ping.remove(0);
+        }
+        ping_peers
     }
     pub fn remove_peer(&mut self, wg_ip: &str) {
         self.peer.remove(wg_ip);

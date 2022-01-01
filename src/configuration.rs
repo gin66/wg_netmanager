@@ -257,7 +257,7 @@ pub enum DynamicConfigurationListener {
 pub enum DynamicConfigurationClient {
     WithoutDevice,
     Unconfigured { peer_index:usize },
-    ConfiguredForJoin { peer_index: usize, socket: UdpSocket },
+    ConfiguredForJoin { peer_index: usize },
     WaitForAdvertisement { peer_index: usize, socket: UdpSocket, cnt: u8 },
     AdvertisementReceived { ad: UdpAdvertisement },
     Connected { dynamic_peers: DynamicPeerList },

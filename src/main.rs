@@ -223,15 +223,15 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                     println!("Configuration for join ({}):\n{}\n", peer_index, conf);
                 }
                 wg_dev.set_conf(&conf)?;
+                ConfiguredForJoin { peer_index }
+            }
+            ConfiguredForJoin { peer_index } => {
                 let socket = UdpSocket::bind(format!(
                     "{}:{}",
                     static_config.new_participant_ip, LISTEN_PORT
                 ))?;
                 socket.set_nonblocking(true).unwrap();
 
-                ConfiguredForJoin { peer_index, socket }
-            }
-            ConfiguredForJoin { peer_index, socket } => {
                 let advertisement = UdpAdvertisement::from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 let destination = format!(
@@ -259,7 +259,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                                 }
                                 Err(e) => {
                                     println!("Error in json decode: {:?}", e);
-                                    ConfiguredForJoin { peer_index, socket }
+                                    ConfiguredForJoin { peer_index }
                                 }
                             }
                         }

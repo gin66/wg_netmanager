@@ -72,45 +72,51 @@ impl WireguardDevice for WireguardDeviceLinux {
             println!("Check for device {}", self.device_name);
         }
 
-        let status = Command::new("ip")
+        let mut cmd = Command::new("ip")
             .arg("link")
             .arg("show")
             .arg(&self.device_name)
-            .status()
+            .spawn()
             .unwrap();
 
-        Ok(status.success())
+        let result = cmd.wait().unwrap();
+
+        Ok(result.success())
     }
     fn bring_up_device(&self) -> std::io::Result<()> {
         if self.verbosity.info() {
             println!("Bring up device");
         }
 
-        let status = Command::new("sudo")
+        let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("link")
             .arg("add")
             .arg(&self.device_name)
             .arg("type")
             .arg("wireguard")
-            .status()
+            .spawn()
             .unwrap();
 
-        if status.success() {
+        let result = cmd.wait().unwrap();
+
+        if result.success() {
             println!("Interface {} created", self.device_name);
         } else {
         }
 
-        let status2 = Command::new("sudo")
+        let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("link")
             .arg("set")
             .arg(&self.device_name)
             .arg("up")
-            .status()
+            .spawn()
             .unwrap();
 
-        if status2.success() {
+        let result = cmd.wait().unwrap();
+
+        if result.success() {
             println!("Interface {} up", self.device_name);
         } else {
         }
@@ -121,15 +127,17 @@ impl WireguardDevice for WireguardDeviceLinux {
             println!("Take down device");
         }
 
-        let status = Command::new("sudo")
+        let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("link")
             .arg("del")
             .arg(&self.device_name)
-            .status()
+            .spawn()
             .unwrap();
 
-        if status.success() {
+        let result = cmd.wait().unwrap();
+
+        if result.success() {
             println!("Interface {} destroyed", self.device_name);
         } else {
         }
@@ -140,17 +148,19 @@ impl WireguardDevice for WireguardDeviceLinux {
             println!("Set IP {}", ip);
         }
 
-        let status = Command::new("sudo")
+        let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("addr")
             .arg("add")
             .arg(ip)
             .arg("dev")
             .arg(&self.device_name)
-            .status()
+            .spawn()
             .unwrap();
 
-        if status.success() {
+        let result = cmd.wait().unwrap();
+
+        if result.success() {
             println!("Interface {} set ip", self.device_name);
         } else {
         }
@@ -161,17 +171,19 @@ impl WireguardDevice for WireguardDeviceLinux {
             println!("Set route {}", route);
         }
 
-        let status = Command::new("sudo")
+        let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("route")
             .arg("add")
             .arg(route)
             .arg("dev")
             .arg(&self.device_name)
-            .status()
+            .spawn()
             .unwrap();
 
-        if status.success() {
+        let result = cmd.wait().unwrap();
+
+        if result.success() {
             println!("Interface {} set route", self.device_name);
         } else {
         }

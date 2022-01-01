@@ -24,7 +24,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .short("c")
                 .long("config")
                 .value_name("FILE")
-                .help("Custom config file in ini-style")
+                .help("Custom config file in yaml-style")
                 .takes_value(true),
         )
         .arg(

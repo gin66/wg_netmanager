@@ -1,4 +1,7 @@
 #!/bin/sh
+SEP="====================="
+FAIL="\n\n$SEP\n FAIL\n$SEP\n"
+
 echo === add namespaces
 sudo ip netns add backbone
 sudo ip netns add alice
@@ -65,8 +68,10 @@ echo === add address to veth for charlie
 sudo ip netns exec charlie ip addr add 10.128.1.3/24 dev veth0_charlie
 sudo ip netns exec charlie ip link set dev veth0_charlie up
 
-echo === ping bob from alice
-sudo ip netns exec alice ping -c 3 10.128.1.2
+echo === Check setup: ping bob from alice
+sudo ip netns exec alice ping -c 2 10.128.1.2 || echo -e $FAIL
+echo === Check setup: ping charlie from alice
+sudo ip netns exec alice ping -c 2 10.128.1.3 || echo -e $FAIL
 
 echo === ping bob from charlie
 sudo ip netns exec charlie ping -c 3 10.128.1.2
@@ -82,8 +87,12 @@ echo expectation is, that after a while the ping succeeds: bob can reach charlie
 tmux split-pane -h sudo ip netns exec alice ../target/debug/wg_netmanager -vvv -c test.yaml wg0 10.1.1.1 alice
 tmux split-pane -h sudo ip netns exec bob ../target/debug/wg_netmanager -vvv -c test.yaml wg0 10.1.1.3 bob
 tmux split-pane -h sudo ip netns exec charlie ../target/debug/wg_netmanager -vvv -c test.yaml wg0 10.1.1.4 charlie
-sleep 20 
-sudo ip netns exec bob ping 10.1.1.4
+sleep 20
+sudo ip netns exec bob ping -c 2 10.1.1.1 || echo -e $FAIL
+sudo ip netns exec charlie ping -c 2 10.1.1.1 || echo -e $FAIL
+sudo ip netns exec alice ping -c 2 10.1.1.3 || echo -e $FAIL
+sudo ip netns exec alice ping -c 2 10.1.1.4 || echo -e $FAIL
+sudo ip netns exec bob ping -c 2 10.1.1.4 || echo -e $FAIL
 
 sudo ip netns exec alice ps
 
@@ -91,11 +100,11 @@ sudo ip netns exec alice killall sudo
 sudo ip netns exec bob killall sudo
 sudo ip netns exec charlie killall sudo
 
-echo === show ifconfig
-sudo ip netns exec alice ifconfig
-sudo ip netns exec bob ifconfig
-sudo ip netns exec charlie ifconfig
-sudo ip netns exec backbone ifconfig
+#echo === show ifconfig
+#sudo ip netns exec alice ifconfig
+#sudo ip netns exec bob ifconfig
+#sudo ip netns exec charlie ifconfig
+#sudo ip netns exec backbone ifconfig
 
 echo === del namespaces
 sudo ip netns del alice

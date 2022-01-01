@@ -22,6 +22,7 @@
 # 192.168.0.0/16 IP addresses: 192.168.0.0 – 192.168.255.255
 #
 # For peers with static ports: make sure, that firewall does not block arriving UDP traffic
+# Moreover the LISTEN_PORT 55555 must not be blocked by the firewall, too
 #
 network:
   privateKeyListener: YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=

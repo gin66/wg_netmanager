@@ -227,8 +227,8 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
             }
             ConfiguredForJoin { peer_index } => {
                 let socket = UdpSocket::bind(format!(
-                    "{}:{}",
-                    static_config.new_participant_ip, LISTEN_PORT
+                    "{}",
+                    static_config.new_participant_ip //, LISTEN_PORT
                 ))?;
                 socket.set_nonblocking(true).unwrap();
 
@@ -243,14 +243,6 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 WaitForAdvertisement { peer_index, socket, cnt: 0 }
             }
             WaitForAdvertisement { peer_index, socket, cnt } => {
-                let advertisement = UdpAdvertisement::from_config(&static_config);
-                let buf = serde_json::to_vec(&advertisement).unwrap();
-                let destination = format!(
-                    "{}:{}",
-                    static_config.new_participant_listener_ip, LISTEN_PORT
-                );
-                println!("Send advertisement to listener {} {}", peer_index, destination);
-                socket.send_to(&buf, destination).ok();
                 if cnt >= 5 {
                     // timeout, so try next peer
                     let new_peer_index = (peer_index + 1) % static_config.peer_cnt;
@@ -341,8 +333,9 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 wg_dev.set_conf(&conf)?;
 
                 let socket = UdpSocket::bind(format!(
-                    "{}:{}",
-                    static_config.new_participant_listener_ip, LISTEN_PORT
+                    "0.0.0.0:{}",
+                    //static_config.new_participant_listener_ip, 
+                    LISTEN_PORT
                 ))?;
                 socket.set_nonblocking(true).unwrap();
 
@@ -366,9 +359,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                                 println!("Send advertisement to new participant");
                                 let advertisement = UdpAdvertisement::from_config(&static_config);
                                 let buf = serde_json::to_vec(&advertisement).unwrap();
-                                let destination =
-                                    format!("{}:{}", static_config.new_participant_ip, LISTEN_PORT);
-                                socket.send_to(&buf, destination).ok();
+                                socket.send_to(&buf, src_addr).ok();
 
                                 dynamic_peers.add_peer(ad);
                             }
@@ -390,7 +381,9 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                             }
                         }
                     }
-                    Err(_) => {}
+                    Err(e) => {
+                        println!("{:?}",e);
+                    }
                 }
 
                 Running {

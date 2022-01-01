@@ -28,7 +28,7 @@ pub struct PublicPeer {
     pub public_ip: String,
     pub join_port: u16,
     pub comm_port: u16,
-    pub udp_port: u16,
+    pub admin_port: u16,
     pub wg_ip: String,
 }
 
@@ -198,7 +198,7 @@ impl StaticConfiguration {
         lines.push(format!("PrivateKey = {}", self.my_private_key));
         if let Some(myself) = self.myself_as_peer {
             let peer = &self.peers[myself];
-            lines.push(format!("ListenPort = {}", peer.comm_port));
+            lines.push(format!("ListenPort = {}", peer.admin_port));
         }
         lines.push("".to_string());
 
@@ -216,11 +216,11 @@ impl StaticConfiguration {
 
         lines.join("\n")
     }
-    pub fn my_udp_port(&self) -> Option<u16> {
-        self.myself_as_peer.map(|i| self.peers[i].udp_port)
+    pub fn my_admin_port(&self) -> Option<u16> {
+        self.myself_as_peer.map(|i| self.peers[i].admin_port)
     }
-    pub fn udp_port(&self, peer_index: usize) -> u16 {
-        self.peers[peer_index].udp_port
+    pub fn admin_port(&self, peer_index: usize) -> u16 {
+        self.peers[peer_index].admin_port
     }
 }
 
@@ -230,7 +230,7 @@ pub struct DynamicPeer {
     wg_ip: String,
     name: String,
     endpoint: Option<String>,
-    comm_port: u16,
+    admin_port: u16,
     lastseen: Instant,
 }
 
@@ -241,7 +241,7 @@ pub struct DynamicPeerList {
     pub fifo_ping: Vec<String>,
 }
 impl DynamicPeerList {
-    pub fn add_peer(&mut self, from_advertisement: UdpPacket, comm_port: u16) -> Option<String> {
+    pub fn add_peer(&mut self, from_advertisement: UdpPacket, admin_port: u16) -> Option<String> {
         use UdpPacket::*;
         match from_advertisement {
             ListenerPing {..} | ClientPing  {..}=> None,
@@ -265,7 +265,7 @@ impl DynamicPeerList {
                             public_key,
                             name,
                             endpoint: Some(endpoint),
-                            comm_port,
+                            admin_port,
                             lastseen,
                         },
                     )
@@ -295,7 +295,7 @@ impl DynamicPeerList {
                             public_key,
                             name,
                             endpoint: None,
-                            comm_port,
+                            admin_port,
                             lastseen,
                         },
                     )
@@ -308,7 +308,7 @@ impl DynamicPeerList {
             }
         }
     }
-    pub fn update_peer(&mut self, from_ping: UdpPacket, comm_port: u16) {
+    pub fn update_peer(&mut self, from_ping: UdpPacket, admin_port: u16) {
         use UdpPacket::*;
         match from_ping {
             ListenerAdvertisement {..} | ClientAdvertisement {..} => {},
@@ -330,7 +330,7 @@ impl DynamicPeerList {
                             public_key,
                             name,
                             endpoint: Some(endpoint),
-                            comm_port,
+                            admin_port,
                             lastseen,
                         },
                     );
@@ -352,7 +352,7 @@ impl DynamicPeerList {
                             public_key,
                             name,
                             endpoint: None,
-                            comm_port,
+                            admin_port,
                             lastseen,
                         },
                     );
@@ -379,7 +379,7 @@ impl DynamicPeerList {
                 if peer.lastseen.elapsed().as_secs() < 30 {
                     break;
                 }
-                ping_peers.push((wg_ip.to_string(), peer.udp_port));
+                ping_peers.push((wg_ip.to_string(), peer.admin_port));
             }
             self.fifo_ping.remove(0);
         }
@@ -439,7 +439,7 @@ impl UdpPacket {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),
-                endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
+                endpoint: format!("{}:{}", peer.public_ip, peer.admin_port),
             }
         } else {
             UdpPacket::ClientAdvertisement {
@@ -456,7 +456,7 @@ impl UdpPacket {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),
-                endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
+                endpoint: format!("{}:{}", peer.public_ip, peer.admin_port),
             }
         } else {
             UdpPacket::ClientPing {

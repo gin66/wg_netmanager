@@ -101,13 +101,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let public_ip = p["publicIp"].as_str().unwrap().to_string();
         let join_port = p["wgJoinPort"].as_i64().unwrap() as u16;
         let comm_port = p["wgPort"].as_i64().unwrap() as u16;
-        let udp_port = p["udpPort"].as_i64().unwrap() as u16;
+        let admin_port = p["adminPort"].as_i64().unwrap() as u16;
         let wg_ip = p["wgIp"].as_str().unwrap().to_string();
         let pp = PublicPeer {
             public_ip,
             join_port,
             comm_port,
-            udp_port,
+            admin_port,
             wg_ip,
         };
         peers.push(pp);
@@ -201,7 +201,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     .expect("Error setting Ctrl-C handler");
 
     // Bind to 0.0.0.0 so that udp from both wg interfaces can be received
-    let port = static_config.my_udp_port().unwrap_or(0);
+    let port = static_config.my_admin_port().unwrap_or(0);
     println!("bind to 0.0.0.0:{}", port);
     let socket = UdpSocket::bind(format!("0.0.0.0:{}", port))?;
 
@@ -279,7 +279,7 @@ fn loop_client(
                         let destination = format!(
                             "{}:{}",
                             static_config.new_participant_listener_ip,
-                            static_config.udp_port(peer_index)
+                            static_config.admin_port(peer_index)
                         );
                         println!(
                             "Send advertisement to listener {} {}",

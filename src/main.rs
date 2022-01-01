@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, UdpSocket};
 use std::process::{Command, Stdio};
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{channel,Sender,Receiver};
 use std::time;
 
 use clap::{App, Arg};
@@ -189,14 +189,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .peers(peers)
         .build();
 
-    if static_config.is_listener() {
-        loop_listener(static_config)
-    } else {
-        loop_client(static_config)
-    }
-}
-
-fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::error::Error>> {
     let (tx, rx) = channel();
 
     let tx_handler = tx.clone();
@@ -207,10 +199,10 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
     })
     .expect("Error setting Ctrl-C handler");
 
-    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
-
-    println!("bind to 0.0.0.0:0");
-    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    // Bind to 0.0.0.0 so that udp from both wg interfaces can be received
+    let port = static_config.my_udp_port().unwrap_or(0);
+    println!("bind to 0.0.0.0:{}",port);
+    let socket = UdpSocket::bind(format!("0.0.0.0:{}",port))?;
 
     // Set up udp receiver thread
     let tx_clone = tx.clone();
@@ -237,6 +229,15 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
         }
     });
 
+    if static_config.is_listener() {
+        loop_listener(static_config, socket, tx, rx)
+    } else {
+        loop_client(static_config, socket, tx, rx)
+    }
+}
+
+fn loop_client(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender<Event>, rx: Receiver<Event>) -> Result<(), Box<dyn std::error::Error>> {
+    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
 
     let mut dynamic_config = DynamicConfigurationClient::WithoutDevice;
     let mut dynamic_peers = DynamicPeerList::default();
@@ -395,46 +396,10 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
     Ok(())
 }
 
-fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::error::Error>> {
-    let (tx, rx) = channel();
-
-    let tx_handler = tx.clone();
-    ctrlc::set_handler(move || {
-        tx_handler
-            .send(Event::CtrlC)
-            .expect("Could not send signal on channel.")
-    })
-    .expect("Error setting Ctrl-C handler");
-
+fn loop_listener(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender<Event>, rx: Receiver<Event>) -> Result<(), Box<dyn std::error::Error>> {
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
     let wg_dev_listener = WireguardDeviceLinux::init("wg_listener", static_config.verbosity);
-    // Bind to 0.0.0.0 so that udp from both wg interfaces can be received
-    let socket = UdpSocket::bind(format!("0.0.0.0:{}", static_config.my_udp_port().unwrap()))?;
 
-    // Set up udp receiver thread
-    let tx_clone = tx.clone();
-    let socket_clone = socket.try_clone().expect("couldn't clone the socket");
-    std::thread::spawn(move || {
-        loop {
-            let mut buf = [0; 1000];
-            match socket_clone.recv_from(&mut buf) {
-                Ok((received, src_addr)) => {
-                    println!("received {} bytes from {:?}", received, src_addr);
-                    match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
-                        Ok(udp_packet) => {
-                            tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
-                        }
-                        Err(e) => {
-                            println!("Error in json decode: {:?}", e);
-                        }
-                    }
-                }
-                Err(_e) => {
-                    //println!("{:?}",e);
-                }
-            }
-        }
-    });
 
     wg_dev.bring_up_device()?;
     wg_dev.set_ip(&static_config.wg_ip)?;

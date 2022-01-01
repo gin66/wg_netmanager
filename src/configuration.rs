@@ -198,7 +198,7 @@ impl StaticConfiguration {
         lines.push(format!("PrivateKey = {}", self.my_private_key));
         if let Some(myself) = self.myself_as_peer {
             let peer = &self.peers[myself];
-            lines.push(format!("ListenPort = {}", peer.admin_port));
+            lines.push(format!("ListenPort = {}", peer.comm_port));
         }
         lines.push("".to_string());
 

@@ -98,12 +98,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let new_participant_listener_ip = &network["newParticipantListener"].as_str().unwrap();
 
     let mut peers: Vec<PublicPeer> = vec![];
-    for p in conf[0]["peers"].as_vec() {
-        println!("{:?}", p);
-        let public_ip = p[0]["publicIp"].as_str().unwrap().to_string();
-        let join_port = p[0]["wgJoinPort"].as_i64().unwrap() as u16;
-        let comm_port = p[0]["wgPort"].as_i64().unwrap() as u16;
-        let wg_ip = p[0]["wgIp"].as_str().unwrap().to_string();
+    for p in conf[0]["peers"].as_vec().unwrap() {
+        println!("PEER: {:?}", p);
+        let public_ip = p["publicIp"].as_str().unwrap().to_string();
+        let join_port = p["wgJoinPort"].as_i64().unwrap() as u16;
+        let comm_port = p["wgPort"].as_i64().unwrap() as u16;
+        let wg_ip = p["wgIp"].as_str().unwrap().to_string();
         let pp = PublicPeer {
             public_ip,
             join_port,
@@ -220,7 +220,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
             Unconfigured { peer_index }  => {
                 let conf = static_config.as_conf_for_new_participant(peer_index);
                 if static_config.verbosity.all() {
-                    println!("Configuration for join:\n{}\n", conf);
+                    println!("Configuration for join ({}):\n{}\n", peer_index, conf);
                 }
                 wg_dev.set_conf(&conf)?;
                 let socket = UdpSocket::bind(format!(
@@ -232,7 +232,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 ConfiguredForJoin { peer_index, socket }
             }
             ConfiguredForJoin { peer_index, socket } => {
-                println!("Send advertisement to listener");
+                println!("Send advertisement to listener {}", peer_index);
                 let advertisement = UdpAdvertisement::from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 let destination = format!(

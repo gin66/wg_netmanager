@@ -12,8 +12,6 @@ use yaml_rust::YamlLoader;
 use wg_netmanager::configuration::*;
 use wg_netmanager::wg_dev::*;
 
-static LISTEN_PORT: u16 = 55555;
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let matches = App::new("Wireguard Network Manager")
         .version("0.1")
@@ -26,12 +24,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .value_name("FILE")
                 .help("Custom config file in yaml-style")
                 .takes_value(true),
-        )
-        .arg(
-            Arg::with_name("listen_port")
-                .short("l")
-                .long("listen")
-                .help("Static listen port"),
         )
         .arg(
             Arg::with_name("v")
@@ -103,11 +95,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let public_ip = p["publicIp"].as_str().unwrap().to_string();
         let join_port = p["wgJoinPort"].as_i64().unwrap() as u16;
         let comm_port = p["wgPort"].as_i64().unwrap() as u16;
+        let udp_port = p["udpPort"].as_i64().unwrap() as u16;
         let wg_ip = p["wgIp"].as_str().unwrap().to_string();
         let pp = PublicPeer {
             public_ip,
             join_port,
             comm_port,
+            udp_port,
             wg_ip,
         };
         peers.push(pp);
@@ -227,8 +221,8 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
             }
             ConfiguredForJoin { peer_index } => {
                 let port = format!(
-                    "{}:{}",
-                    static_config.new_participant_ip, LISTEN_PORT
+                    "{}",
+                    static_config.new_participant_ip
                 );
                 println!("bind to {}",port);
                 let socket = UdpSocket::bind(port)?;
@@ -238,7 +232,8 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 let destination = format!(
                     "{}:{}",
-                    static_config.new_participant_listener_ip, LISTEN_PORT
+                    static_config.new_participant_listener_ip,
+                    static_config.udp_port(peer_index)
                 );
                 println!("Send advertisement to listener {} {}", peer_index, destination);
                 socket.send_to(&buf, destination).ok();
@@ -337,7 +332,7 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 let socket = UdpSocket::bind(format!(
                     "{}:{}",
                     static_config.new_participant_listener_ip, 
-                    LISTEN_PORT
+                    static_config.my_udp_port().unwrap()
                 ))?;
                 socket.set_nonblocking(true).unwrap();
 

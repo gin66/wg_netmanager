@@ -28,6 +28,7 @@ pub struct PublicPeer {
     pub public_ip: String,
     pub join_port: u16,
     pub comm_port: u16,
+    pub udp_port: u16,
     pub wg_ip: String,
 }
 
@@ -214,6 +215,12 @@ impl StaticConfiguration {
         }
 
         lines.join("\n")
+    }
+    pub fn my_udp_port(&self) -> Option<u16> {
+        self.myself_as_peer.map(|i| self.peers[i].udp_port)
+    }
+    pub fn udp_port(&self, peer_index: usize) -> u16 {
+        self.peers[peer_index].udp_port
     }
 }
 

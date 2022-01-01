@@ -12,6 +12,7 @@ Todos:
 * find a solution for sudo
 * share unbound UDP socket addresses between clients
 * put udp comm port info into advertisement
+* Two listeners cannot communicate as both use the same private ip
 
 DONE:
 * monitor connection to peers and remove them, if no connection anymore

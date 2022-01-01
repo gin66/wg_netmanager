@@ -439,7 +439,7 @@ impl UdpPacket {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),
-                endpoint: format!("{}:{}", peer.public_ip, peer.admin_port),
+                endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
             }
         } else {
             UdpPacket::ClientAdvertisement {
@@ -456,7 +456,7 @@ impl UdpPacket {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),
-                endpoint: format!("{}:{}", peer.public_ip, peer.admin_port),
+                endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
             }
         } else {
             UdpPacket::ClientPing {

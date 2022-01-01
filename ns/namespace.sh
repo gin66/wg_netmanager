@@ -20,31 +20,37 @@ echo === list veth
 sudo ip link | grep veth
 
 echo === list veth as alice
-sudo ip netns exec alice sudo ip link list | grep veth
+sudo ip netns exec alice ip link list | grep veth
 
 echo === list veth as bob
-sudo ip netns exec bob sudo ip link list | grep veth
+sudo ip netns exec bob ip link list | grep veth
 
 echo === add address to veth for alice
-sudo ip netns exec alice sudo ip addr add 10.128.1.1/24 dev veth0
-sudo ip netns exec alice sudo ip link set dev veth0 up
+sudo ip netns exec alice ip addr add 10.128.1.1/24 dev veth0
+sudo ip netns exec alice ip link set dev veth0 up
 
 echo === add address to veth for bob
-sudo ip netns exec bob sudo ip addr add 10.128.1.2/24 dev veth1
-sudo ip netns exec bob sudo ip link set dev veth1 up
+sudo ip netns exec bob ip addr add 10.128.1.2/24 dev veth1
+sudo ip netns exec bob ip link set dev veth1 up
 
 echo === list veth as alice
-sudo ip netns exec alice sudo ip link list | grep veth
+sudo ip netns exec alice ip link list | grep veth
 sudo ip netns exec alice ifconfig
 
 echo === list veth as bob
-sudo ip netns exec bob sudo ip link list | grep veth
+sudo ip netns exec bob ip link list | grep veth
 sudo ip netns exec bob ifconfig
 
 echo === ping bob from alice
 sudo ip netns exec alice ping -c 1 10.128.1.2
 
 echo === run wg_netmanager
+
+echo Set up two boxes: alice and bob
+echo alice is listener
+echo bob is client
+echo expectation is, that after a while the ping succeeds: bob can reach alice via the tunnel
+
 tmux split-pane -h sudo ip netns exec alice ../target/debug/wg_netmanager -vvv -c test.yaml wg0 10.1.1.1 alice
 tmux split-pane -h sudo ip netns exec bob ../target/debug/wg_netmanager -vvv -c test.yaml wg0 10.1.1.3 bob
 sleep 5

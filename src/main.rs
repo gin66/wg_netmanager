@@ -249,9 +249,9 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                     Unconfigured { peer_index: new_peer_index }
                 } else {
                     let mut buf = [0; 1000];
-                    match socket.recv(&mut buf) {
-                        Ok(received) => {
-                            println!("received {} bytes {:?}", received, &buf[..received]);
+                    match socket.recv_from(&mut buf) {
+                        Ok((received, src_addr)) => {
+                            println!("received {} bytes from {:?}", received, src_addr);
                             match serde_json::from_slice::<UdpAdvertisement>(&buf[..received]) {
                                 Ok(ad) => {
                                     wg_dev.take_down_device()?;

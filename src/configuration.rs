@@ -230,8 +230,8 @@ pub struct DynamicPeerList {
     pub peer: HashMap<String, (String, String, Option<String>)>,
 }
 impl DynamicPeerList {
-    pub fn add_peer(&mut self, from_advertisement: UdpAdvertisement) {
-        use UdpAdvertisement::*;
+    pub fn add_peer(&mut self, from_advertisement: UdpPacket) {
+        use UdpPacket::*;
         match from_advertisement {
             ListenerAdvertisement {
                 public_key,
@@ -266,13 +266,13 @@ pub enum DynamicConfigurationClient {
     Unconfigured { peer_index:usize },
     ConfiguredForJoin { peer_index: usize },
     WaitForAdvertisement { peer_index: usize, socket: UdpSocket, cnt: u8 },
-    AdvertisementReceived { ad: UdpAdvertisement },
+    AdvertisementReceived { ad: UdpPacket },
     Connected { dynamic_peers: DynamicPeerList },
     Disconnected,
 }
 
 #[derive(Serialize, Deserialize)]
-pub enum UdpAdvertisement {
+pub enum UdpPacket {
     // TODO: Change from String to &str
     ListenerAdvertisement {
         public_key: String,
@@ -286,18 +286,18 @@ pub enum UdpAdvertisement {
         name: String,
     },
 }
-impl UdpAdvertisement {
-    pub fn from_config(static_config: &StaticConfiguration) -> Self {
+impl UdpPacket {
+    pub fn advertisement_from_config(static_config: &StaticConfiguration) -> Self {
         if static_config.is_listener() {
             let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
-            UdpAdvertisement::ListenerAdvertisement {
+            UdpPacket::ListenerAdvertisement {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),
                 endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
             }
         } else {
-            UdpAdvertisement::ClientAdvertisement {
+            UdpPacket::ClientAdvertisement {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),

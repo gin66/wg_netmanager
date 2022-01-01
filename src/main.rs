@@ -228,7 +228,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 let socket = UdpSocket::bind(port)?;
                 socket.set_nonblocking(true).unwrap();
 
-                let advertisement = UdpAdvertisement::from_config(&static_config);
+                let advertisement = UdpPacket::advertisement_from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 let destination = format!(
                     "{}:{}",
@@ -249,7 +249,7 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                     match socket.recv_from(&mut buf) {
                         Ok((received, src_addr)) => {
                             println!("received {} bytes from {:?}", received, src_addr);
-                            match serde_json::from_slice::<UdpAdvertisement>(&buf[..received]) {
+                            match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
                                 Ok(ad) => {
                                     wg_dev.take_down_device()?;
                                     AdvertisementReceived { ad }
@@ -329,9 +329,9 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 }
                 wg_dev.set_conf(&conf)?;
 
+                // Bind to 0.0.0.0 so that udp from both wg interface can be received
                 let socket = UdpSocket::bind(format!(
-                    "{}:{}",
-                    static_config.new_participant_listener_ip, 
+                    "0.0.0.0:{}",
                     static_config.my_udp_port().unwrap()
                 ))?;
                 socket.set_nonblocking(true).unwrap();
@@ -351,10 +351,10 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 match socket.recv_from(&mut buf) {
                     Ok((received, src_addr)) => {
                         println!("received {} bytes from {:?}", received, src_addr);
-                        match serde_json::from_slice::<UdpAdvertisement>(&buf[..received]) {
+                        match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
                             Ok(ad) => {
                                 println!("Send advertisement to new participant");
-                                let advertisement = UdpAdvertisement::from_config(&static_config);
+                                let advertisement = UdpPacket::advertisement_from_config(&static_config);
                                 let buf = serde_json::to_vec(&advertisement).unwrap();
                                 socket.send_to(&buf, src_addr).ok();
 

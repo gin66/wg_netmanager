@@ -255,10 +255,23 @@ impl DynamicPeerList {
                 let lastseen = Instant::now();
                 let key = wg_ip.clone();
                 let new_wg_ip = wg_ip.clone();
-                if self.peer.insert(key, DynamicPeer { wg_ip, public_key, name, endpoint: Some(endpoint), comm_port,lastseen}).is_none() {
+                if self
+                    .peer
+                    .insert(
+                        key,
+                        DynamicPeer {
+                            wg_ip,
+                            public_key,
+                            name,
+                            endpoint: Some(endpoint),
+                            comm_port,
+                            lastseen,
+                        },
+                    )
+                    .is_none()
+                {
                     Some(new_wg_ip)
-                }
-                else {
+                } else {
                     None
                 }
             }
@@ -272,10 +285,23 @@ impl DynamicPeerList {
                 let lastseen = Instant::now();
                 let key = wg_ip.clone();
                 let new_wg_ip = wg_ip.clone();
-                if self.peer.insert(key, DynamicPeer { wg_ip, public_key, name, endpoint: None, comm_port,lastseen} ).is_none() {
+                if self
+                    .peer
+                    .insert(
+                        key,
+                        DynamicPeer {
+                            wg_ip,
+                            public_key,
+                            name,
+                            endpoint: None,
+                            comm_port,
+                            lastseen,
+                        },
+                    )
+                    .is_none()
+                {
                     Some(new_wg_ip)
-                }
-                else {
+                } else {
                     None
                 }
             }
@@ -321,7 +347,7 @@ impl DynamicPeerList {
 
 pub enum DynamicConfigurationClient {
     WithoutDevice,
-    Unconfigured { peer_index:usize },
+    Unconfigured { peer_index: usize },
     ConfiguredForJoin { peer_index: usize },
     WaitForAdvertisement { peer_index: usize, cnt: u8 },
     Connected,

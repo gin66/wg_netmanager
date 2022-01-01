@@ -207,6 +207,10 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
 
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
 
+    println!("bind to 0.0.0.0:0");
+    let socket = UdpSocket::bind("0.0.0.0:0")?;
+    socket.set_nonblocking(true).unwrap();
+
     let mut dynamic_config = DynamicConfigurationClient::WithoutDevice;
     let polling_interval = time::Duration::from_millis(1000);
     while rx.recv_timeout(polling_interval).is_err() {
@@ -229,11 +233,6 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 ConfiguredForJoin { peer_index }
             }
             ConfiguredForJoin { peer_index } => {
-                let port = format!("{}:0", static_config.new_participant_ip);
-                println!("bind to {}", port);
-                let socket = UdpSocket::bind(port)?;
-                socket.set_nonblocking(true).unwrap();
-
                 let advertisement = UdpPacket::advertisement_from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 let destination = format!(
@@ -248,13 +247,11 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 socket.send_to(&buf, destination).ok();
                 WaitForAdvertisement {
                     peer_index,
-                    socket,
                     cnt: 0,
                 }
             }
             WaitForAdvertisement {
                 peer_index,
-                socket,
                 cnt,
             } => {
                 if cnt >= 5 {
@@ -281,9 +278,9 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                         }
                         Err(_e) => WaitForAdvertisement {
                             peer_index,
-                            socket,
                             cnt: cnt + 1,
                         },
+
                     }
                 }
             }
@@ -302,8 +299,15 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 }
                 Connected { dynamic_peers }
             }
-            Connected { dynamic_peers } => Connected { dynamic_peers },
-            Disconnected => Disconnected,
+            Connected { dynamic_peers } => {
+                if dynamic_peers.peer.is_empty() {
+                    wg_dev.take_down_device()?;
+                    WithoutDevice
+                }
+                else {
+                    Connected { dynamic_peers }
+                }
+            },
         }
     }
 
@@ -373,7 +377,8 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
 
     let mut dynamic_peers = DynamicPeerList::default();
 
-    let polling_interval = time::Duration::from_millis(1000);
+    let mut static_peer_index = 0;
+    let polling_interval = time::Duration::from_millis(10000);
     loop {
         println!("Main loop listener: {} peers", dynamic_peers.peer.len());
         match rx.recv_timeout(polling_interval) {
@@ -389,6 +394,28 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                     wg_dev.del_route(&format!("{}/32", wg_ip))?;
                     tx.send(Event::PeerListChange).unwrap();
                 }
+
+                // TODO: Send Advertisement to next static peer
+                //if static_config.peer_cnt > 0 {
+                //    let conf = static_config.as_conf_for_new_participant(static_peer_index);
+                //    if static_config.verbosity.all() {
+                //        println!("Configuration for join ({}):\n{}\n", static_peer_index, conf);
+                //    }
+                //    wg_dev_listener.set_conf(&conf)?;
+                //
+                //    let advertisement = UdpPacket::advertisement_from_config(&static_config);
+                //    let buf = serde_json::to_vec(&advertisement).unwrap();
+                //    let destination = format!(
+                //        "{}:{}",
+                //        static_config.new_participant_listener_ip,
+                //        static_config.udp_port(static_peer_index)
+                //    );
+                //    println!(
+                //        "Send advertisement to listener {} {}",
+                //        static_peer_index, destination
+                //    );
+                //    //socket.send_to(&buf, destination).ok();
+                //}
             }
             Ok(Event::Udp(udp_packet, src_addr)) => {
                 use UdpPacket::*;

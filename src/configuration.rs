@@ -299,10 +299,9 @@ pub enum DynamicConfigurationClient {
     WithoutDevice,
     Unconfigured { peer_index:usize },
     ConfiguredForJoin { peer_index: usize },
-    WaitForAdvertisement { peer_index: usize, socket: UdpSocket, cnt: u8 },
+    WaitForAdvertisement { peer_index: usize, cnt: u8 },
     AdvertisementReceived { ad: UdpPacket },
     Connected { dynamic_peers: DynamicPeerList },
-    Disconnected,
 }
 
 #[derive(Serialize, Deserialize)]

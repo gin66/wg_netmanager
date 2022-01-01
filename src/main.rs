@@ -242,7 +242,7 @@ fn loop_client(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender
 
     let mut dynamic_config = DynamicConfigurationClient::WithoutDevice;
     let mut dynamic_peers = DynamicPeerList::default();
-    let polling_interval = time::Duration::from_millis(10000);
+    let polling_interval = time::Duration::from_millis(1000);
     loop {
         println!("Main loop client");
         match rx.recv_timeout(polling_interval) {

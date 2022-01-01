@@ -1,0 +1,44 @@
+# This is an example config file for a wireguard network
+#
+# A network uses ONE shared private key.
+# Any new network participant can use this key to join any wireguard network at any current node
+#
+# In order to join a network following steps to be applied:
+# - set up wireguard interface with ip as defined in <newParticipant>.
+# - every active wireguard node receives packets from <newParticipant> with <privateKey>
+# - Then a (UDP ?) connection is established, so that the new participant receives initial network information
+# - With this information the wireguard interface is reconfigured as an active wireguard node
+#
+# If two new participants join at the same time, then one may be the lucky one to receive the initial UDP packet.
+# The loosing participant has to try again
+#
+# Every network participant with static public IP and fixed port will open up two wireguard interfaces:
+# - first for new participants to join the network - port <wgJoinPort>
+# - second to perform the actual vpn communication - port <wgPort>
+#
+# Private address ranges:
+# 10.0.0.0/8 IP addresses: 10.0.0.0 – 10.255.255.255
+# 172.16.0.0/12 IP addresses: 172.16.0.0 – 172.31.255.255
+# 192.168.0.0/16 IP addresses: 192.168.0.0 – 192.168.255.255
+#
+# For peers with static ports: make sure, that firewall does not block arriving UDP traffic
+# Moreover the LISTEN_PORT 55555 must not be blocked by the firewall, too
+#
+network:
+  privateKeyListener: YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=
+  privateKeyNewParticipant: 8MXAa0cfyBqEMFR0dgtxz+AJ465FWYxSxnl4LykI0GA=
+  newParticipant: 172.16.1.2
+  newParticipantListener: 172.16.1.1
+    #ipRange: 10.1.0.0/16
+
+peers:
+  - publicIp: 10.128.1.1
+    wgPort: 50000
+    wgJoinPort: 50001
+    adminPort: 55555
+    wgIp: 10.1.1.1
+  - publicIp: 10.128.1.2
+    wgPort: 50000
+    wgJoinPort: 50001
+    adminPort: 55555
+    wgIp: 10.1.1.2

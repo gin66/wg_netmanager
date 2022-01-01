@@ -322,7 +322,6 @@ impl DynamicPeerList {
                 self.fifo_ping.push(wg_ip.clone());
                 let lastseen = Instant::now();
                 let key = wg_ip.clone();
-                let new_wg_ip = wg_ip.clone();
                 self.peer
                     .insert(
                         key,
@@ -345,7 +344,6 @@ impl DynamicPeerList {
                 self.fifo_ping.push(wg_ip.clone());
                 let lastseen = Instant::now();
                 let key = wg_ip.clone();
-                let new_wg_ip = wg_ip.clone();
                 self.peer
                     .insert(
                         key,
@@ -381,7 +379,7 @@ impl DynamicPeerList {
                 if peer.lastseen.elapsed().as_secs() < 30 {
                     break;
                 }
-                ping_peers.push((wg_ip.to_string(), 55555 /*peer.comm_port*/));
+                ping_peers.push((wg_ip.to_string(), peer.udp_port));
             }
             self.fifo_ping.remove(0);
         }

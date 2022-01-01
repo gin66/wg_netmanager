@@ -1,5 +1,5 @@
-use std::net::UdpSocket;
 use std::collections::HashMap;
+use std::net::UdpSocket;
 
 use serde::{Deserialize, Serialize};
 
@@ -79,11 +79,11 @@ impl StaticConfigurationBuilder {
         self
     }
     pub fn my_private_key<T: Into<String>>(mut self, private_key: T) -> Self {
-        self.my_private_key= Some(private_key.into());
+        self.my_private_key = Some(private_key.into());
         self
     }
     pub fn my_public_key<T: Into<String>>(mut self, public_key: T) -> Self {
-        self.my_public_key= Some(public_key.into());
+        self.my_public_key = Some(public_key.into());
         self
     }
     pub fn private_key_listener<T: Into<String>>(mut self, private_key: T) -> Self {
@@ -199,7 +199,7 @@ impl StaticConfiguration {
         lines.push("".to_string());
 
         if let Some(peers) = dynamic_peers {
-            for (wg_ip,(public_key,_name,opt_endpoint)) in peers.peer.iter() {
+            for (wg_ip, (public_key, _name, opt_endpoint)) in peers.peer.iter() {
                 lines.push("[Peer]".to_string());
                 lines.push(format!("PublicKey = {}", public_key));
                 lines.push(format!("AllowedIPs = {}/32", wg_ip));
@@ -217,21 +217,30 @@ impl StaticConfiguration {
 #[derive(Default)]
 pub struct DynamicPeerList {
     pub updated: bool,
-    pub peer: HashMap<String,(String,String,Option<String>)>,
+    pub peer: HashMap<String, (String, String, Option<String>)>,
 }
 impl DynamicPeerList {
-   pub fn add_peer(&mut self, from_advertisement: UdpAdvertisement) {
-       use UdpAdvertisement::*;
-       match from_advertisement {
-            ListenerAdvertisement { public_key, wg_ip, name, endpoint, } => {
+    pub fn add_peer(&mut self, from_advertisement: UdpAdvertisement) {
+        use UdpAdvertisement::*;
+        match from_advertisement {
+            ListenerAdvertisement {
+                public_key,
+                wg_ip,
+                name,
+                endpoint,
+            } => {
                 self.peer.insert(wg_ip, (public_key, name, Some(endpoint)));
             }
-            ClientAdvertisement { public_key, wg_ip, name, } => {
+            ClientAdvertisement {
+                public_key,
+                wg_ip,
+                name,
+            } => {
                 self.peer.insert(wg_ip, (public_key, name, None));
             }
-       }
-       self.updated = true;
-   }
+        }
+        self.updated = true;
+    }
 }
 
 pub enum DynamicConfigurationListener {
@@ -245,19 +254,10 @@ pub enum DynamicConfigurationListener {
 pub enum DynamicConfigurationClient {
     WithoutDevice,
     Unconfigured,
-    ConfiguredForJoin {
-        socket: UdpSocket,
-    },
-    WaitForAdvertisement {
-        socket: UdpSocket,
-        cnt: u8,
-    },
-    AdvertisementReceived {
-        ad: UdpAdvertisement,
-    },
-    Connected {
-        dynamic_peers: DynamicPeerList,
-    },
+    ConfiguredForJoin { socket: UdpSocket },
+    WaitForAdvertisement { socket: UdpSocket, cnt: u8 },
+    AdvertisementReceived { ad: UdpAdvertisement },
+    Connected { dynamic_peers: DynamicPeerList },
     Disconnected,
 }
 
@@ -274,7 +274,7 @@ pub enum UdpAdvertisement {
         public_key: String,
         wg_ip: String,
         name: String,
-    }
+    },
 }
 impl UdpAdvertisement {
     pub fn from_config(static_config: &StaticConfiguration) -> Self {
@@ -286,8 +286,7 @@ impl UdpAdvertisement {
                 name: static_config.name.clone(),
                 endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
             }
-        }
-        else {
+        } else {
             UdpAdvertisement::ClientAdvertisement {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),

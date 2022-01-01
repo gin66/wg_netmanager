@@ -39,4 +39,3 @@ peers:
     wgPort: 50000
     wgJoinPort: 50001
     wgIp: 10.1.1.1
-

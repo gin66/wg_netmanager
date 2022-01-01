@@ -1,9 +1,9 @@
 use std::fs::File;
 use std::io::{Read, Write};
+use std::net::UdpSocket;
 use std::process::{Command, Stdio};
 use std::sync::mpsc::channel;
 use std::time;
-use std::net::UdpSocket;
 
 use clap::{App, Arg};
 use ctrlc;
@@ -119,7 +119,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .output()?
         .stdout;
     let raw_private_key = String::from_utf8_lossy(&output);
-    let my_private_key= raw_private_key.trim();
+    let my_private_key = raw_private_key.trim();
     if verbosity.info() {
         println!("Network private key: {}", my_private_key);
     }
@@ -132,7 +132,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     cmd.wait()?;
     let mut public_key = String::new();
     cmd.stdout.unwrap().read_to_string(&mut public_key)?;
-    let my_public_key= public_key.trim();
+    let my_public_key = public_key.trim();
     if verbosity.info() {
         println!("Network public key: {}", my_public_key);
     }
@@ -223,24 +223,29 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                     println!("Configuration for join:\n{}\n", conf);
                 }
                 wg_dev.set_conf(&conf)?;
-                let socket = UdpSocket::bind(format!("{}:{}", static_config.new_participant_ip, LISTEN_PORT))?;
+                let socket = UdpSocket::bind(format!(
+                    "{}:{}",
+                    static_config.new_participant_ip, LISTEN_PORT
+                ))?;
                 socket.set_nonblocking(true).unwrap();
 
                 ConfiguredForJoin { socket }
             }
-            ConfiguredForJoin{socket} => {
+            ConfiguredForJoin { socket } => {
                 println!("Send advertisement to listener");
                 let advertisement = UdpAdvertisement::from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
-                let destination = format!("{}:{}",static_config.new_participant_listener_ip,LISTEN_PORT);
+                let destination = format!(
+                    "{}:{}",
+                    static_config.new_participant_listener_ip, LISTEN_PORT
+                );
                 socket.send_to(&buf, destination).ok();
-                WaitForAdvertisement{socket, cnt: 0}
+                WaitForAdvertisement { socket, cnt: 0 }
             }
-            WaitForAdvertisement{socket, cnt} => {
+            WaitForAdvertisement { socket, cnt } => {
                 if cnt >= 5 {
-                    ConfiguredForJoin{socket}
-                }
-                else {
+                    ConfiguredForJoin { socket }
+                } else {
                     let mut buf = [0; 1000];
                     match socket.recv(&mut buf) {
                         Ok(received) => {
@@ -252,13 +257,14 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                                 }
                                 Err(e) => {
                                     println!("Error in json decode: {:?}", e);
-                                    ConfiguredForJoin{socket}
+                                    ConfiguredForJoin { socket }
                                 }
                             }
-                        },
-                        Err(e) =>  {
-                            WaitForAdvertisement{ socket, cnt: cnt+1 }
                         }
+                        Err(_e) => WaitForAdvertisement {
+                            socket,
+                            cnt: cnt + 1,
+                        },
                     }
                 }
             }
@@ -272,8 +278,8 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 wg_dev.bring_up_device()?;
                 wg_dev.set_ip(&static_config.wg_ip)?;
                 wg_dev.set_conf(&conf)?;
-                for (wg_ip,_) in dynamic_peers.peer.iter() {
-                    wg_dev.add_route(&format!("{}/32", wg_ip));
+                for (wg_ip, _) in dynamic_peers.peer.iter() {
+                    wg_dev.add_route(&format!("{}/32", wg_ip))?;
                 }
                 Connected { dynamic_peers }
             }
@@ -323,14 +329,23 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 }
                 wg_dev.set_conf(&conf)?;
 
-                let socket = UdpSocket::bind(format!("{}:{}", static_config.new_participant_listener_ip, LISTEN_PORT))?;
+                let socket = UdpSocket::bind(format!(
+                    "{}:{}",
+                    static_config.new_participant_listener_ip, LISTEN_PORT
+                ))?;
                 socket.set_nonblocking(true).unwrap();
 
                 let dynamic_peers = DynamicPeerList::default();
 
-                Running { socket, dynamic_peers }
+                Running {
+                    socket,
+                    dynamic_peers,
+                }
             }
-            Running{ socket, mut dynamic_peers } => {
+            Running {
+                socket,
+                mut dynamic_peers,
+            } => {
                 let mut buf = [0; 1000];
                 match socket.recv(&mut buf) {
                     Ok(received) => {
@@ -340,7 +355,8 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                                 println!("Send advertisement to new participant");
                                 let advertisement = UdpAdvertisement::from_config(&static_config);
                                 let buf = serde_json::to_vec(&advertisement).unwrap();
-                                let destination = format!("{}:{}",static_config.new_participant_ip,LISTEN_PORT);
+                                let destination =
+                                    format!("{}:{}", static_config.new_participant_ip, LISTEN_PORT);
                                 socket.send_to(&buf, destination).ok();
 
                                 dynamic_peers.add_peer(ad);
@@ -358,17 +374,18 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                                 println!("Configuration as peer\n{}\n", conf);
                             }
                             wg_dev.sync_conf(&conf)?;
-                            for (wg_ip,_) in dynamic_peers.peer.iter() {
+                            for (wg_ip, _) in dynamic_peers.peer.iter() {
                                 wg_dev.add_route(&format!("{}/32", wg_ip))?;
                             }
                         }
-                    },
-                    Err(e) =>  {
                     }
+                    Err(_) => {}
                 }
 
-
-                Running { socket, dynamic_peers }
+                Running {
+                    socket,
+                    dynamic_peers,
+                }
             }
         }
     }

@@ -345,7 +345,7 @@ fn loop_client(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender
                     },
                 }
             }
-            Ok(Event::Udp(udp_packet, src_addr)) => {
+            Ok(Event::Udp(udp_packet, _src_addr)) => {
                 use DynamicConfigurationClient::*;
                 dynamic_config = match dynamic_config {
                     WithoutDevice => {
@@ -422,7 +422,7 @@ fn loop_listener(static_config: StaticConfiguration, socket: UdpSocket, tx: Send
 
     let mut dynamic_peers = DynamicPeerList::default();
 
-    let mut static_peer_index = 0;
+    // let mut static_peer_index = 0;
     let polling_interval = time::Duration::from_millis(10000);
     loop {
         println!("Main loop listener: {} peers", dynamic_peers.peer.len());

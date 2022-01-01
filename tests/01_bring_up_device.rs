@@ -2,8 +2,8 @@
 mod tests {
     use wg_netmanager::configuration::*;
     use wg_netmanager::wg_dev::*;
-    use wg_netmanager::wg_dev_linuxkernel::*;
 
+    #[allow(dead_code)]
     fn demo_config() -> StaticConfigurationBuilder {
         StaticConfiguration::new()
             .verbosity(Verbosity::All)

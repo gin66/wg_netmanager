@@ -226,10 +226,12 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 ConfiguredForJoin { peer_index }
             }
             ConfiguredForJoin { peer_index } => {
-                let socket = UdpSocket::bind(format!(
+                let port = format!(
                     "{}:{}",
                     static_config.new_participant_ip, LISTEN_PORT
-                ))?;
+                );
+                println!("bind to {}",port);
+                let socket = UdpSocket::bind(port)?;
                 socket.set_nonblocking(true).unwrap();
 
                 let advertisement = UdpAdvertisement::from_config(&static_config);

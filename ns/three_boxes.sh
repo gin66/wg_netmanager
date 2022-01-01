@@ -94,8 +94,7 @@ sudo ip netns exec alice ping -c 2 10.1.1.3 || echo -e $FAIL
 sudo ip netns exec alice ping -c 2 10.1.1.4 || echo -e $FAIL
 sudo ip netns exec bob ping -c 2 10.1.1.4 || echo -e $FAIL
 
-sudo ip netns exec alice ps
-
+echo ==== Kill the test subjects
 sudo ip netns exec alice killall sudo
 sudo ip netns exec bob killall sudo
 sudo ip netns exec charlie killall sudo

@@ -325,10 +325,10 @@ fn loop_client(
                             }
                             let ping_peers = dynamic_peers.check_ping_timeouts();
                             for (wg_ip, udp_port) in ping_peers {
-                                println!("Found ping peer {}...send advertisement", wg_ip);
-                                let advertisement =
-                                    UdpPacket::advertisement_from_config(&static_config);
-                                let buf = serde_json::to_vec(&advertisement).unwrap();
+                                println!("Found ping peer {}...send ping", wg_ip);
+                                let ping =
+                                    UdpPacket::ping_from_config(&static_config);
+                                let buf = serde_json::to_vec(&ping).unwrap();
                                 let destination = format!("{}:{}", wg_ip, udp_port);
                                 socket.send_to(&buf, destination).ok();
                             }
@@ -369,6 +369,9 @@ fn loop_client(
                                     tx.send(Event::PeerListChange).unwrap();
                                     wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
                                 }
+                            }
+                            ListenerPing { .. } | ClientPing {..} => {
+                                dynamic_peers.update_peer(udp_packet, src_addr.port());
                             }
                         }
                         Connected
@@ -441,6 +444,16 @@ fn loop_listener(
                     tx.send(Event::PeerListChange).unwrap();
                 }
 
+                let ping_peers = dynamic_peers.check_ping_timeouts();
+                for (wg_ip, udp_port) in ping_peers {
+                    println!("Found ping peer {}...send ping", wg_ip);
+                    let ping =
+                        UdpPacket::ping_from_config(&static_config);
+                    let buf = serde_json::to_vec(&ping).unwrap();
+                    let destination = format!("{}:{}", wg_ip, udp_port);
+                    socket.send_to(&buf, destination).ok();
+                }
+
                 // TODO: Send Advertisement to next static peer
                 //if static_config.peer_cnt > 0 {
                 //    let conf = static_config.as_conf_for_new_participant(static_peer_index);
@@ -477,6 +490,9 @@ fn loop_listener(
                             tx.send(Event::PeerListChange).unwrap();
                             wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
                         }
+                    }
+                    ListenerPing { .. } | ClientPing {..} => {
+                        dynamic_peers.update_peer(udp_packet, src_addr.port());
                     }
                 }
             }

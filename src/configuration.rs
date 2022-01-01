@@ -244,6 +244,7 @@ impl DynamicPeerList {
     pub fn add_peer(&mut self, from_advertisement: UdpPacket, comm_port: u16) -> Option<String> {
         use UdpPacket::*;
         match from_advertisement {
+            ListenerPing {..} | ClientPing  {..}=> None,
             ListenerAdvertisement {
                 public_key,
                 wg_ip,
@@ -307,6 +308,59 @@ impl DynamicPeerList {
             }
         }
     }
+    pub fn update_peer(&mut self, from_ping: UdpPacket, comm_port: u16) {
+        use UdpPacket::*;
+        match from_ping {
+            ListenerAdvertisement {..} | ClientAdvertisement {..} => {},
+            ListenerPing {
+                public_key,
+                wg_ip,
+                name,
+                endpoint,
+            } => {
+                self.fifo_dead.push(wg_ip.clone());
+                self.fifo_ping.push(wg_ip.clone());
+                let lastseen = Instant::now();
+                let key = wg_ip.clone();
+                let new_wg_ip = wg_ip.clone();
+                self.peer
+                    .insert(
+                        key,
+                        DynamicPeer {
+                            wg_ip,
+                            public_key,
+                            name,
+                            endpoint: Some(endpoint),
+                            comm_port,
+                            lastseen,
+                        },
+                    );
+            }
+            ClientPing {
+                public_key,
+                wg_ip,
+                name,
+            } => {
+                self.fifo_dead.push(wg_ip.clone());
+                self.fifo_ping.push(wg_ip.clone());
+                let lastseen = Instant::now();
+                let key = wg_ip.clone();
+                let new_wg_ip = wg_ip.clone();
+                self.peer
+                    .insert(
+                        key,
+                        DynamicPeer {
+                            wg_ip,
+                            public_key,
+                            name,
+                            endpoint: None,
+                            comm_port,
+                            lastseen,
+                        },
+                    );
+            }
+        }
+    }
     pub fn check_timeouts(&mut self) -> Vec<String> {
         let mut dead_peers = vec![];
         while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
@@ -367,6 +421,17 @@ pub enum UdpPacket {
         wg_ip: String,
         name: String,
     },
+    ListenerPing {
+        public_key: String,
+        wg_ip: String,
+        name: String,
+        endpoint: String,
+    },
+    ClientPing {
+        public_key: String,
+        wg_ip: String,
+        name: String,
+    },
 }
 impl UdpPacket {
     pub fn advertisement_from_config(static_config: &StaticConfiguration) -> Self {
@@ -380,6 +445,23 @@ impl UdpPacket {
             }
         } else {
             UdpPacket::ClientAdvertisement {
+                public_key: static_config.my_public_key.clone(),
+                wg_ip: static_config.wg_ip.clone(),
+                name: static_config.name.clone(),
+            }
+        }
+    }
+    pub fn ping_from_config(static_config: &StaticConfiguration) -> Self {
+        if static_config.is_listener() {
+            let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
+            UdpPacket::ListenerPing {
+                public_key: static_config.my_public_key.clone(),
+                wg_ip: static_config.wg_ip.clone(),
+                name: static_config.name.clone(),
+                endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
+            }
+        } else {
+            UdpPacket::ClientPing {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),

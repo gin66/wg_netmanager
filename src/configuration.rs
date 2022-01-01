@@ -116,6 +116,7 @@ impl StaticConfigurationBuilder {
             }
         }
 
+        let peer_cnt = self.peers.len();
         StaticConfiguration {
             verbosity: self.verbosity.unwrap(),
             name: self.name.unwrap(),
@@ -131,6 +132,7 @@ impl StaticConfigurationBuilder {
             private_key_new_participant: self.private_key_new_participant.unwrap(),
             public_key_new_participant: self.public_key_new_participant.unwrap(),
             peers: self.peers,
+            peer_cnt,
         }
     }
 }
@@ -150,6 +152,7 @@ pub struct StaticConfiguration {
     pub private_key_new_participant: String,
     pub public_key_new_participant: String,
     peers: Vec<PublicPeer>,
+    pub peer_cnt: usize,
 }
 
 impl StaticConfiguration {
@@ -253,9 +256,9 @@ pub enum DynamicConfigurationListener {
 }
 pub enum DynamicConfigurationClient {
     WithoutDevice,
-    Unconfigured,
-    ConfiguredForJoin { socket: UdpSocket },
-    WaitForAdvertisement { socket: UdpSocket, cnt: u8 },
+    Unconfigured { peer_index:usize },
+    ConfiguredForJoin { peer_index: usize, socket: UdpSocket },
+    WaitForAdvertisement { peer_index: usize, socket: UdpSocket, cnt: u8 },
     AdvertisementReceived { ad: UdpAdvertisement },
     Connected { dynamic_peers: DynamicPeerList },
     Disconnected,

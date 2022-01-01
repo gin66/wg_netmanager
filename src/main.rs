@@ -215,10 +215,10 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 wg_dev.set_ip(&static_config.new_participant_ip)?;
                 let route = format!("{}/32", static_config.new_participant_listener_ip);
                 wg_dev.add_route(&route)?;
-                Unconfigured
+                Unconfigured { peer_index: 0 }
             }
-            Unconfigured => {
-                let conf = static_config.as_conf_for_new_participant(0);
+            Unconfigured { peer_index }  => {
+                let conf = static_config.as_conf_for_new_participant(peer_index);
                 if static_config.verbosity.all() {
                     println!("Configuration for join:\n{}\n", conf);
                 }
@@ -229,9 +229,9 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 ))?;
                 socket.set_nonblocking(true).unwrap();
 
-                ConfiguredForJoin { socket }
+                ConfiguredForJoin { peer_index, socket }
             }
-            ConfiguredForJoin { socket } => {
+            ConfiguredForJoin { peer_index, socket } => {
                 println!("Send advertisement to listener");
                 let advertisement = UdpAdvertisement::from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
@@ -240,11 +240,13 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                     static_config.new_participant_listener_ip, LISTEN_PORT
                 );
                 socket.send_to(&buf, destination).ok();
-                WaitForAdvertisement { socket, cnt: 0 }
+                WaitForAdvertisement { peer_index, socket, cnt: 0 }
             }
-            WaitForAdvertisement { socket, cnt } => {
+            WaitForAdvertisement { peer_index, socket, cnt } => {
                 if cnt >= 5 {
-                    ConfiguredForJoin { socket }
+                    // timeout, so try next peer
+                    let new_peer_index = (peer_index + 1) % static_config.peer_cnt;
+                    Unconfigured { peer_index: new_peer_index }
                 } else {
                     let mut buf = [0; 1000];
                     match socket.recv(&mut buf) {
@@ -257,11 +259,12 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                                 }
                                 Err(e) => {
                                     println!("Error in json decode: {:?}", e);
-                                    ConfiguredForJoin { socket }
+                                    ConfiguredForJoin { peer_index, socket }
                                 }
                             }
                         }
                         Err(_e) => WaitForAdvertisement {
+                            peer_index,
                             socket,
                             cnt: cnt + 1,
                         },

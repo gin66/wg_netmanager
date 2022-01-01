@@ -249,7 +249,7 @@ fn loop_client(
     let mut dynamic_peers = DynamicPeerList::default();
     let polling_interval = time::Duration::from_millis(1000);
     loop {
-        println!("Main loop client");
+        //println!("Main loop client");
         match rx.recv_timeout(polling_interval) {
             Ok(Event::CtrlC) => {
                 break;
@@ -309,7 +309,7 @@ fn loop_client(
                     }
                     Connected => {
                         // any timeout comes here
-                        dynamic_peers.output();
+        //                dynamic_peers.output();
                         if dynamic_peers.peer.is_empty() {
                             wg_dev.take_down_device()?;
                             WithoutDevice
@@ -446,11 +446,11 @@ fn loop_listener(
 
                 let ping_peers = dynamic_peers.check_ping_timeouts();
                 for (wg_ip, udp_port) in ping_peers {
-                    println!("Found ping peer {}...send ping", wg_ip);
                     let ping =
                         UdpPacket::ping_from_config(&static_config);
                     let buf = serde_json::to_vec(&ping).unwrap();
                     let destination = format!("{}:{}", wg_ip, udp_port);
+                    println!("Found ping peer {}...send ping", destination);
                     socket.send_to(&buf, destination).ok();
                 }
 

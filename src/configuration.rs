@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::net::UdpSocket;
 use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
@@ -301,7 +300,7 @@ pub enum DynamicConfigurationClient {
     ConfiguredForJoin { peer_index: usize },
     WaitForAdvertisement { peer_index: usize, cnt: u8 },
     AdvertisementReceived { ad: UdpPacket },
-    Connected { dynamic_peers: DynamicPeerList },
+    Connected,
 }
 
 #[derive(Serialize, Deserialize)]

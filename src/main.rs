@@ -199,8 +199,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::error::Error>> {
     let (tx, rx) = channel();
 
+    let tx_handler = tx.clone();
     ctrlc::set_handler(move || {
-        tx.send(Event::CtrlC)
+        tx_handler
+            .send(Event::CtrlC)
             .expect("Could not send signal on channel.")
     })
     .expect("Error setting Ctrl-C handler");
@@ -209,106 +211,172 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
 
     println!("bind to 0.0.0.0:0");
     let socket = UdpSocket::bind("0.0.0.0:0")?;
-    socket.set_nonblocking(true).unwrap();
+
+    // Set up udp receiver thread
+    let tx_clone = tx.clone();
+    let socket_clone = socket.try_clone().expect("couldn't clone the socket");
+    std::thread::spawn(move || {
+        loop {
+            let mut buf = [0; 1000];
+            match socket_clone.recv_from(&mut buf) {
+                Ok((received, src_addr)) => {
+                    println!("received {} bytes from {:?}", received, src_addr);
+                    match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
+                        Ok(udp_packet) => {
+                            tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
+                        }
+                        Err(e) => {
+                            println!("Error in json decode: {:?}", e);
+                        }
+                    }
+                }
+                Err(_e) => {
+                    //println!("{:?}",e);
+                }
+            }
+        }
+    });
+
 
     let mut dynamic_config = DynamicConfigurationClient::WithoutDevice;
+    let mut dynamic_peers = DynamicPeerList::default();
     let polling_interval = time::Duration::from_millis(1000);
-    while rx.recv_timeout(polling_interval).is_err() {
-        use DynamicConfigurationClient::*;
+    loop {
         println!("Main loop client");
-        dynamic_config = match dynamic_config {
-            WithoutDevice => {
-                wg_dev.bring_up_device()?;
-                wg_dev.set_ip(&static_config.new_participant_ip)?;
-                let route = format!("{}/32", static_config.new_participant_listener_ip);
-                wg_dev.add_route(&route)?;
-                Unconfigured { peer_index: 0 }
+        match rx.recv_timeout(polling_interval) {
+            Ok(Event::CtrlC) => {
+                break;
             }
-            Unconfigured { peer_index } => {
-                let conf = static_config.as_conf_for_new_participant(peer_index);
-                if static_config.verbosity.all() {
-                    println!("Configuration for join ({}):\n{}\n", peer_index, conf);
-                }
-                wg_dev.set_conf(&conf)?;
-                ConfiguredForJoin { peer_index }
-            }
-            ConfiguredForJoin { peer_index } => {
-                let advertisement = UdpPacket::advertisement_from_config(&static_config);
-                let buf = serde_json::to_vec(&advertisement).unwrap();
-                let destination = format!(
-                    "{}:{}",
-                    static_config.new_participant_listener_ip,
-                    static_config.udp_port(peer_index)
-                );
-                println!(
-                    "Send advertisement to listener {} {}",
-                    peer_index, destination
-                );
-                socket.send_to(&buf, destination).ok();
-                WaitForAdvertisement {
-                    peer_index,
-                    cnt: 0,
-                }
-            }
-            WaitForAdvertisement {
-                peer_index,
-                cnt,
-            } => {
-                if cnt >= 5 {
-                    // timeout, so try next peer
-                    let new_peer_index = (peer_index + 1) % static_config.peer_cnt;
-                    Unconfigured {
-                        peer_index: new_peer_index,
+            Err(_) => {
+                // any timeout comes here
+                use DynamicConfigurationClient::*;
+                dynamic_config = match dynamic_config {
+                    WithoutDevice => {
+                        wg_dev.bring_up_device()?;
+                        wg_dev.set_ip(&static_config.new_participant_ip)?;
+                        let route = format!("{}/32", static_config.new_participant_listener_ip);
+                        wg_dev.add_route(&route)?;
+                        Unconfigured { peer_index: 0 }
                     }
-                } else {
-                    let mut buf = [0; 1000];
-                    match socket.recv_from(&mut buf) {
-                        Ok((received, src_addr)) => {
-                            println!("received {} bytes from {:?}", received, src_addr);
-                            match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
-                                Ok(ad) => {
-                                    wg_dev.take_down_device()?;
-                                    AdvertisementReceived { ad }
-                                }
-                                Err(e) => {
-                                    println!("Error in json decode: {:?}", e);
-                                    ConfiguredForJoin { peer_index }
+                    Unconfigured { peer_index } => {
+                        let conf = static_config.as_conf_for_new_participant(peer_index);
+                        if static_config.verbosity.all() {
+                            println!("Configuration for join ({}):\n{}\n", peer_index, conf);
+                        }
+                        wg_dev.set_conf(&conf)?;
+                        ConfiguredForJoin { peer_index }
+                    }
+                    ConfiguredForJoin { peer_index } => {
+                        let advertisement = UdpPacket::advertisement_from_config(&static_config);
+                        let buf = serde_json::to_vec(&advertisement).unwrap();
+                        let destination = format!(
+                            "{}:{}",
+                            static_config.new_participant_listener_ip,
+                            static_config.udp_port(peer_index)
+                        );
+                        println!(
+                            "Send advertisement to listener {} {}",
+                            peer_index, destination
+                        );
+                        socket.send_to(&buf, destination).ok();
+                        WaitForAdvertisement {
+                            peer_index,
+                            cnt: 0,
+                        }
+                    }
+                    WaitForAdvertisement {
+                        peer_index,
+                        cnt,
+                    } => {
+                        if cnt >= 5 {
+                            // timeout, so try next peer
+                            let new_peer_index = (peer_index + 1) % static_config.peer_cnt;
+                            Unconfigured {
+                                peer_index: new_peer_index,
+                            }
+                        }
+                        else {
+                            WaitForAdvertisement { peer_index, cnt: cnt + 1}
+                        }
+                    }
+                    AdvertisementReceived { ad } => {
+                        dynamic_peers.add_peer(ad);
+                        let conf = static_config.as_conf_as_peer(Some(&dynamic_peers));
+                        if static_config.verbosity.all() {
+                            println!("Configuration as peer\n{}\n", conf);
+                        }
+                        wg_dev.bring_up_device()?;
+                        wg_dev.set_ip(&static_config.wg_ip)?;
+                        wg_dev.set_conf(&conf)?;
+                        for (wg_ip, _) in dynamic_peers.peer.iter() {
+                            wg_dev.add_route(&format!("{}/32", wg_ip))?;
+                        }
+                        Connected
+                    }
+                    Connected => {
+                        if dynamic_peers.peer.is_empty() {
+                            wg_dev.take_down_device()?;
+                            WithoutDevice
+                        }
+                        else {
+                            // any timeout comes here
+                            let dead_peers = dynamic_peers.check_timeouts();
+                            for wg_ip in dead_peers {
+                                println!("Found dead peer {}", wg_ip);
+                                dynamic_peers.remove_peer(&wg_ip);
+                                wg_dev.del_route(&format!("{}/32", wg_ip))?;
+                                tx.send(Event::PeerListChange).unwrap();
+                            }
+                            Connected
+                        }
+                    },
+                }
+            }
+            Ok(Event::Udp(udp_packet, src_addr)) => {
+                use DynamicConfigurationClient::*;
+                dynamic_config = match dynamic_config {
+                    WithoutDevice => {
+                        WithoutDevice
+                    }
+                    Unconfigured { peer_index } => {
+                        Unconfigured { peer_index }
+                    }
+                    ConfiguredForJoin { peer_index } => {
+                        ConfiguredForJoin { peer_index }
+                    }
+                    WaitForAdvertisement {..  } => {
+                        wg_dev.take_down_device()?;
+                        AdvertisementReceived { ad: udp_packet }
+                    }
+                    AdvertisementReceived { ad } => {
+                        AdvertisementReceived { ad }
+                    }
+                    Connected => {
+                        use UdpPacket::*;
+                        match udp_packet {
+                            ListenerAdvertisement { .. } | ClientAdvertisement { .. } => {
+                                println!("Do not send advertisement to new participant");
+                                if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet) {
+                                    tx.send(Event::PeerListChange).unwrap();
+                                    wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
                                 }
                             }
                         }
-                        Err(_e) => WaitForAdvertisement {
-                            peer_index,
-                            cnt: cnt + 1,
-                        },
-
-                    }
+                        Connected
+                    },
                 }
             }
-            AdvertisementReceived { ad } => {
-                let mut dynamic_peers = DynamicPeerList::default();
-                dynamic_peers.add_peer(ad);
+            Ok(Event::PeerListChange) => {
+                println!("Update peers");
                 let conf = static_config.as_conf_as_peer(Some(&dynamic_peers));
                 if static_config.verbosity.all() {
                     println!("Configuration as peer\n{}\n", conf);
                 }
-                wg_dev.bring_up_device()?;
-                wg_dev.set_ip(&static_config.wg_ip)?;
-                wg_dev.set_conf(&conf)?;
-                for (wg_ip, _) in dynamic_peers.peer.iter() {
-                    wg_dev.add_route(&format!("{}/32", wg_ip))?;
-                }
-                Connected { dynamic_peers }
+                wg_dev.sync_conf(&conf)?;
             }
-            Connected { dynamic_peers } => {
-                if dynamic_peers.peer.is_empty() {
-                    wg_dev.take_down_device()?;
-                    WithoutDevice
-                }
-                else {
-                    Connected { dynamic_peers }
-                }
-            },
         }
+    }
+    while rx.recv_timeout(polling_interval).is_err() {
     }
 
     wg_dev.take_down_device()?;

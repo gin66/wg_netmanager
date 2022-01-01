@@ -224,11 +224,13 @@ impl StaticConfiguration {
     }
 }
 
+#[derive(Debug)]
 pub struct DynamicPeer {
     public_key: String,
     wg_ip: String,
     name: String,
     endpoint: Option<String>,
+    comm_port: u16,
     lastseen: Instant,
 }
 
@@ -239,7 +241,7 @@ pub struct DynamicPeerList {
     pub fifo_ping: Vec<String>,
 }
 impl DynamicPeerList {
-    pub fn add_peer(&mut self, from_advertisement: UdpPacket) -> Option<String> {
+    pub fn add_peer(&mut self, from_advertisement: UdpPacket, comm_port: u16) -> Option<String> {
         use UdpPacket::*;
         match from_advertisement {
             ListenerAdvertisement {
@@ -253,7 +255,7 @@ impl DynamicPeerList {
                 let lastseen = Instant::now();
                 let key = wg_ip.clone();
                 let new_wg_ip = wg_ip.clone();
-                if self.peer.insert(key, DynamicPeer { wg_ip, public_key, name, endpoint: Some(endpoint),lastseen}).is_none() {
+                if self.peer.insert(key, DynamicPeer { wg_ip, public_key, name, endpoint: Some(endpoint), comm_port,lastseen}).is_none() {
                     Some(new_wg_ip)
                 }
                 else {
@@ -270,7 +272,7 @@ impl DynamicPeerList {
                 let lastseen = Instant::now();
                 let key = wg_ip.clone();
                 let new_wg_ip = wg_ip.clone();
-                if self.peer.insert(key, DynamicPeer { wg_ip, public_key, name, endpoint: None,lastseen} ).is_none() {
+                if self.peer.insert(key, DynamicPeer { wg_ip, public_key, name, endpoint: None, comm_port,lastseen} ).is_none() {
                     Some(new_wg_ip)
                 }
                 else {
@@ -308,6 +310,13 @@ impl DynamicPeerList {
     pub fn remove_peer(&mut self, wg_ip: &str) {
         self.peer.remove(wg_ip);
     }
+    pub fn output(&self) {
+        println!("Dynamic Peers:");
+        for peer in self.peer.values() {
+            println!("{:?}", peer);
+        }
+        println!("");
+    }
 }
 
 pub enum DynamicConfigurationClient {
@@ -315,7 +324,6 @@ pub enum DynamicConfigurationClient {
     Unconfigured { peer_index:usize },
     ConfiguredForJoin { peer_index: usize },
     WaitForAdvertisement { peer_index: usize, cnt: u8 },
-    AdvertisementReceived { ad: UdpPacket },
     Connected,
 }
 

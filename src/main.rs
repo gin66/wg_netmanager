@@ -193,6 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let tx_handler = tx.clone();
     ctrlc::set_handler(move || {
+        println!("CTRL-C");
         tx_handler
             .send(Event::CtrlC)
             .expect("Could not send signal on channel.")
@@ -241,7 +242,7 @@ fn loop_client(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender
 
     let mut dynamic_config = DynamicConfigurationClient::WithoutDevice;
     let mut dynamic_peers = DynamicPeerList::default();
-    let polling_interval = time::Duration::from_millis(1000);
+    let polling_interval = time::Duration::from_millis(10000);
     loop {
         println!("Main loop client");
         match rx.recv_timeout(polling_interval) {
@@ -300,22 +301,9 @@ fn loop_client(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender
                             WaitForAdvertisement { peer_index, cnt: cnt + 1}
                         }
                     }
-                    AdvertisementReceived { ad } => {
-                        dynamic_peers.add_peer(ad);
-                        let conf = static_config.as_conf_as_peer(Some(&dynamic_peers));
-                        if static_config.verbosity.all() {
-                            println!("Configuration as peer\n{}\n", conf);
-                        }
-                        wg_dev.bring_up_device()?;
-                        wg_dev.set_ip(&static_config.wg_ip)?;
-                        wg_dev.set_conf(&conf)?;
-                        for (wg_ip, _) in dynamic_peers.peer.iter() {
-                            wg_dev.add_route(&format!("{}/32", wg_ip))?;
-                        }
-                        Connected
-                    }
                     Connected => {
                         // any timeout comes here
+                        dynamic_peers.output();
                         if dynamic_peers.peer.is_empty() {
                             wg_dev.take_down_device()?;
                             WithoutDevice
@@ -345,7 +333,7 @@ fn loop_client(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender
                     },
                 }
             }
-            Ok(Event::Udp(udp_packet, _src_addr)) => {
+            Ok(Event::Udp(udp_packet, src_addr)) => {
                 use DynamicConfigurationClient::*;
                 dynamic_config = match dynamic_config {
                     WithoutDevice => {
@@ -359,17 +347,25 @@ fn loop_client(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender
                     }
                     WaitForAdvertisement {..  } => {
                         wg_dev.take_down_device()?;
-                        AdvertisementReceived { ad: udp_packet }
-                    }
-                    AdvertisementReceived { ad } => {
-                        AdvertisementReceived { ad }
+                        dynamic_peers.add_peer(udp_packet, src_addr.port());
+                        let conf = static_config.as_conf_as_peer(Some(&dynamic_peers));
+                        if static_config.verbosity.all() {
+                            println!("Configuration as peer\n{}\n", conf);
+                        }
+                        wg_dev.bring_up_device()?;
+                        wg_dev.set_ip(&static_config.wg_ip)?;
+                        wg_dev.set_conf(&conf)?;
+                        for (wg_ip, _) in dynamic_peers.peer.iter() {
+                            wg_dev.add_route(&format!("{}/32", wg_ip))?;
+                        }
+                        Connected
                     }
                     Connected => {
                         use UdpPacket::*;
                         match udp_packet {
                             ListenerAdvertisement { .. } | ClientAdvertisement { .. } => {
                                 println!("Do not send advertisement to new participant");
-                                if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet) {
+                                if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet, src_addr.port()) {
                                     tx.send(Event::PeerListChange).unwrap();
                                     wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
                                 }
@@ -388,8 +384,6 @@ fn loop_client(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender
                 wg_dev.sync_conf(&conf)?;
             }
         }
-    }
-    while rx.recv_timeout(polling_interval).is_err() {
     }
 
     wg_dev.take_down_device()?;
@@ -432,6 +426,7 @@ fn loop_listener(static_config: StaticConfiguration, socket: UdpSocket, tx: Send
             }
             Err(_) => {
                 // any timeout comes here
+                    dynamic_peers.output();
                 let dead_peers = dynamic_peers.check_timeouts();
                 for wg_ip in dead_peers {
                     println!("Found dead peer {}", wg_ip);
@@ -471,7 +466,7 @@ fn loop_listener(static_config: StaticConfiguration, socket: UdpSocket, tx: Send
                         let buf = serde_json::to_vec(&advertisement).unwrap();
                         socket.send_to(&buf, src_addr).ok();
 
-                        if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet) {
+                        if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet, src_addr.port()) {
                             tx.send(Event::PeerListChange).unwrap();
                             wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
                         }

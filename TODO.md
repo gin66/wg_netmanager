@@ -13,6 +13,7 @@ Todos:
 * share unbound UDP socket addresses between clients
 * put udp comm port info into advertisement
 * Two listeners cannot communicate as both use the same private ip
+* Retrieve endpoint from clients out of wg parsed output
 
 DONE:
 * monitor connection to peers and remove them, if no connection anymore

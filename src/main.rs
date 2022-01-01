@@ -292,10 +292,16 @@ fn loop_client(static_config: StaticConfiguration, socket: UdpSocket, tx: Sender
                     } => {
                         if cnt >= 5 {
                             // timeout, so try next peer
-                            let new_peer_index = (peer_index + 1) % static_config.peer_cnt;
-                            Unconfigured {
-                                peer_index: new_peer_index,
+                            let new_peer_index = peer_index + 1;
+                            if new_peer_index == static_config.peer_cnt {
+                                wg_dev.take_down_device()?;
+                                WithoutDevice
                             }
+                            else {
+                                Unconfigured {
+                                    peer_index: new_peer_index,
+                                }
+                            } 
                         }
                         else {
                             WaitForAdvertisement { peer_index, cnt: cnt + 1}

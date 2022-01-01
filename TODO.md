@@ -14,6 +14,7 @@ Todos:
 * put udp comm port info into advertisement
 * Two listeners cannot communicate as both use the same private ip
 * Retrieve endpoint from clients out of wg parsed output
+* rename publicIp to e.g. visibleHost
 
 DONE:
 * monitor connection to peers and remove them, if no connection anymore

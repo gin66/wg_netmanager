@@ -315,10 +315,12 @@ fn loop_client(
                             WithoutDevice
                         } else {
                             let dead_peers = dynamic_peers.check_timeouts();
-                            for wg_ip in dead_peers {
-                                println!("Found dead peer {}", wg_ip);
-                                dynamic_peers.remove_peer(&wg_ip);
-                                wg_dev.del_route(&format!("{}/32", wg_ip))?;
+                            if !dead_peers.is_empty() {
+                                for wg_ip in dead_peers {
+                                    println!("Found dead peer {}", wg_ip);
+                                    dynamic_peers.remove_peer(&wg_ip);
+                                    wg_dev.del_route(&format!("{}/32", wg_ip))?;
+                                }
                                 tx.send(Event::PeerListChange).unwrap();
                             }
                             let ping_peers = dynamic_peers.check_ping_timeouts();
@@ -430,10 +432,12 @@ fn loop_listener(
                 // any timeout comes here
                 dynamic_peers.output();
                 let dead_peers = dynamic_peers.check_timeouts();
-                for wg_ip in dead_peers {
-                    println!("Found dead peer {}", wg_ip);
-                    dynamic_peers.remove_peer(&wg_ip);
-                    wg_dev.del_route(&format!("{}/32", wg_ip))?;
+                if !dead_peers.is_empty() {
+                    for wg_ip in dead_peers {
+                        println!("Found dead peer {}", wg_ip);
+                        dynamic_peers.remove_peer(&wg_ip);
+                        wg_dev.del_route(&format!("{}/32", wg_ip))?;
+                    }
                     tx.send(Event::PeerListChange).unwrap();
                 }
 

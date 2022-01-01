@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::net::UdpSocket;
+use std::time::Instant;
 
 use serde::{Deserialize, Serialize};
 
@@ -203,11 +204,11 @@ impl StaticConfiguration {
         lines.push("".to_string());
 
         if let Some(peers) = dynamic_peers {
-            for (wg_ip, (public_key, _name, opt_endpoint)) in peers.peer.iter() {
+            for peer in peers.peer.values() {
                 lines.push("[Peer]".to_string());
-                lines.push(format!("PublicKey = {}", public_key));
-                lines.push(format!("AllowedIPs = {}/32", wg_ip));
-                if let Some(endpoint) = opt_endpoint {
+                lines.push(format!("PublicKey = {}", peer.public_key));
+                lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));
+                if let Some(endpoint) = peer.endpoint.as_ref() {
                     lines.push(format!("EndPoint = {}", endpoint));
                 }
                 lines.push("".to_string());
@@ -224,13 +225,21 @@ impl StaticConfiguration {
     }
 }
 
+pub struct DynamicPeer {
+    public_key: String,
+    wg_ip: String,
+    name: String,
+    endpoint: Option<String>,
+    lastseen: Instant,
+}
+
 #[derive(Default)]
 pub struct DynamicPeerList {
-    pub updated: bool,
-    pub peer: HashMap<String, (String, String, Option<String>)>,
+    pub peer: HashMap<String, DynamicPeer>,
+    pub fifo: Vec<String>,
 }
 impl DynamicPeerList {
-    pub fn add_peer(&mut self, from_advertisement: UdpPacket) {
+    pub fn add_peer(&mut self, from_advertisement: UdpPacket) -> Option<String> {
         use UdpPacket::*;
         match from_advertisement {
             ListenerAdvertisement {
@@ -239,28 +248,53 @@ impl DynamicPeerList {
                 name,
                 endpoint,
             } => {
-                self.peer.insert(wg_ip, (public_key, name, Some(endpoint)));
+                self.fifo.push(wg_ip.clone());
+                let lastseen = Instant::now();
+                let key = wg_ip.clone();
+                let new_wg_ip = wg_ip.clone();
+                if self.peer.insert(key, DynamicPeer { wg_ip, public_key, name, endpoint: Some(endpoint),lastseen}).is_none() {
+                    Some(new_wg_ip)
+                }
+                else {
+                    None
+                }
             }
             ClientAdvertisement {
                 public_key,
                 wg_ip,
                 name,
             } => {
-                self.peer.insert(wg_ip, (public_key, name, None));
+                self.fifo.push(wg_ip.clone());
+                let lastseen = Instant::now();
+                let key = wg_ip.clone();
+                let new_wg_ip = wg_ip.clone();
+                if self.peer.insert(key, DynamicPeer { wg_ip, public_key, name, endpoint: None,lastseen} ).is_none() {
+                    Some(new_wg_ip)
+                }
+                else {
+                    None
+                }
             }
         }
-        self.updated = true;
+    }
+    pub fn check_timeouts(&mut self) -> Vec<String> {
+        let mut dead_peers = vec![];
+        while let Some(wg_ip) = self.fifo.first().as_ref() {
+            if let Some(peer) = self.peer.get(*wg_ip) {
+                if peer.lastseen.elapsed().as_secs() < 60 {
+                    break;
+                }
+                dead_peers.push(wg_ip.to_string());
+            }
+            self.fifo.remove(0);
+        }
+        dead_peers
+    }
+    pub fn remove_peer(&mut self, wg_ip: &str) {
+        self.peer.remove(wg_ip);
     }
 }
 
-pub enum DynamicConfigurationListener {
-    WithoutDevice,
-    Unconfigured,
-    Running {
-        socket: UdpSocket,
-        dynamic_peers: DynamicPeerList,
-    },
-}
 pub enum DynamicConfigurationClient {
     WithoutDevice,
     Unconfigured { peer_index:usize },

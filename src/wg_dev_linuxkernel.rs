@@ -189,6 +189,27 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
+    fn del_route(&self, route: &str) -> std::io::Result<()> {
+        if self.verbosity.info() {
+            println!("Set route {}", route);
+        }
+
+        let mut cmd = Command::new("sudo")
+            .arg("ip")
+            .arg("route")
+            .arg("del")
+            .arg(route)
+            .spawn()
+            .unwrap();
+
+        let result = cmd.wait().unwrap();
+
+        if result.success() {
+            println!("Interface {} set route", self.device_name);
+        } else {
+        }
+        Ok(())
+    }
     fn set_conf(&self, conf: &str) -> Result<(), String> {
         self.update_conf(conf, true)
     }

@@ -232,13 +232,13 @@ fn loop_client(static_config: StaticConfiguration) -> Result<(), Box<dyn std::er
                 ConfiguredForJoin { peer_index, socket }
             }
             ConfiguredForJoin { peer_index, socket } => {
-                println!("Send advertisement to listener {}", peer_index);
                 let advertisement = UdpAdvertisement::from_config(&static_config);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 let destination = format!(
                     "{}:{}",
                     static_config.new_participant_listener_ip, LISTEN_PORT
                 );
+                println!("Send advertisement to listener {} {}", peer_index, destination);
                 socket.send_to(&buf, destination).ok();
                 WaitForAdvertisement { peer_index, socket, cnt: 0 }
             }
@@ -350,9 +350,9 @@ fn loop_listener(static_config: StaticConfiguration) -> Result<(), Box<dyn std::
                 mut dynamic_peers,
             } => {
                 let mut buf = [0; 1000];
-                match socket.recv(&mut buf) {
-                    Ok(received) => {
-                        println!("received {} bytes {:?}", received, &buf[..received]);
+                match socket.recv_from(&mut buf) {
+                    Ok((received, src_addr)) => {
+                        println!("received {} bytes from {:?}", received, src_addr);
                         match serde_json::from_slice::<UdpAdvertisement>(&buf[..received]) {
                             Ok(ad) => {
                                 println!("Send advertisement to new participant");

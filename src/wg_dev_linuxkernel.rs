@@ -9,6 +9,12 @@ pub struct WireguardDeviceLinux {
     device_name: String,
 }
 impl WireguardDeviceLinux {
+    pub fn init<T: Into<String>>(wg_name: T, verbosity: Verbosity) -> Self {
+        WireguardDeviceLinux {
+            verbosity: verbosity,
+            device_name: wg_name.into(),
+        }
+    }
     fn update_conf(&self, conf: &str, set_new: bool) -> Result<(), String> {
         let wg_cmd = if set_new { "setconf" } else { "syncconf" };
 
@@ -61,12 +67,6 @@ impl WireguardDeviceLinux {
 }
 
 impl WireguardDevice for WireguardDeviceLinux {
-    fn init<T: Into<String>>(wg_name: T, verbosity: Verbosity) -> Self {
-        WireguardDeviceLinux {
-            verbosity: verbosity,
-            device_name: wg_name.into(),
-        }
-    }
     fn check_device(&self) -> std::io::Result<bool> {
         if self.verbosity.info() {
             println!("Check for device {}", self.device_name);

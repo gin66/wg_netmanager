@@ -233,23 +233,28 @@ fn main() -> BoxResult<()> {
         }
     });
 
-    if static_config.is_listener() {
-        loop_listener(static_config, socket, tx, rx)
+    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
+    // in case there are dangling devices
+    wg_dev.take_down_device().ok();
+
+    let rc = if static_config.is_listener() {
+        loop_listener(static_config, &wg_dev, socket, tx, rx)
     } else {
-        loop_client(static_config, socket, tx, rx)
-    }
+        loop_client(static_config, &wg_dev, socket, tx, rx)
+    };
+
+    wg_dev.take_down_device().ok();
+
+    rc
 }
 
 fn loop_client(
     static_config: StaticConfiguration,
+    wg_dev: &dyn WireguardDevice,
     socket: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
 ) -> BoxResult<()> {
-    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
-
-    // in case there is a dangling device
-    wg_dev.take_down_device().ok();
 
     let mut dynamic_config = DynamicConfigurationClient::WithoutDevice;
     let mut dynamic_peers = DynamicPeerList::default();
@@ -394,22 +399,18 @@ fn loop_client(
             }
         }
     }
-
-    wg_dev.take_down_device()?;
     Ok(())
 }
 
 fn loop_listener(
     static_config: StaticConfiguration,
+    wg_dev: &dyn WireguardDevice,
     socket: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
 ) -> BoxResult<()> {
-    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
     let wg_dev_listener = WireguardDeviceLinux::init("wg_listener", static_config.verbosity);
 
-    // in case there are dangling devices
-    wg_dev.take_down_device().ok();
     wg_dev_listener.take_down_device().ok();
 
     wg_dev.bring_up_device()?;
@@ -518,6 +519,5 @@ fn loop_listener(
     }
 
     wg_dev_listener.take_down_device()?;
-    wg_dev.take_down_device()?;
     Ok(())
 }

@@ -15,6 +15,7 @@ Todos:
 * Two listeners cannot communicate as both use the same private ip
 * Retrieve endpoint from clients out of wg parsed output
 * rename publicIp to e.g. visibleHost
+* Add time to udp packet and check time window to mitigate replay attack
 
 DONE:
 * monitor connection to peers and remove them, if no connection anymore

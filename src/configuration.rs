@@ -400,14 +400,6 @@ impl DynamicPeerList {
     }
 }
 
-pub enum DynamicConfigurationClient {
-    WithoutDevice,
-    Unconfigured { peer_index: usize },
-    ConfiguredForJoin { peer_index: usize },
-    WaitForAdvertisement { peer_index: usize, cnt: u8 },
-    Connected,
-}
-
 #[derive(Serialize, Deserialize)]
 pub enum UdpPacket {
     // TODO: Change from String to &str

@@ -18,6 +18,7 @@ enum Event {
     Udp(UdpPacket, SocketAddr),
     PeerListChange,
     CtrlC,
+    SendAdvertsementToPublicPeers,
 }
 
 fn main() -> BoxResult<()> {
@@ -146,7 +147,6 @@ fn main() -> BoxResult<()> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    // Bind to 0.0.0.0 so that udp from both wg interfaces can be received
     let port = static_config.my_admin_port().unwrap_or(0);
     println!("bind to 0.0.0.0:{}", port);
     let socket = CryptUdp::bind(port)?.key(&shared_key)?;
@@ -205,8 +205,11 @@ fn main_loop(
     // The main difference between listener and client is, 
     // that listener is reachable.
 
-    let mut static_peer_index = 0;
     let polling_interval = time::Duration::from_millis(10000);
+
+    let mut time_60s = time::Instant::now();
+    tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
+
     loop {
         println!("Main loop: {} peers", dynamic_peers.peer.len());
         match rx.recv_timeout(polling_interval) {
@@ -215,6 +218,11 @@ fn main_loop(
             }
             Err(_) => {
                 // any timeout comes here
+                if time_60s.elapsed().as_secs() >= 60 {
+                    time_60s = time::Instant::now();
+                    tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
+                }
+
                 dynamic_peers.output();
                 let dead_peers = dynamic_peers.check_timeouts();
                 if !dead_peers.is_empty() {
@@ -234,9 +242,9 @@ fn main_loop(
                     println!("Found ping peer {}...send ping", destination);
                     socket.send_to(&buf, destination).ok();
                 }
-
-                if static_config.peer_cnt > 0 {
-                    let peer = &static_config.peers[static_peer_index];
+            }
+            Ok(Event::SendAdvertsementToPublicPeers) => {
+                for peer in static_config.peers.iter() {
                     if !dynamic_peers.knows_peer(&peer.wg_ip) {
                         let advertisement = UdpPacket::advertisement_from_config(&static_config);
                         let buf = serde_json::to_vec(&advertisement).unwrap();
@@ -247,12 +255,11 @@ fn main_loop(
                             peer.admin_port
                         );
                         println!(
-                            "Send advertisement to {} {}",
-                            static_peer_index, destination
+                            "Send advertisement to {}",
+                            destination
                         );
                         socket.send_to(&buf, destination).ok();
                     }
-                    static_peer_index = (static_peer_index + 1) % static_config.peer_cnt;
                 }
             }
             Ok(Event::Udp(udp_packet, src_addr)) => {

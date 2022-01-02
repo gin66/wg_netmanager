@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, UdpSocket};
+use std::net::SocketAddr;
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
@@ -11,6 +11,7 @@ use yaml_rust::YamlLoader;
 
 use wg_netmanager::configuration::*;
 use wg_netmanager::wg_dev::*;
+use wg_netmanager::crypt_udp::CryptUdp;
 
 enum Event {
     Udp(UdpPacket, SocketAddr),
@@ -203,7 +204,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Bind to 0.0.0.0 so that udp from both wg interfaces can be received
     let port = static_config.my_admin_port().unwrap_or(0);
     println!("bind to 0.0.0.0:{}", port);
-    let socket = UdpSocket::bind(format!("0.0.0.0:{}", port))?;
+    let socket = CryptUdp::bind(port)?;
 
     // Set up udp receiver thread
     let tx_clone = tx.clone();
@@ -239,7 +240,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn loop_client(
     static_config: StaticConfiguration,
-    socket: UdpSocket,
+    socket: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -398,7 +399,7 @@ fn loop_client(
 
 fn loop_listener(
     static_config: StaticConfiguration,
-    socket: UdpSocket,
+    socket: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
 ) -> Result<(), Box<dyn std::error::Error>> {

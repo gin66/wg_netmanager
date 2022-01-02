@@ -284,11 +284,11 @@ impl DynamicPeerList {
             }
         }
     }
-    pub fn check_timeouts(&mut self) -> Vec<String> {
+    pub fn check_timeouts(&mut self, limit: u64) -> Vec<String> {
         let mut dead_peers = vec![];
         while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
-                if peer.lastseen.elapsed().as_secs() < 60 {
+                if peer.lastseen.elapsed().as_secs() < limit {
                     break;
                 }
                 dead_peers.push(wg_ip.to_string());
@@ -297,11 +297,11 @@ impl DynamicPeerList {
         }
         dead_peers
     }
-    pub fn check_ping_timeouts(&mut self) -> Vec<(String, u16)> {
+    pub fn check_ping_timeouts(&mut self, limit: u64) -> Vec<(String, u16)> {
         let mut ping_peers = vec![];
         while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
-                if peer.lastseen.elapsed().as_secs() < 20 { // 60/3 (div 2 may not work)
+                if peer.lastseen.elapsed().as_secs() < limit {
                     break;
                 }
                 ping_peers.push((wg_ip.to_string(), peer.admin_port));

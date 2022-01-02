@@ -232,16 +232,21 @@ fn main_loop(
                 }
             }
             Ok(Event::SendPingToAllDynamicPeers) => {
-                let ping_peers = dynamic_peers.check_ping_timeouts();
-                for (wg_ip, udp_port) in ping_peers {
+                // Pings are sent out only via the wireguard interface.
+                //
+                let ping_peers = dynamic_peers.check_ping_timeouts(20); // should be < half of dead peer timeout
+                for (wg_ip, admin_port) in ping_peers {
                     let ping = UdpPacket::ping_from_config(&static_config);
                     let buf = serde_json::to_vec(&ping).unwrap();
-                    let destination = format!("{}:{}", wg_ip, udp_port);
+                    let destination = format!("{}:{}", wg_ip, admin_port);
                     println!("Found ping peer {}...send ping", destination);
                     socket.send_to(&buf, destination).ok();
                 }
             }
             Ok(Event::SendAdvertsementToPublicPeers) => {
+                // These advertisements are sent to the known internet address as defined in the config file.
+                // As all udp packets are encrypted, this should not be an issue.
+                //
                 for peer in static_config.peers.iter() {
                     if !dynamic_peers.knows_peer(&peer.wg_ip) {
                         let advertisement = UdpPacket::advertisement_from_config(&static_config);
@@ -270,6 +275,11 @@ fn main_loop(
                             tx.send(Event::PeerListChange).unwrap();
                             wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
 
+                            // Answers to advertisments are only sent, if the wireguard ip is not
+                            // in the list of dynamic peers and as such is new.
+                            // Consequently the reply is sent over the internet and not via
+                            // wireguard tunnel.
+                            //
                             println!("Send advertisement to new participant");
                             let advertisement = UdpPacket::advertisement_from_config(&static_config);
                             let buf = serde_json::to_vec(&advertisement).unwrap();
@@ -283,7 +293,7 @@ fn main_loop(
             }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
                 dynamic_peers.output();
-                let dead_peers = dynamic_peers.check_timeouts();
+                let dead_peers = dynamic_peers.check_timeouts(60);
                 if !dead_peers.is_empty() {
                     for wg_ip in dead_peers {
                         println!("Found dead peer {}", wg_ip);

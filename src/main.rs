@@ -9,6 +9,7 @@ use clap::{App, Arg};
 use ctrlc;
 use yaml_rust::YamlLoader;
 
+use wg_netmanager::error::*;
 use wg_netmanager::configuration::*;
 use wg_netmanager::wg_dev::*;
 use wg_netmanager::crypt_udp::CryptUdp;
@@ -19,7 +20,7 @@ enum Event {
     CtrlC,
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> BoxResult<()> {
     let matches = App::new("Wireguard Network Manager")
         .version("0.1")
         .author("Jochen Kiemes <jochen@kiemes.de>")
@@ -243,7 +244,7 @@ fn loop_client(
     socket: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> BoxResult<()> {
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
 
     // in case there is a dangling device
@@ -402,7 +403,7 @@ fn loop_listener(
     socket: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> BoxResult<()> {
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
     let wg_dev_listener = WireguardDeviceLinux::init("wg_listener", static_config.verbosity);
 

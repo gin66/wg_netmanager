@@ -26,7 +26,6 @@ impl Verbosity {
 
 pub struct PublicPeer {
     pub public_ip: String,
-    pub join_port: u16,
     pub comm_port: u16,
     pub admin_port: u16,
     pub wg_ip: String,

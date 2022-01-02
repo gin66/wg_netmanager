@@ -88,13 +88,11 @@ fn main() -> BoxResult<()> {
     for p in conf[0]["peers"].as_vec().unwrap() {
         println!("PEER: {:?}", p);
         let public_ip = p["publicIp"].as_str().unwrap().to_string();
-        let join_port = p["wgJoinPort"].as_i64().unwrap() as u16;
         let comm_port = p["wgPort"].as_i64().unwrap() as u16;
         let admin_port = p["adminPort"].as_i64().unwrap() as u16;
         let wg_ip = p["wgIp"].as_str().unwrap().to_string();
         let pp = PublicPeer {
             public_ip,
-            join_port,
             comm_port,
             admin_port,
             wg_ip,
@@ -260,23 +258,17 @@ fn main_loop(
             Ok(Event::Udp(udp_packet, src_addr)) => {
                 use UdpPacket::*;
                 match udp_packet {
-                    ClientAdvertisement { .. } => {
-                        println!("Send advertisement to new participant");
-                        let advertisement = UdpPacket::advertisement_from_config(&static_config);
-                        let buf = serde_json::to_vec(&advertisement).unwrap();
-                        socket.send_to(&buf, src_addr).ok();
+                    ListenerAdvertisement { .. }
+                    | ClientAdvertisement { .. } => {
+                        if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet, src_addr.port())
+                        {
+                            tx.send(Event::PeerListChange).unwrap();
+                            wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
 
-                        if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet, src_addr.port())
-                        {
-                            tx.send(Event::PeerListChange).unwrap();
-                            wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
-                        }
-                    }
-                    ListenerAdvertisement { .. } => {
-                        if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet, src_addr.port())
-                        {
-                            tx.send(Event::PeerListChange).unwrap();
-                            wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
+                            println!("Send advertisement to new participant");
+                            let advertisement = UdpPacket::advertisement_from_config(&static_config);
+                            let buf = serde_json::to_vec(&advertisement).unwrap();
+                            socket.send_to(&buf, src_addr).ok();
                         }
                     }
                     ListenerPing { .. } | ClientPing {..} => {

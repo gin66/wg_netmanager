@@ -83,20 +83,6 @@ fn main() -> BoxResult<()> {
 
     let network = &conf[0]["network"];
     let shared_key = base64::decode(&network["sharedKey"].as_str().unwrap()).unwrap();
-    let private_key_listener = &network["privateKeyListener"].as_str().unwrap();
-    let private_key_new_participant = &network["privateKeyNewParticipant"].as_str().unwrap();
-    if verbosity.all() {
-        println!(
-            "Network private key from config file listener: {}",
-            private_key_listener
-        );
-        println!(
-            "Network private key from config file new participant: {}",
-            private_key_new_participant
-        );
-    }
-    let new_participant_ip = &network["newParticipant"].as_str().unwrap();
-    let new_participant_listener_ip = &network["newParticipantListener"].as_str().unwrap();
 
     let mut peers: Vec<PublicPeer> = vec![];
     for p in conf[0]["peers"].as_vec().unwrap() {
@@ -140,55 +126,14 @@ fn main() -> BoxResult<()> {
         println!("Network public key: {}", my_public_key);
     }
 
-    let mut cmd = Command::new("wg")
-        .arg("pubkey")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
-    write!(cmd.stdin.as_ref().unwrap(), "{}", private_key_listener)?;
-    cmd.wait()?;
-    let mut public_key = String::new();
-    cmd.stdout.unwrap().read_to_string(&mut public_key)?;
-    let public_key_listener = public_key.trim();
-    if verbosity.info() {
-        println!("Network public key listener: {}", public_key_listener);
-    }
-
-    let mut cmd = Command::new("wg")
-        .arg("pubkey")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
-    write!(
-        cmd.stdin.as_ref().unwrap(),
-        "{}",
-        private_key_new_participant
-    )?;
-    cmd.wait()?;
-    let mut public_key = String::new();
-    cmd.stdout.unwrap().read_to_string(&mut public_key)?;
-    let public_key_new_participant = public_key.trim();
-    if verbosity.info() {
-        println!(
-            "Network public key new participant: {}",
-            public_key_new_participant
-        );
-    }
-
     let static_config = StaticConfiguration::new()
         .verbosity(verbosity)
         .name(computer_name)
         .wg_ip(wg_ip)
         .wg_name(interface)
-        .new_participant_ip(*new_participant_ip)
-        .new_participant_listener_ip(*new_participant_listener_ip)
         .my_public_key(my_public_key)
         .my_private_key(my_private_key)
         .my_public_key(my_public_key)
-        .public_key_listener(public_key_listener)
-        .public_key_new_participant(public_key_new_participant)
-        .private_key_listener(*private_key_listener)
-        .private_key_new_participant(*private_key_new_participant)
         .peers(peers)
         .build();
 

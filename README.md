@@ -26,10 +26,7 @@ Here a work in progress example (filename net.yaml):
 
 ```yaml
 network:
-  privateKeyListener: YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=
-  privateKeyNewParticipant: 8MXAa0cfyBqEMFR0dgtxz+AJ465FWYxSxnl4LykI0GA=
-  newParticipant: 172.16.1.2
-  newParticipantListener: 172.16.1.1
+  sharedKey: YDUBM6FhERePZ4gPlxzAbCN7K61BPjy7HApWYL+P128=
     #ipRange: 10.1.0.0/16
 
 peers:

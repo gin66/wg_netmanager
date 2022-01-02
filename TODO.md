@@ -1,6 +1,4 @@
 Todos:
-* README
-* udp: validate sender to be a valid one
 * exchange known client list
 * routing
 * send default gateway
@@ -12,14 +10,21 @@ Todos:
 * find a solution for sudo
 * share unbound UDP socket addresses between clients
 * put udp comm port info into advertisement
-* Two listeners cannot communicate as both use the same private ip
 * Retrieve endpoint from clients out of wg parsed output
 * rename publicIp to e.g. visibleHost
 * Add time to udp packet and check time window to mitigate replay attack
+* Do not sent advertisement to self
 
 DONE:
 * monitor connection to peers and remove them, if no connection anymore
+* udp package encryption
+* README
 
 NO PRIORITY:
-* udp package encryption
 * eliminate the need to specify two listen ports (one could be sufficient with appropriate scheme)
+
+OBSOLETE:
+* udp: validate sender to be a valid one
+  => through use off encryption
+* Two listeners cannot communicate as both use the same private ip
+  => replaced with encrypted udp communication

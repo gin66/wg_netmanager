@@ -6,9 +6,10 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = "2.34.0"
-yaml-rust = "0.4.5"
-tempfile = "3.2.0"
-ctrlc = "3.2.1"
+clap = "2.34"
+yaml-rust = "0.4"
+tempfile = "3.2"
+ctrlc = "3.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+ipnet = "v2.3"

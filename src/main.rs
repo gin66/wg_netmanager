@@ -19,6 +19,8 @@ enum Event {
     PeerListChange,
     CtrlC,
     SendAdvertsementToPublicPeers,
+    SendPingToAllDynamicPeers,
+    CheckAndRemoveDeadDynamicPeers,
 }
 
 fn main() -> BoxResult<()> {
@@ -207,6 +209,7 @@ fn main_loop(
 
     let polling_interval = time::Duration::from_millis(10000);
 
+    let mut time_5s = time::Instant::now();
     let mut time_60s = time::Instant::now();
     tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
 
@@ -222,18 +225,13 @@ fn main_loop(
                     time_60s = time::Instant::now();
                     tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
                 }
-
-                dynamic_peers.output();
-                let dead_peers = dynamic_peers.check_timeouts();
-                if !dead_peers.is_empty() {
-                    for wg_ip in dead_peers {
-                        println!("Found dead peer {}", wg_ip);
-                        dynamic_peers.remove_peer(&wg_ip);
-                        wg_dev.del_route(&format!("{}/32", wg_ip))?;
-                    }
-                    tx.send(Event::PeerListChange).unwrap();
+                if time_5s.elapsed().as_secs() >= 5 {
+                    time_5s = time::Instant::now();
+                    tx.send(Event::SendPingToAllDynamicPeers).unwrap();
+                    tx.send(Event::CheckAndRemoveDeadDynamicPeers).unwrap();
                 }
-
+            }
+            Ok(Event::SendPingToAllDynamicPeers) => {
                 let ping_peers = dynamic_peers.check_ping_timeouts();
                 for (wg_ip, udp_port) in ping_peers {
                     let ping = UdpPacket::ping_from_config(&static_config);
@@ -281,6 +279,18 @@ fn main_loop(
                     ListenerPing { .. } | ClientPing {..} => {
                         dynamic_peers.update_peer(udp_packet, src_addr.port());
                     }
+                }
+            }
+            Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
+                dynamic_peers.output();
+                let dead_peers = dynamic_peers.check_timeouts();
+                if !dead_peers.is_empty() {
+                    for wg_ip in dead_peers {
+                        println!("Found dead peer {}", wg_ip);
+                        dynamic_peers.remove_peer(&wg_ip);
+                        wg_dev.del_route(&format!("{}/32", wg_ip))?;
+                    }
+                    tx.send(Event::PeerListChange).unwrap();
                 }
             }
             Ok(Event::PeerListChange) => {

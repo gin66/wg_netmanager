@@ -82,6 +82,7 @@ fn main() -> BoxResult<()> {
     }
 
     let network = &conf[0]["network"];
+    let shared_key = base64::decode(&network["sharedKey"].as_str().unwrap()).unwrap();
     let private_key_listener = &network["privateKeyListener"].as_str().unwrap();
     let private_key_new_participant = &network["privateKeyNewParticipant"].as_str().unwrap();
     if verbosity.all() {
@@ -205,7 +206,7 @@ fn main() -> BoxResult<()> {
     // Bind to 0.0.0.0 so that udp from both wg interfaces can be received
     let port = static_config.my_admin_port().unwrap_or(0);
     println!("bind to 0.0.0.0:{}", port);
-    let socket = CryptUdp::bind(port)?;
+    let socket = CryptUdp::bind(port)?.key(&shared_key)?;
 
     // Set up udp receiver thread
     let tx_clone = tx.clone();

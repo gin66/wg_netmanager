@@ -152,7 +152,7 @@ pub struct StaticConfiguration {
     pub public_key_listener: String,
     pub private_key_new_participant: String,
     pub public_key_new_participant: String,
-    peers: Vec<PublicPeer>,
+    pub peers: Vec<PublicPeer>,
     pub peer_cnt: usize,
 }
 
@@ -387,6 +387,9 @@ impl DynamicPeerList {
     }
     pub fn remove_peer(&mut self, wg_ip: &str) {
         self.peer.remove(wg_ip);
+    }
+    pub fn knows_peer(&mut self, wg_ip: &str) -> bool {
+        self.peer.contains_key(wg_ip)
     }
     pub fn output(&self) {
         println!("Dynamic Peers:");

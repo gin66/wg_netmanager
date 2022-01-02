@@ -32,12 +32,10 @@ network:
 peers:
   - publicIp: 192.168.1.70
     wgPort: 50000
-    wgJoinPort: 50001
     adminPort: 55555
     wgIp: 10.1.1.1
   - publicIp: 192.168.1.212
     wgPort: 50000
-    wgJoinPort: 50001
     adminPort: 55555
     wgIp: 10.1.1.2
 ```

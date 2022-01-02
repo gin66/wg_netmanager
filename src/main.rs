@@ -245,6 +245,9 @@ fn loop_client(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
 
+    // in case there is a dangling device
+    wg_dev.take_down_device().ok();
+
     let mut dynamic_config = DynamicConfigurationClient::WithoutDevice;
     let mut dynamic_peers = DynamicPeerList::default();
     let polling_interval = time::Duration::from_millis(1000);
@@ -401,6 +404,10 @@ fn loop_listener(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
     let wg_dev_listener = WireguardDeviceLinux::init("wg_listener", static_config.verbosity);
+
+    // in case there are dangling devices
+    wg_dev.take_down_device().ok();
+    wg_dev_listener.take_down_device().ok();
 
     wg_dev.bring_up_device()?;
     wg_dev.set_ip(&static_config.wg_ip)?;

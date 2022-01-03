@@ -1,5 +1,5 @@
 Todos:
-* exchange known client list
+* exchange known peer list
 * routing
 * send default gateway
 * exchange info about new public listeners and update config-file
@@ -9,22 +9,23 @@ Todos:
 * include boringtun, if kernel does not provide wireguard interface
 * find a solution for sudo
 * share unbound UDP socket addresses between clients
-* put udp comm port info into advertisement
+* put udp comm port/socketaddr info into advertisement
 * Retrieve endpoint from clients out of wg parsed output
-* rename publicIp to e.g. visibleHost
-* Add time to udp packet and check time window to mitigate replay attack
+* rename publicIp to e.g. visibleHost or reachableHost
 * Do not sent advertisement to self
 
 DONE:
 * monitor connection to peers and remove them, if no connection anymore
 * udp package encryption
 * README
+* add crc check to udp send/receive
+* Add time to udp packet and check time window to mitigate replay attack
 
 NO PRIORITY:
 * eliminate the need to specify two listen ports (one could be sufficient with appropriate scheme)
 
 OBSOLETE:
 * udp: validate sender to be a valid one
-  => through use off encryption
+  => through use of encryption, the sender should be legit
 * Two listeners cannot communicate as both use the same private ip
-  => replaced with encrypted udp communication
+  => replaced with symmetrically encrypted udp communication

@@ -36,6 +36,7 @@ pub struct NodeInfo {
 pub struct RouteInfo {
     to: Ipv4Addr,
     gateway: Option<Ipv4Addr>,
+    issued: bool,
 }
 
 #[derive(Default)]
@@ -63,7 +64,7 @@ impl NetworkManager {
 
     pub fn add_dynamic_peer(&mut self, peer: &DynamicPeer) {
         // Dynamic peers are ALWAYS reachable without a gateway
-        let ri = RouteInfo { to: peer.wg_ip, gateway: None };
+        let ri = RouteInfo { to: peer.wg_ip, gateway: None, issued: false, };
         self.route_db.route_for.insert(peer.wg_ip, ri);
         self.route_db.version += 1;
     }
@@ -73,8 +74,9 @@ impl NetworkManager {
 
     pub fn get_routes(&mut self) -> Vec<&RouteInfo> {
         let mut routes = vec![];
-        for ri in self.route_db.route_for.values() {
-            routes.push(ri);
+        for ri in self.route_db.route_for.values_mut().filter(|ri| !ri.issued) {
+            ri.issued = true;
+            routes.push(&*ri);
         }
         routes
     }

@@ -5,7 +5,7 @@ mod tests {
 
     #[allow(dead_code)]
     fn demo_config() -> StaticConfigurationBuilder {
-        StaticConfiguration::new()
+        StaticConfiguration::builder()
             .verbosity(Verbosity::All)
             .name("test")
             .wg_ip("10.1.1.1".parse::<std::net::Ipv4Addr>().unwrap())

@@ -31,7 +31,7 @@ impl CryptUdp {
     }
     pub fn key(mut self, key: &[u8]) -> BoxResult<Self> {
         if key.len() != 32 {
-            Err("Invalid key length")?
+            strerror("Invalid key length")?
         } else {
             let mut key_buf: [u8; 32] = Default::default();
             key_buf.copy_from_slice(key);
@@ -77,7 +77,7 @@ impl CryptUdp {
             encrypted.append(&mut nonce_raw.to_vec());
             Ok(self.socket.send_to(&encrypted, addr)?)
         } else {
-            Err("No encryption key")?
+            strerror("No encryption key")?
         }
     }
     pub fn recv_from(&self, buf: &mut [u8]) -> BoxResult<(usize, SocketAddr)> {
@@ -86,7 +86,7 @@ impl CryptUdp {
             let (length, src_addr) = self.socket.recv_from(&mut enc_buf)?;
 
             if length <= 24 {
-                Err("received buffer too short")?;
+                strerror("received buffer too short")?;
             }
             let new_length = length - 24;
 
@@ -99,10 +99,10 @@ impl CryptUdp {
                 .map_err(|e| format!("{:?}", e))?;
 
             if decrypted.len() % 8 != 0 {
-                Err("decrypted buffer is not octet-aligned")?;
+                strerror("decrypted buffer is not octet-aligned")?;
             }
             if decrypted.len() < 24 {
-                Err("decrypted buffer is too short")?;
+                strerror("decrypted buffer is too short")?;
             }
 
             let padded = decrypted.len() - 16;
@@ -117,7 +117,7 @@ impl CryptUdp {
             let crc_received = u64::from_le_bytes(crc_buf);
 
             if crc_received != crc_result {
-                Err("CRC mismatch")?;
+                strerror("CRC mismatch")?;
             }
 
             let mut ts_buf = [0u8; 8];
@@ -130,7 +130,7 @@ impl CryptUdp {
                 .as_secs();
             println!("{} {}", ts_received, timestamp);
             if ts_received + 10 < timestamp || ts_received > timestamp + 10 {
-                Err("time mismatch")?;
+                strerror("time mismatch")?;
             }
 
             let mut p_buf = [0u8; 2];
@@ -141,7 +141,7 @@ impl CryptUdp {
 
             Ok((p, src_addr))
         } else {
-            Err("No encryption key")?
+            strerror("No encryption key")?
         }
     }
 }

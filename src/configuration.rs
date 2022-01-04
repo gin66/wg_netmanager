@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Instant;
@@ -13,16 +12,10 @@ pub enum Verbosity {
 }
 impl Verbosity {
     pub fn info(&self) -> bool {
-        match self {
-            Verbosity::Info | Verbosity::All => true,
-            _ => false,
-        }
+        matches!(self, Verbosity::Info | Verbosity::All)
     }
     pub fn all(&self) -> bool {
-        match self {
-            Verbosity::All => true,
-            _ => false,
-        }
+        matches!(self, Verbosity::All)
     }
 }
 
@@ -119,7 +112,7 @@ pub struct StaticConfiguration {
 }
 
 impl StaticConfiguration {
-    pub fn new() -> StaticConfigurationBuilder {
+    pub fn builder() -> StaticConfigurationBuilder {
         StaticConfigurationBuilder::new()
     }
     pub fn is_listener(&self) -> bool {
@@ -276,7 +269,7 @@ impl DynamicPeerList {
         for peer in self.peer.values() {
             println!("{:?}", peer);
         }
-        println!("");
+        println!();
     }
 }
 
@@ -322,7 +315,7 @@ impl UdpPacket {
             public_key: static_config.my_public_key.clone(),
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
-            endpoint
+            endpoint,
         }
     }
 }

@@ -23,7 +23,7 @@
 
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
-use std::net::SocketAddr;
+//use std::net::SocketAddr;
 
 use crate::configuration::*;
 
@@ -63,7 +63,7 @@ pub struct NetworkManager {
 impl NetworkManager {
     pub fn new(wg_ip: Ipv4Addr) -> Self {
         NetworkManager {
-            wg_ip: wg_ip,
+            wg_ip,
             all_nodes: HashMap::new(),
             route_db: RouteDB::default(),
             peer_route_db: HashMap::new(),

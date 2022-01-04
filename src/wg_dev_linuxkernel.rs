@@ -3,6 +3,7 @@ use std::net::Ipv4Addr;
 use std::process::{Command, Stdio};
 
 use crate::configuration::Verbosity;
+use crate::error::*;
 use crate::wg_dev::WireguardDevice;
 
 pub struct WireguardDeviceLinux {
@@ -12,11 +13,11 @@ pub struct WireguardDeviceLinux {
 impl WireguardDeviceLinux {
     pub fn init<T: Into<String>>(wg_name: T, verbosity: Verbosity) -> Self {
         WireguardDeviceLinux {
-            verbosity: verbosity,
+            verbosity,
             device_name: wg_name.into(),
         }
     }
-    fn update_conf(&self, conf: &str, set_new: bool) -> Result<(), String> {
+    fn update_conf(&self, conf: &str, set_new: bool) -> BoxResult<()> {
         let wg_cmd = if set_new { "setconf" } else { "syncconf" };
 
         let output = Command::new("sudo")
@@ -62,13 +63,13 @@ impl WireguardDeviceLinux {
         if result.success() {
             Ok(())
         } else {
-            Err(format!("ERROR"))
+            strerror("ERROR")
         }
     }
 }
 
 impl WireguardDevice for WireguardDeviceLinux {
-    fn check_device(&self) -> std::io::Result<bool> {
+    fn check_device(&self) -> BoxResult<bool> {
         if self.verbosity.info() {
             println!("Check for device {}", self.device_name);
         }
@@ -84,7 +85,7 @@ impl WireguardDevice for WireguardDeviceLinux {
 
         Ok(result.success())
     }
-    fn bring_up_device(&self) -> std::io::Result<()> {
+    fn bring_up_device(&self) -> BoxResult<()> {
         if self.verbosity.info() {
             println!("Bring up device");
         }
@@ -123,7 +124,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
-    fn take_down_device(&self) -> std::io::Result<()> {
+    fn take_down_device(&self) -> BoxResult<()> {
         if self.verbosity.info() {
             println!("Take down device");
         }
@@ -144,7 +145,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
-    fn set_ip(&self, ip: &Ipv4Addr) -> std::io::Result<()> {
+    fn set_ip(&self, ip: &Ipv4Addr) -> BoxResult<()> {
         if self.verbosity.info() {
             println!("Set IP {}", ip);
         }
@@ -167,7 +168,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
-    fn add_route(&self, route: &str) -> std::io::Result<()> {
+    fn add_route(&self, route: &str) -> BoxResult<()> {
         if self.verbosity.info() {
             println!("Set route {}", route);
         }
@@ -190,7 +191,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
-    fn del_route(&self, route: &str) -> std::io::Result<()> {
+    fn del_route(&self, route: &str) -> BoxResult<()> {
         if self.verbosity.info() {
             println!("Set route {}", route);
         }
@@ -211,10 +212,10 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
-    fn set_conf(&self, conf: &str) -> Result<(), String> {
+    fn set_conf(&self, conf: &str) -> BoxResult<()> {
         self.update_conf(conf, true)
     }
-    fn sync_conf(&self, conf: &str) -> Result<(), String> {
+    fn sync_conf(&self, conf: &str) -> BoxResult<()> {
         self.update_conf(conf, false)
     }
 }

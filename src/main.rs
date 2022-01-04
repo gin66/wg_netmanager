@@ -138,7 +138,7 @@ fn main() -> BoxResult<()> {
         println!("Network public key: {}", my_public_key);
     }
 
-    let static_config = StaticConfiguration::new()
+    let static_config = StaticConfiguration::builder()
         .verbosity(verbosity)
         .name(computer_name)
         .wg_ip(wg_ip)
@@ -231,23 +231,27 @@ fn main_loop(
         //println!("Main loop: {} peers", dynamic_peers.peer.len());
         match rx.recv() {
             Err(e) => {
-                println!("Receive error: {:?}",e);
+                println!("Receive error: {:?}", e);
                 break;
             }
             Ok(Event::CtrlC) => {
                 break;
             }
             Ok(Event::TimerTick1s) => {
-                if tick_cnt % 5 == 0 { // every 5s
+                if tick_cnt % 5 == 0 {
+                    // every 5s
                     tx.send(Event::SendPingToAllDynamicPeers).unwrap();
                 }
-                if tick_cnt % 15 == 1 { // every 15s
+                if tick_cnt % 15 == 1 {
+                    // every 15s
                     tx.send(Event::CheckAndRemoveDeadDynamicPeers).unwrap();
                 }
-                if tick_cnt % 30 == 2 { // every 30s
+                if tick_cnt % 30 == 2 {
+                    // every 30s
                     println!("Main loop: {} peers", dynamic_peers.peer.len());
                 }
-                if tick_cnt % 60 == 3 { // every 60s
+                if tick_cnt % 60 == 3 {
+                    // every 60s
                     tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
                 }
                 tick_cnt += 1;

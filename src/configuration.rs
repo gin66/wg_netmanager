@@ -2,22 +2,8 @@ use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Instant;
 
+use log::*;
 use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Copy)]
-pub enum Verbosity {
-    Silent,
-    Info,
-    All,
-}
-impl Verbosity {
-    pub fn info(&self) -> bool {
-        matches!(self, Verbosity::Info | Verbosity::All)
-    }
-    pub fn all(&self) -> bool {
-        matches!(self, Verbosity::All)
-    }
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PublicKeyWithTime {
@@ -34,7 +20,6 @@ pub struct PublicPeer {
 
 #[derive(Default)]
 pub struct StaticConfigurationBuilder {
-    verbosity: Option<Verbosity>,
     name: Option<String>,
     wg_ip: Option<Ipv4Addr>,
     wg_name: Option<String>,
@@ -45,10 +30,6 @@ pub struct StaticConfigurationBuilder {
 impl StaticConfigurationBuilder {
     pub fn new() -> Self {
         StaticConfigurationBuilder::default()
-    }
-    pub fn verbosity(mut self, verbosity: Verbosity) -> Self {
-        self.verbosity = Some(verbosity);
-        self
     }
     pub fn name<T: Into<String>>(mut self, name: T) -> Self {
         self.name = Some(name.into());
@@ -86,7 +67,6 @@ impl StaticConfigurationBuilder {
 
         let peer_cnt = self.peers.len();
         StaticConfiguration {
-            verbosity: self.verbosity.unwrap(),
             name: self.name.unwrap(),
             wg_ip: self.wg_ip.unwrap(),
             wg_name: self.wg_name.unwrap(),
@@ -100,7 +80,6 @@ impl StaticConfigurationBuilder {
 }
 
 pub struct StaticConfiguration {
-    pub verbosity: Verbosity,
     pub name: String,
     pub wg_ip: Ipv4Addr,
     pub wg_name: String,

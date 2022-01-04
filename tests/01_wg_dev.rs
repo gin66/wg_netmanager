@@ -6,7 +6,6 @@ mod tests {
     #[allow(dead_code)]
     fn demo_config() -> StaticConfigurationBuilder {
         StaticConfiguration::builder()
-            .verbosity(Verbosity::All)
             .name("test")
             .wg_ip("10.1.1.1".parse::<std::net::Ipv4Addr>().unwrap())
             .wg_name("wgx")
@@ -14,14 +13,14 @@ mod tests {
 
     #[test]
     fn test_check_device_fail() {
-        let wg_dev = WireguardDeviceLinux::init("wgtest0", Verbosity::All);
+        let wg_dev = WireguardDeviceLinux::init("wgtest0");
         let dc = wg_dev.check_device().unwrap();
         assert!(!dc);
     }
 
     #[test]
     fn test_bring_up_device() {
-        let wg_dev = WireguardDeviceLinux::init("wgtest1", Verbosity::All);
+        let wg_dev = WireguardDeviceLinux::init("wgtest1");
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
@@ -39,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_bring_up_device_with_ip() {
-        let wg_dev = WireguardDeviceLinux::init("wgtest2", Verbosity::All);
+        let wg_dev = WireguardDeviceLinux::init("wgtest2");
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
@@ -59,7 +58,7 @@ mod tests {
 
     #[test]
     fn test_bring_up_device_with_ip_and_key() {
-        let wg_dev = WireguardDeviceLinux::init("wgtest3", Verbosity::All);
+        let wg_dev = WireguardDeviceLinux::init("wgtest3");
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);

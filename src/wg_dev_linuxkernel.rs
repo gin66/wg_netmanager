@@ -2,18 +2,17 @@ use std::io::Write;
 use std::net::Ipv4Addr;
 use std::process::{Command, Stdio};
 
-use crate::configuration::Verbosity;
+use log::*;
+
 use crate::error::*;
 use crate::wg_dev::WireguardDevice;
 
 pub struct WireguardDeviceLinux {
-    verbosity: Verbosity,
     device_name: String,
 }
 impl WireguardDeviceLinux {
-    pub fn init<T: Into<String>>(wg_name: T, verbosity: Verbosity) -> Self {
+    pub fn init<T: Into<String>>(wg_name: T) -> Self {
         WireguardDeviceLinux {
-            verbosity,
             device_name: wg_name.into(),
         }
     }
@@ -70,10 +69,7 @@ impl WireguardDeviceLinux {
 
 impl WireguardDevice for WireguardDeviceLinux {
     fn check_device(&self) -> BoxResult<bool> {
-        if self.verbosity.info() {
-            println!("Check for device {}", self.device_name);
-        }
-
+        debug!("Check for device {}", self.device_name);
         let mut cmd = Command::new("ip")
             .arg("link")
             .arg("show")
@@ -86,10 +82,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         Ok(result.success())
     }
     fn bring_up_device(&self) -> BoxResult<()> {
-        if self.verbosity.info() {
-            println!("Bring up device");
-        }
-
+        debug!("Bring up device");
         let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("link")
@@ -125,10 +118,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         Ok(())
     }
     fn take_down_device(&self) -> BoxResult<()> {
-        if self.verbosity.info() {
-            println!("Take down device");
-        }
-
+        debug!("Take down device");
         let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("link")
@@ -146,10 +136,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         Ok(())
     }
     fn set_ip(&self, ip: &Ipv4Addr) -> BoxResult<()> {
-        if self.verbosity.info() {
-            println!("Set IP {}", ip);
-        }
-
+        debug!("Set IP {}", ip);
         let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("addr")
@@ -169,10 +156,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         Ok(())
     }
     fn add_route(&self, route: &str) -> BoxResult<()> {
-        if self.verbosity.info() {
-            println!("Set route {}", route);
-        }
-
+        debug!("Set route {}", route);
         let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("route")
@@ -192,10 +176,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         Ok(())
     }
     fn del_route(&self, route: &str) -> BoxResult<()> {
-        if self.verbosity.info() {
-            println!("Set route {}", route);
-        }
-
+        debug!("Set route {}", route);
         let mut cmd = Command::new("sudo")
             .arg("ip")
             .arg("route")

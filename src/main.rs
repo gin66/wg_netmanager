@@ -6,6 +6,7 @@ use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
 use std::time::SystemTime;
 
+use log::*;
 use clap::{App, Arg};
 use yaml_rust::YamlLoader;
 
@@ -65,11 +66,25 @@ fn main() -> BoxResult<()> {
         )
         .get_matches();
 
-    let verbosity = match matches.occurrences_of("v") {
-        0 => Verbosity::Silent,
-        1 => Verbosity::Info,
-        _ => Verbosity::All,
+    let log_filter = match matches.occurrences_of("v") {
+        0 => {
+    		log::LevelFilter::Error
+	},
+        1 => {
+    		log::LevelFilter::Warn
+	},
+        2 => {
+    		log::LevelFilter::Info
+	},
+        3 => {
+    		log::LevelFilter::Debug
+	},
+        _ => {
+    		log::LevelFilter::Trace
+	},
     };
+    mowl::init_with_level(log_filter).unwrap();
+
 
     let interface = matches.value_of("interface").unwrap();
     let wg_ip: Ipv4Addr = matches.value_of("wg_ip").unwrap().parse().unwrap();
@@ -82,10 +97,8 @@ fn main() -> BoxResult<()> {
     file.read_to_string(&mut content)?;
     let conf = YamlLoader::load_from_str(&content).unwrap();
 
-    if verbosity.all() {
-        println!("Raw configuration:");
-        println!("{:?}", conf);
-    }
+    debug!("Raw configuration:");
+    debug!("{:?}", conf);
 
     let network = &conf[0]["network"];
     let shared_key = base64::decode(&network["sharedKey"].as_str().unwrap()).unwrap();
@@ -113,9 +126,7 @@ fn main() -> BoxResult<()> {
         .stdout;
     let raw_private_key = String::from_utf8_lossy(&output);
     let my_private_key = raw_private_key.trim();
-    if verbosity.info() {
-        println!("Network private key: {}", my_private_key);
-    }
+    info!("Network private key: {}", my_private_key);
     let mut cmd = Command::new("wg")
         .arg("pubkey")
         .stdin(Stdio::piped())
@@ -134,12 +145,9 @@ fn main() -> BoxResult<()> {
         key: my_public_key.to_string(),
         priv_key_creation_time: timestamp,
     };
-    if verbosity.info() {
-        println!("Network public key: {}", my_public_key);
-    }
+    info!("Network public key: {}", my_public_key);
 
     let static_config = StaticConfiguration::builder()
-        .verbosity(verbosity)
         .name(computer_name)
         .wg_ip(wg_ip)
         .wg_name(interface)
@@ -198,7 +206,7 @@ fn main() -> BoxResult<()> {
         }
     });
 
-    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
+    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name);
     // in case there are dangling devices
     wg_dev.take_down_device().ok();
 
@@ -324,11 +332,9 @@ fn main_loop(
                 }
             }
             Ok(Event::PeerListChange) => {
-                println!("Update peers");
+                info!("Update peers");
                 let conf = static_config.as_conf_as_peer(Some(&dynamic_peers));
-                if static_config.verbosity.all() {
-                    println!("Configuration as peer\n{}\n", conf);
-                }
+                info!("Configuration as peer\n{}\n", conf);
                 wg_dev.sync_conf(&conf)?;
             }
             Ok(Event::UpdateRoutes) => {

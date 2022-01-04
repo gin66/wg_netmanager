@@ -168,7 +168,7 @@ fn main() -> BoxResult<()> {
     let socket_clone = socket.try_clone().expect("couldn't clone the socket");
     std::thread::spawn(move || {
         loop {
-            let mut buf = [0; 1000];
+            let mut buf = [0; 2000];
             match socket_clone.recv_from(&mut buf) {
                 Ok((received, src_addr)) => {
                     println!("received {} bytes from {:?}", received, src_addr);
@@ -220,18 +220,13 @@ fn main_loop(
     rx: Receiver<Event>,
 ) -> BoxResult<()> {
     let mut dynamic_peers = DynamicPeerList::default();
+    let mut network_manager = NetworkManager::new(static_config.wg_ip);
 
     // set up initial wireguard configuration without peers
     tx.send(Event::PeerListChange).unwrap();
-
-    // The main difference between listener and client is,
-    // that listener is reachable.
-
-    let mut network_manager = NetworkManager::new(static_config.wg_ip);
-
-    let mut tick_cnt = 0;
     tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
 
+    let mut tick_cnt = 0;
     loop {
         //println!("Main loop: {} peers", dynamic_peers.peer.len());
         match rx.recv() {
@@ -245,12 +240,14 @@ fn main_loop(
             Ok(Event::TimerTick1s) => {
                 if tick_cnt % 5 == 0 { // every 5s
                     tx.send(Event::SendPingToAllDynamicPeers).unwrap();
+                }
+                if tick_cnt % 15 == 1 { // every 15s
                     tx.send(Event::CheckAndRemoveDeadDynamicPeers).unwrap();
                 }
-                if tick_cnt % 20 == 1 { // every 20s
+                if tick_cnt % 30 == 2 { // every 30s
                     println!("Main loop: {} peers", dynamic_peers.peer.len());
                 }
-                if tick_cnt % 60 == 1 { // every 60s
+                if tick_cnt % 60 == 3 { // every 60s
                     tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
                 }
                 tick_cnt += 1;

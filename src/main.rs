@@ -24,6 +24,7 @@ enum Event {
     SendAdvertisement { to: SocketAddr },
     SendAdvertisementToPublicPeers,
     SendPingToAllDynamicPeers,
+    SendRouteDatabaseRequest{to: SocketAddrV4 },
     CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,
     TimerTick1s,
@@ -351,7 +352,11 @@ fn main_loop(
                         } else {
                             info!("Existing peer {}", src_addr);
                         }
-                        network_manager.analyze_advertisement(&udp_packet);
+                        if let Some(wg_ip) = network_manager.analyze_advertisement(&udp_packet) {
+                            // need to request new route database
+                            let destination = SocketAddrV4::new(wg_ip, src_addr.port());
+                            tx.send(Event::SendRouteDatabaseRequest { to: destination }).unwrap();
+                        }
                     }
                 }
             }
@@ -362,6 +367,12 @@ fn main_loop(
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 info!("Send advertisement to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
+            }
+            Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
+                // let advertisement = UdpPacket::advertisement_from_config(&static_config, routedb_version);
+                // let buf = serde_json::to_vec(&advertisement).unwrap();
+                info!("Send RouteDatabaseRequest to {}", destination);
+                // crypt_socket.send_to(&buf, destination).ok();
             }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
                 dynamic_peers.output();

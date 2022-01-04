@@ -117,7 +117,26 @@ impl NetworkManager {
     pub fn db_version(&self) -> usize {
         self.route_db.version
     }
-    pub fn analyze_advertisement(&mut self, udp_packet: &UdpPacket) {
+    pub fn analyze_advertisement(&mut self, udp_packet: &UdpPacket) -> Option<Ipv4Addr> {
         warn!("NEED ANALYZE");
+        use UdpPacket::*;
+        match udp_packet {
+            Advertisement {
+                wg_ip,
+                routedb_version, ..
+            } => {
+                if let Some(peer_route_db) = self.peer_route_db.get(wg_ip) {
+                    if peer_route_db.version == *routedb_version {
+                        None
+                    }
+                    else {
+                        Some(*wg_ip)
+                    }
+                }
+                else {
+                    Some(*wg_ip)
+                }
+            }
+        }
     }
 }

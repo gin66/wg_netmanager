@@ -23,6 +23,7 @@ enum Event {
     SendPingToAllDynamicPeers,
     CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,
+    TimerTick1s,
 }
 
 fn main() -> BoxResult<()> {
@@ -187,6 +188,16 @@ fn main() -> BoxResult<()> {
         }
     });
 
+    // Set up timer tick
+    let tx_clone = tx.clone();
+    std::thread::spawn(move || {
+        let interval_1s = time::Duration::from_millis(1000);
+        loop {
+            tx_clone.send(Event::TimerTick1s).unwrap();
+            std::thread::sleep(interval_1s);
+        }
+    });
+
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name, static_config.verbosity);
     // in case there are dangling devices
     wg_dev.take_down_device().ok();
@@ -218,29 +229,31 @@ fn main_loop(
 
     let mut network_manager = NetworkManager::new(static_config.wg_ip);
 
-    let polling_interval = time::Duration::from_millis(10000);
-
-    let mut time_5s = time::Instant::now();
-    let mut time_60s = time::Instant::now();
+    let mut tick_cnt = 0;
     tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
 
     loop {
-        println!("Main loop: {} peers", dynamic_peers.peer.len());
-        match rx.recv_timeout(polling_interval) {
+        //println!("Main loop: {} peers", dynamic_peers.peer.len());
+        match rx.recv() {
+            Err(e) => {
+                println!("Receive error: {:?}",e);
+                break;
+            }
             Ok(Event::CtrlC) => {
                 break;
             }
-            Err(_) => {
-                // any timeout comes here
-                if time_60s.elapsed().as_secs() >= 60 {
-                    time_60s = time::Instant::now();
-                    tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
-                }
-                if time_5s.elapsed().as_secs() >= 5 {
-                    time_5s = time::Instant::now();
+            Ok(Event::TimerTick1s) => {
+                if tick_cnt % 5 == 0 { // every 5s
                     tx.send(Event::SendPingToAllDynamicPeers).unwrap();
                     tx.send(Event::CheckAndRemoveDeadDynamicPeers).unwrap();
                 }
+                if tick_cnt % 20 == 1 { // every 20s
+                    println!("Main loop: {} peers", dynamic_peers.peer.len());
+                }
+                if tick_cnt % 60 == 1 { // every 60s
+                    tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
+                }
+                tick_cnt += 1;
             }
             Ok(Event::SendPingToAllDynamicPeers) => {
                 // Pings are sent out only via the wireguard interface.

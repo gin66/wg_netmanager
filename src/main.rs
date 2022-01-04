@@ -335,7 +335,7 @@ fn main_loop(
                 match udp_packet {
                     Advertisement { .. } => {
                         if let Some(new_wg_ip) =
-                            dynamic_peers.add_peer(&udp_packet, src_addr.port())
+                            dynamic_peers.analyze_advertisement(&udp_packet, src_addr.port())
                         {
                             info!("Unknown peer {}", src_addr);
                             network_manager.add_dynamic_peer(&new_wg_ip);
@@ -350,9 +350,8 @@ fn main_loop(
                             tx.send(Event::SendAdvertisement { to: src_addr }).unwrap();
                         } else {
                             info!("Existing peer {}", src_addr);
-                            dynamic_peers.update_peer(&udp_packet, src_addr.port());
                         }
-                        network_manager.analyze_ping(&udp_packet);
+                        network_manager.analyze_advertisement(&udp_packet);
                     }
                 }
             }

@@ -117,7 +117,7 @@ impl NetworkManager {
     pub fn db_version(&self) -> usize {
         self.route_db.version
     }
-    pub fn analyze_ping(&mut self, udp_packet: &UdpPacket) {
+    pub fn analyze_advertisement(&mut self, udp_packet: &UdpPacket) {
         warn!("NEED ANALYZE");
     }
 }

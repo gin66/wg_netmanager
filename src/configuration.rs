@@ -148,7 +148,7 @@ pub struct DynamicPeerList {
     pub fifo_ping: Vec<Ipv4Addr>,
 }
 impl DynamicPeerList {
-    pub fn add_peer(
+    pub fn analyze_advertisement(
         &mut self,
         from_advertisement: &UdpPacket,
         admin_port: u16,
@@ -184,33 +184,6 @@ impl DynamicPeerList {
                 } else {
                     None
                 }
-            }
-        }
-    }
-    pub fn update_peer(&mut self, from_ping: &UdpPacket, admin_port: u16) {
-        use UdpPacket::*;
-        match from_ping {
-            Advertisement {
-                public_key,
-                wg_ip,
-                name,
-                endpoint,
-                routedb_version: _,
-            } => {
-                self.fifo_dead.push(*wg_ip);
-                self.fifo_ping.push(*wg_ip);
-                let lastseen = Instant::now();
-                self.peer.insert(
-                    *wg_ip,
-                    DynamicPeer {
-                        wg_ip: *wg_ip,
-                        public_key: public_key.clone(),
-                        name: name.to_string(),
-                        endpoint: *endpoint,
-                        admin_port,
-                        lastseen,
-                    },
-                );
             }
         }
     }

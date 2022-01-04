@@ -2,13 +2,14 @@
 mod tests {
     use wg_netmanager::configuration::*;
     use wg_netmanager::wg_dev::*;
+    use std::str::FromStr;
 
     #[allow(dead_code)]
     fn demo_config() -> StaticConfigurationBuilder {
         StaticConfiguration::new()
             .verbosity(Verbosity::All)
             .name("test")
-            .wg_ip("10.1.1.1")
+            .wg_ip("10.1.1.1".parse::<std::net::Ipv4Addr>().unwrap())
             .wg_name("wgx")
     }
 
@@ -49,7 +50,7 @@ mod tests {
         let dev_present_after = wg_dev.check_device().unwrap();
         assert!(dev_present_after);
 
-        wg_dev.set_ip("10.1.1.1/32").unwrap();
+        wg_dev.set_ip(&"10.1.1.1".parse().unwrap()).unwrap();
 
         wg_dev.take_down_device().unwrap();
 
@@ -69,7 +70,7 @@ mod tests {
         let dev_present_after = wg_dev.check_device().unwrap();
         assert!(dev_present_after);
 
-        wg_dev.set_ip("10.1.1.1/32").unwrap();
+        wg_dev.set_ip(&"10.1.1.1".parse().unwrap()).unwrap();
 
         wg_dev
             .set_conf(

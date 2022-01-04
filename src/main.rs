@@ -1,9 +1,10 @@
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::SocketAddr;
+use std::net::{SocketAddr,Ipv4Addr};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
+use std::str::FromStr;
 
 use clap::{App, Arg};
 use ctrlc;
@@ -69,7 +70,7 @@ fn main() -> BoxResult<()> {
     };
 
     let interface = matches.value_of("interface").unwrap();
-    let wg_ip = matches.value_of("wg_ip").unwrap();
+    let wg_ip: Ipv4Addr = matches.value_of("wg_ip").unwrap().parse().unwrap();
     let computer_name = matches.value_of("name").unwrap();
 
     let config = matches.value_of("config").unwrap_or("network.yaml");
@@ -93,7 +94,7 @@ fn main() -> BoxResult<()> {
         let public_ip = p["publicIp"].as_str().unwrap().to_string();
         let comm_port = p["wgPort"].as_i64().unwrap() as u16;
         let admin_port = p["adminPort"].as_i64().unwrap() as u16;
-        let wg_ip = p["wgIp"].as_str().unwrap().to_string();
+        let wg_ip: Ipv4Addr =p["wgIp"].as_str().unwrap().parse().unwrap();
         let pp = PublicPeer {
             public_ip,
             comm_port,

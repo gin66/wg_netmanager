@@ -1,5 +1,6 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::net::Ipv4Addr;
 
 use crate::configuration::Verbosity;
 use crate::wg_dev::WireguardDevice;
@@ -143,7 +144,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
-    fn set_ip(&self, ip: &str) -> std::io::Result<()> {
+    fn set_ip(&self, ip: &Ipv4Addr) -> std::io::Result<()> {
         if self.verbosity.info() {
             println!("Set IP {}", ip);
         }
@@ -152,7 +153,7 @@ impl WireguardDevice for WireguardDeviceLinux {
             .arg("ip")
             .arg("addr")
             .arg("add")
-            .arg(ip)
+            .arg(ip.to_string())
             .arg("dev")
             .arg(&self.device_name)
             .spawn()

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::time::Instant;
+use std::net::Ipv4Addr;
 
 use serde::{Deserialize, Serialize};
 
@@ -33,14 +34,14 @@ pub struct PublicPeer {
     pub public_ip: String,
     pub comm_port: u16,
     pub admin_port: u16,
-    pub wg_ip: String,
+    pub wg_ip: Ipv4Addr,
 }
 
 #[derive(Default)]
 pub struct StaticConfigurationBuilder {
     verbosity: Option<Verbosity>,
     name: Option<String>,
-    wg_ip: Option<String>,
+    wg_ip: Option<Ipv4Addr>,
     wg_name: Option<String>,
     my_private_key: Option<String>,
     my_public_key: Option<String>,
@@ -58,7 +59,7 @@ impl StaticConfigurationBuilder {
         self.name = Some(name.into());
         self
     }
-    pub fn wg_ip<T: Into<String>>(mut self, wg_ip: T) -> Self {
+    pub fn wg_ip<T: Into<Ipv4Addr>>(mut self, wg_ip: T) -> Self {
         self.wg_ip = Some(wg_ip.into());
         self
     }
@@ -106,7 +107,7 @@ impl StaticConfigurationBuilder {
 pub struct StaticConfiguration {
     pub verbosity: Verbosity,
     pub name: String,
-    pub wg_ip: String,
+    pub wg_ip: Ipv4Addr,
     pub wg_name: String,
     myself_as_peer: Option<usize>,
     pub my_private_key: String,
@@ -157,7 +158,7 @@ impl StaticConfiguration {
 #[derive(Debug)]
 pub struct DynamicPeer {
     pub public_key: String,
-    pub wg_ip: String,
+    pub wg_ip: Ipv4Addr,
     pub name: String,
     pub endpoint: Option<String>,
     pub admin_port: u16,
@@ -166,12 +167,12 @@ pub struct DynamicPeer {
 
 #[derive(Default)]
 pub struct DynamicPeerList {
-    pub peer: HashMap<String, DynamicPeer>,
-    pub fifo_dead: Vec<String>,
-    pub fifo_ping: Vec<String>,
+    pub peer: HashMap<Ipv4Addr, DynamicPeer>,
+    pub fifo_dead: Vec<Ipv4Addr>,
+    pub fifo_ping: Vec<Ipv4Addr>,
 }
 impl DynamicPeerList {
-    pub fn add_peer(&mut self, from_advertisement: UdpPacket, admin_port: u16) -> Option<String> {
+    pub fn add_peer(&mut self, from_advertisement: UdpPacket, admin_port: u16) -> Option<Ipv4Addr> {
         use UdpPacket::*;
         match from_advertisement {
             ListenerPing {..} | ClientPing  {..}=> None,
@@ -289,36 +290,36 @@ impl DynamicPeerList {
             }
         }
     }
-    pub fn check_timeouts(&mut self, limit: u64) -> Vec<String> {
+    pub fn check_timeouts(&mut self, limit: u64) -> Vec<Ipv4Addr> {
         let mut dead_peers = vec![];
         while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
                 if peer.lastseen.elapsed().as_secs() < limit {
                     break;
                 }
-                dead_peers.push(wg_ip.to_string());
+                dead_peers.push(*wg_ip.clone());
             }
             self.fifo_dead.remove(0);
         }
         dead_peers
     }
-    pub fn check_ping_timeouts(&mut self, limit: u64) -> Vec<(String, u16)> {
+    pub fn check_ping_timeouts(&mut self, limit: u64) -> Vec<(Ipv4Addr, u16)> {
         let mut ping_peers = vec![];
         while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
                 if peer.lastseen.elapsed().as_secs() < limit {
                     break;
                 }
-                ping_peers.push((wg_ip.to_string(), peer.admin_port));
+                ping_peers.push((*wg_ip.clone(), peer.admin_port));
             }
             self.fifo_ping.remove(0);
         }
         ping_peers
     }
-    pub fn remove_peer(&mut self, wg_ip: &str) {
+    pub fn remove_peer(&mut self, wg_ip: &Ipv4Addr) {
         self.peer.remove(wg_ip);
     }
-    pub fn knows_peer(&mut self, wg_ip: &str) -> bool {
+    pub fn knows_peer(&mut self, wg_ip: &Ipv4Addr) -> bool {
         self.peer.contains_key(wg_ip)
     }
     pub fn output(&self) {
@@ -335,24 +336,24 @@ pub enum UdpPacket {
     // TODO: Change from String to &str
     ListenerAdvertisement {
         public_key: String,
-        wg_ip: String,
+        wg_ip: Ipv4Addr,
         name: String,
         endpoint: String,
     },
     ClientAdvertisement {
         public_key: String,
-        wg_ip: String,
+        wg_ip: Ipv4Addr,
         name: String,
     },
     ListenerPing {
         public_key: String,
-        wg_ip: String,
+        wg_ip: Ipv4Addr,
         name: String,
         endpoint: String,
     },
     ClientPing {
         public_key: String,
-        wg_ip: String,
+        wg_ip: Ipv4Addr,
         name: String,
     },
 }

@@ -105,7 +105,7 @@ fn main() -> BoxResult<()> {
 
     let mut peers: Vec<PublicPeer> = vec![];
     for p in conf[0]["peers"].as_vec().unwrap() {
-        println!("PEER: {:?}", p);
+        info!("PEER: {:?}", p);
         let public_ip: IpAddr = p["publicIp"].as_str().unwrap().parse().unwrap();
         let comm_port = p["wgPort"].as_i64().unwrap() as u16;
         let admin_port = p["adminPort"].as_i64().unwrap() as u16;
@@ -160,7 +160,7 @@ fn main() -> BoxResult<()> {
 
     let tx_handler = tx.clone();
     ctrlc::set_handler(move || {
-        println!("CTRL-C");
+        warn!("CTRL-C");
         tx_handler
             .send(Event::CtrlC)
             .expect("Could not send signal on channel.")
@@ -168,7 +168,7 @@ fn main() -> BoxResult<()> {
     .expect("Error setting Ctrl-C handler");
 
     let port = static_config.my_admin_port().unwrap_or(0);
-    println!("bind to 0.0.0.0:{}", port);
+    debug!("bind to 0.0.0.0:{}", port);
     let socket = CryptUdp::bind(port)?.key(&shared_key)?;
 
     // Set up udp receiver thread
@@ -179,18 +179,18 @@ fn main() -> BoxResult<()> {
             let mut buf = [0; 2000];
             match socket_clone.recv_from(&mut buf) {
                 Ok((received, src_addr)) => {
-                    println!("received {} bytes from {:?}", received, src_addr);
+                    info!("received {} bytes from {:?}", received, src_addr);
                     match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
                         Ok(udp_packet) => {
                             tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
                         }
                         Err(e) => {
-                            println!("Error in json decode: {:?}", e);
+                            error!("Error in json decode: {:?}", e);
                         }
                     }
                 }
-                Err(_e) => {
-                    //println!("{:?}",e);
+                Err(e) => {
+                    error!("{:?}",e);
                 }
             }
         }
@@ -236,10 +236,10 @@ fn main_loop(
 
     let mut tick_cnt = 0;
     loop {
-        //println!("Main loop: {} peers", dynamic_peers.peer.len());
+        trace!("Main loop: {} peers", dynamic_peers.peer.len());
         match rx.recv() {
             Err(e) => {
-                println!("Receive error: {:?}", e);
+                error!("Receive error: {:?}", e);
                 break;
             }
             Ok(Event::CtrlC) => {
@@ -256,7 +256,7 @@ fn main_loop(
                 }
                 if tick_cnt % 30 == 2 {
                     // every 30s
-                    println!("Main loop: {} peers", dynamic_peers.peer.len());
+                    info!("Main loop: {} peers", dynamic_peers.peer.len());
                 }
                 if tick_cnt % 60 == 3 {
                     // every 60s
@@ -272,7 +272,7 @@ fn main_loop(
                     let ping = UdpPacket::ping_from_config(&static_config);
                     let buf = serde_json::to_vec(&ping).unwrap();
                     let destination = format!("{}:{}", wg_ip, admin_port);
-                    println!("Found ping peer {}...send ping", destination);
+                    debug!("Found ping peer {}...send ping", destination);
                     socket.send_to(&buf, destination).ok();
                 }
             }
@@ -285,7 +285,7 @@ fn main_loop(
                         let advertisement = UdpPacket::advertisement_from_config(&static_config);
                         let buf = serde_json::to_vec(&advertisement).unwrap();
                         let destination = format!("{}:{}", peer.public_ip, peer.admin_port);
-                        println!("Send advertisement to {}", destination);
+                        info!("Send advertisement to {}", destination);
                         socket.send_to(&buf, destination).ok();
                     }
                 }
@@ -306,7 +306,7 @@ fn main_loop(
                             // Consequently the reply is sent over the internet and not via
                             // wireguard tunnel.
                             //
-                            println!("Send advertisement to new participant");
+                            info!("Send advertisement to new participant");
                             let advertisement =
                                 UdpPacket::advertisement_from_config(&static_config);
                             let buf = serde_json::to_vec(&advertisement).unwrap();
@@ -323,7 +323,7 @@ fn main_loop(
                 let dead_peers = dynamic_peers.check_timeouts(60);
                 if !dead_peers.is_empty() {
                     for wg_ip in dead_peers {
-                        println!("Found dead peer {}", wg_ip);
+                        info!("Found dead peer {}", wg_ip);
                         dynamic_peers.remove_peer(&wg_ip);
                         network_manager.remove_dynamic_peer(&wg_ip);
                     }
@@ -341,7 +341,7 @@ fn main_loop(
                 let changes = network_manager.get_route_changes();
                 for rc in changes {
                     use RouteChange::*;
-                    println!("{:?}", rc);
+                    debug!("{:?}", rc);
                     match rc {
                         AddRouteWithGateway { to: _, gateway: _ } => {}
                         AddRoute { to } => {

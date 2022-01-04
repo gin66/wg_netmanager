@@ -59,7 +59,7 @@ impl StaticConfigurationBuilder {
         let mut myself_as_peer: Option<usize> = None;
         for (i, peer) in self.peers.iter().enumerate() {
             if &peer.wg_ip == self.wg_ip.as_ref().unwrap() {
-                println!("FOUND");
+                debug!("FOUND myself as listener");
                 myself_as_peer = Some(i);
                 break;
             }
@@ -244,11 +244,9 @@ impl DynamicPeerList {
         self.peer.contains_key(wg_ip)
     }
     pub fn output(&self) {
-        println!("Dynamic Peers:");
         for peer in self.peer.values() {
-            println!("{:?}", peer);
+            info!("{:?}", peer);
         }
-        println!();
     }
 }
 

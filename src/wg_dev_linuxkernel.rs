@@ -42,7 +42,7 @@ impl WireguardDeviceLinux {
 
         let _result = cmd_tee.wait().unwrap();
 
-        println!("temp file {}", fname);
+        debug!("temp file {}", fname);
         let mut cmd = Command::new("sudo")
             .arg("wg")
             .arg(wg_cmd)
@@ -51,7 +51,7 @@ impl WireguardDeviceLinux {
             .spawn()
             .unwrap();
         let result = cmd.wait().unwrap();
-        println!("wg {}: {:?}", wg_cmd, result);
+        debug!("wg {}: {:?}", wg_cmd, result);
 
         let _output = Command::new("sudo")
             .arg("rm")
@@ -96,7 +96,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         let result = cmd.wait().unwrap();
 
         if result.success() {
-            println!("Interface {} created", self.device_name);
+            debug!("Interface {} created", self.device_name);
         } else {
         }
 
@@ -112,7 +112,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         let result = cmd.wait().unwrap();
 
         if result.success() {
-            println!("Interface {} up", self.device_name);
+            debug!("Interface {} up", self.device_name);
         } else {
         }
         Ok(())
@@ -130,7 +130,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         let result = cmd.wait().unwrap();
 
         if result.success() {
-            println!("Interface {} destroyed", self.device_name);
+            debug!("Interface {} destroyed", self.device_name);
         } else {
         }
         Ok(())
@@ -150,7 +150,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         let result = cmd.wait().unwrap();
 
         if result.success() {
-            println!("Interface {} set ip", self.device_name);
+            debug!("Interface {} set ip", self.device_name);
         } else {
         }
         Ok(())
@@ -170,7 +170,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         let result = cmd.wait().unwrap();
 
         if result.success() {
-            println!("Interface {} set route", self.device_name);
+            debug!("Interface {} set route", self.device_name);
         } else {
         }
         Ok(())
@@ -188,7 +188,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         let result = cmd.wait().unwrap();
 
         if result.success() {
-            println!("Interface {} set route", self.device_name);
+            debug!("Interface {} set route", self.device_name);
         } else {
         }
         Ok(())

@@ -4,6 +4,7 @@ use std::time::SystemTime;
 use chacha20poly1305::aead::{Aead, NewAead};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 use crc::Crc;
+use log::*;
 
 use crate::error::*;
 
@@ -128,7 +129,7 @@ impl CryptUdp {
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
-            println!("{} {}", ts_received, timestamp);
+            debug!("{} {}", ts_received, timestamp);
             if ts_received + 10 < timestamp || ts_received > timestamp + 10 {
                 strerror("time mismatch")?;
             }

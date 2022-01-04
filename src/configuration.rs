@@ -1,4 +1,6 @@
+use std::collections::HashSet;
 use std::collections::HashMap;
+use std::fmt;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Instant;
 
@@ -146,64 +148,65 @@ pub struct DynamicPeerList {
     pub fifo_ping: Vec<Ipv4Addr>,
 }
 impl DynamicPeerList {
-    pub fn add_peer(&mut self, from_advertisement: UdpPacket, admin_port: u16) -> Option<Ipv4Addr> {
+    pub fn add_peer(
+        &mut self,
+        from_advertisement: &UdpPacket,
+        admin_port: u16,
+    ) -> Option<Ipv4Addr> {
         use UdpPacket::*;
         match from_advertisement {
-            Ping { .. } => None,
             Advertisement {
                 public_key,
                 wg_ip,
                 name,
                 endpoint,
+                routedb_version: _,
             } => {
-                self.fifo_dead.push(wg_ip);
-                self.fifo_ping.push(wg_ip);
+                self.fifo_dead.push(*wg_ip);
+                self.fifo_ping.push(*wg_ip);
                 let lastseen = Instant::now();
-                let key = wg_ip;
-                let new_wg_ip = wg_ip;
                 if self
                     .peer
                     .insert(
-                        key,
+                        *wg_ip,
                         DynamicPeer {
-                            wg_ip,
-                            public_key,
-                            name,
-                            endpoint,
+                            wg_ip: *wg_ip,
+                            public_key: public_key.clone(),
+                            name: name.to_string(),
+                            endpoint: *endpoint,
                             admin_port,
                             lastseen,
                         },
                     )
                     .is_none()
                 {
-                    Some(new_wg_ip)
+                    Some(*wg_ip)
                 } else {
                     None
                 }
             }
         }
     }
-    pub fn update_peer(&mut self, from_ping: UdpPacket, admin_port: u16) {
+    pub fn update_peer(&mut self, from_ping: &UdpPacket, admin_port: u16) {
         use UdpPacket::*;
         match from_ping {
-            Advertisement { .. } => {}
-            Ping {
+            Advertisement {
                 public_key,
                 wg_ip,
                 name,
                 endpoint,
+                routedb_version: _,
             } => {
-                self.fifo_dead.push(wg_ip);
-                self.fifo_ping.push(wg_ip);
+                self.fifo_dead.push(*wg_ip);
+                self.fifo_ping.push(*wg_ip);
                 let lastseen = Instant::now();
-                let key = wg_ip;
                 self.peer.insert(
-                    key,
+                    *wg_ip,
                     DynamicPeer {
-                        wg_ip,
-                        public_key,
-                        name,
-                        endpoint,
+                        wg_ip: *wg_ip,
+                        public_key: public_key.clone(),
+                        name: name.to_string(),
+                        endpoint: *endpoint,
                         admin_port,
                         lastseen,
                     },
@@ -211,27 +214,27 @@ impl DynamicPeerList {
             }
         }
     }
-    pub fn check_timeouts(&mut self, limit: u64) -> Vec<Ipv4Addr> {
-        let mut dead_peers = vec![];
+    pub fn check_timeouts(&mut self, limit: u64) -> HashSet<Ipv4Addr> {
+        let mut dead_peers = HashSet::new();
         while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
                 if peer.lastseen.elapsed().as_secs() < limit {
                     break;
                 }
-                dead_peers.push(**wg_ip);
+                dead_peers.insert(**wg_ip);
             }
             self.fifo_dead.remove(0);
         }
         dead_peers
     }
-    pub fn check_ping_timeouts(&mut self, limit: u64) -> Vec<(Ipv4Addr, u16)> {
-        let mut ping_peers = vec![];
+    pub fn check_ping_timeouts(&mut self, limit: u64) -> HashSet<(Ipv4Addr, u16)> {
+        let mut ping_peers = HashSet::new();
         while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
                 if peer.lastseen.elapsed().as_secs() < limit {
                     break;
                 }
-                ping_peers.push((**wg_ip, peer.admin_port));
+                ping_peers.insert((**wg_ip, peer.admin_port));
             }
             self.fifo_ping.remove(0);
         }
@@ -258,16 +261,14 @@ pub enum UdpPacket {
         wg_ip: Ipv4Addr,
         name: String,
         endpoint: Option<SocketAddr>,
-    },
-    Ping {
-        public_key: PublicKeyWithTime,
-        wg_ip: Ipv4Addr,
-        name: String,
-        endpoint: Option<SocketAddr>,
+        routedb_version: usize,
     },
 }
 impl UdpPacket {
-    pub fn advertisement_from_config(static_config: &StaticConfiguration) -> Self {
+    pub fn advertisement_from_config(
+        static_config: &StaticConfiguration,
+        routedb_version: usize,
+    ) -> Self {
         let endpoint = if static_config.is_listener() {
             let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
             Some(SocketAddr::new(peer.public_ip, peer.comm_port))
@@ -279,20 +280,15 @@ impl UdpPacket {
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
             endpoint,
+            routedb_version,
         }
     }
-    pub fn ping_from_config(static_config: &StaticConfiguration) -> Self {
-        let endpoint = if static_config.is_listener() {
-            let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
-            Some(SocketAddr::new(peer.public_ip, peer.comm_port))
-        } else {
-            None
-        };
-        UdpPacket::Ping {
-            public_key: static_config.my_public_key.clone(),
-            wg_ip: static_config.wg_ip,
-            name: static_config.name.clone(),
-            endpoint,
+}
+impl fmt::Debug for UdpPacket {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UdpPacket::Advertisement { .. } => f.debug_struct("Adverisement"),
         }
+        .finish()
     }
 }

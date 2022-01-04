@@ -88,7 +88,7 @@ echo expectation is, that after a while the ping succeeds: bob can reach charlie
 tmux split-pane -h sudo ip netns exec alice ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.1 alice
 tmux split-pane -h sudo ip netns exec bob ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.3 bob
 tmux split-pane -h sudo ip netns exec charlie ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.4 charlie
-sleep 20
+sleep 120
 sudo ip netns exec bob ping -c 2 10.1.1.1 || echo -e $FAIL
 sudo ip netns exec charlie ping -c 2 10.1.1.1 || echo -e $FAIL
 sudo ip netns exec alice ping -c 2 10.1.1.3 || echo -e $FAIL

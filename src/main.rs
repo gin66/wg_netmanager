@@ -1,13 +1,13 @@
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
 use std::time::SystemTime;
 
-use log::*;
 use clap::{App, Arg};
+use log::*;
 use yaml_rust::YamlLoader;
 
 use wg_netmanager::configuration::*;
@@ -16,11 +16,13 @@ use wg_netmanager::error::*;
 use wg_netmanager::manager::*;
 use wg_netmanager::wg_dev::*;
 
+#[derive(Debug)]
 enum Event {
     Udp(UdpPacket, SocketAddr),
     PeerListChange,
     CtrlC,
-    SendAdvertsementToPublicPeers,
+    SendAdvertisement { to: SocketAddr },
+    SendAdvertisementToPublicPeers,
     SendPingToAllDynamicPeers,
     CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,
@@ -75,7 +77,6 @@ fn set_up_logging(log_filter: log::LevelFilter) {
     debug!("finished setting up logging! yay!");
 }
 
-
 fn main() -> BoxResult<()> {
     let matches = App::new("Wireguard Network Manager")
         .version("0.1")
@@ -116,21 +117,11 @@ fn main() -> BoxResult<()> {
         .get_matches();
 
     let log_filter = match matches.occurrences_of("v") {
-        0 => {
-    		log::LevelFilter::Error
-	},
-        1 => {
-    		log::LevelFilter::Warn
-	},
-        2 => {
-    		log::LevelFilter::Info
-	},
-        3 => {
-    		log::LevelFilter::Debug
-	},
-        _ => {
-    		log::LevelFilter::Trace
-	},
+        0 => log::LevelFilter::Error,
+        1 => log::LevelFilter::Warn,
+        2 => log::LevelFilter::Info,
+        3 => log::LevelFilter::Debug,
+        _ => log::LevelFilter::Trace,
     };
     set_up_logging(log_filter);
 
@@ -217,29 +208,29 @@ fn main() -> BoxResult<()> {
 
     let port = static_config.my_admin_port().unwrap_or(0);
     debug!("bind to 0.0.0.0:{}", port);
-    let socket = CryptUdp::bind(port)?.key(&shared_key)?;
+    let crypt_socket = CryptUdp::bind(port)?.key(&shared_key)?;
 
     // Set up udp receiver thread
     let tx_clone = tx.clone();
-    let socket_clone = socket.try_clone().expect("couldn't clone the socket");
-    std::thread::spawn(move || {
-        loop {
-            let mut buf = [0; 2000];
-            match socket_clone.recv_from(&mut buf) {
-                Ok((received, src_addr)) => {
-                    info!("received {} bytes from {:?}", received, src_addr);
-                    match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
-                        Ok(udp_packet) => {
-                            tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
-                        }
-                        Err(e) => {
-                            error!("Error in json decode: {:?}", e);
-                        }
+    let crypt_socket_clone = crypt_socket
+        .try_clone()
+        .expect("couldn't clone the crypt_socket");
+    std::thread::spawn(move || loop {
+        let mut buf = [0; 2000];
+        match crypt_socket_clone.recv_from(&mut buf) {
+            Ok((received, src_addr)) => {
+                info!("received {} bytes from {:?}", received, src_addr);
+                match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
+                    Ok(udp_packet) => {
+                        tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
+                    }
+                    Err(e) => {
+                        error!("Error in json decode: {:?}", e);
                     }
                 }
-                Err(e) => {
-                    error!("{:?}",e);
-                }
+            }
+            Err(e) => {
+                error!("{:?}", e);
             }
         }
     });
@@ -261,7 +252,7 @@ fn main() -> BoxResult<()> {
     wg_dev.bring_up_device()?;
     wg_dev.set_ip(&static_config.wg_ip)?;
 
-    let rc = main_loop(static_config, &wg_dev, socket, tx, rx);
+    let rc = main_loop(static_config, &wg_dev, crypt_socket, tx, rx);
 
     wg_dev.take_down_device().ok();
 
@@ -271,7 +262,7 @@ fn main() -> BoxResult<()> {
 fn main_loop(
     static_config: StaticConfiguration,
     wg_dev: &dyn WireguardDevice,
-    socket: CryptUdp,
+    crypt_socket: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
 ) -> BoxResult<()> {
@@ -280,12 +271,14 @@ fn main_loop(
 
     // set up initial wireguard configuration without peers
     tx.send(Event::PeerListChange).unwrap();
-    tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
+    tx.send(Event::SendAdvertisementToPublicPeers).unwrap();
 
     let mut tick_cnt = 0;
     loop {
         trace!("Main loop: {} peers", dynamic_peers.peer.len());
-        match rx.recv() {
+        let evt = rx.recv();
+        trace!("{:?}", evt);
+        match evt {
             Err(e) => {
                 error!("Receive error: {:?}", e);
                 break;
@@ -294,13 +287,13 @@ fn main_loop(
                 break;
             }
             Ok(Event::TimerTick1s) => {
-                if tick_cnt % 5 == 0 {
-                    // every 5s
-                    tx.send(Event::SendPingToAllDynamicPeers).unwrap();
-                }
                 if tick_cnt % 15 == 1 {
                     // every 15s
                     tx.send(Event::CheckAndRemoveDeadDynamicPeers).unwrap();
+                }
+                if tick_cnt % 5 == 0 {
+                    // every 20s
+                    tx.send(Event::SendPingToAllDynamicPeers).unwrap();
                 }
                 if tick_cnt % 30 == 2 {
                     // every 30s
@@ -308,33 +301,32 @@ fn main_loop(
                 }
                 if tick_cnt % 60 == 3 {
                     // every 60s
-                    tx.send(Event::SendAdvertsementToPublicPeers).unwrap();
+                    tx.send(Event::SendAdvertisementToPublicPeers).unwrap();
                 }
                 tick_cnt += 1;
             }
             Ok(Event::SendPingToAllDynamicPeers) => {
                 // Pings are sent out only via the wireguard interface.
                 //
-                let ping_peers = dynamic_peers.check_ping_timeouts(20); // should be < half of dead peer timeout
+                let ping_peers = dynamic_peers.check_ping_timeouts(10); // should be < half of dead peer timeout
                 for (wg_ip, admin_port) in ping_peers {
-                    let ping = UdpPacket::ping_from_config(&static_config);
-                    let buf = serde_json::to_vec(&ping).unwrap();
-                    let destination = format!("{}:{}", wg_ip, admin_port);
-                    debug!("Found ping peer {}...send ping", destination);
-                    socket.send_to(&buf, destination).ok();
+                    let destination = SocketAddr::V4(SocketAddrV4::new(wg_ip, admin_port));
+                    tx.send(Event::SendAdvertisement { to: destination })
+                        .unwrap();
                 }
             }
-            Ok(Event::SendAdvertsementToPublicPeers) => {
+            Ok(Event::SendAdvertisementToPublicPeers) => {
                 // These advertisements are sent to the known internet address as defined in the config file.
                 // As all udp packets are encrypted, this should not be an issue.
                 //
                 for peer in static_config.peers.iter() {
                     if !dynamic_peers.knows_peer(&peer.wg_ip) {
-                        let advertisement = UdpPacket::advertisement_from_config(&static_config);
-                        let buf = serde_json::to_vec(&advertisement).unwrap();
-                        let destination = format!("{}:{}", peer.public_ip, peer.admin_port);
-                        info!("Send advertisement to {}", destination);
-                        socket.send_to(&buf, destination).ok();
+                        // ensure not to send to myself
+                        if peer.wg_ip != static_config.wg_ip {
+                            let destination = SocketAddr::new(peer.public_ip, peer.admin_port);
+                            tx.send(Event::SendAdvertisement { to: destination })
+                                .unwrap();
+                        }
                     }
                 }
             }
@@ -342,8 +334,10 @@ fn main_loop(
                 use UdpPacket::*;
                 match udp_packet {
                     Advertisement { .. } => {
-                        if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet, src_addr.port())
+                        if let Some(new_wg_ip) =
+                            dynamic_peers.add_peer(&udp_packet, src_addr.port())
                         {
+                            info!("Unknown peer {}", src_addr);
                             network_manager.add_dynamic_peer(&new_wg_ip);
 
                             tx.send(Event::PeerListChange).unwrap();
@@ -353,22 +347,26 @@ fn main_loop(
                             // in the list of dynamic peers and as such is new.
                             // Consequently the reply is sent over the internet and not via
                             // wireguard tunnel.
-                            //
-                            info!("Send advertisement to new participant");
-                            let advertisement =
-                                UdpPacket::advertisement_from_config(&static_config);
-                            let buf = serde_json::to_vec(&advertisement).unwrap();
-                            socket.send_to(&buf, src_addr).ok();
+                            tx.send(Event::SendAdvertisement { to: src_addr }).unwrap();
+                        } else {
+                            info!("Existing peer {}", src_addr);
+                            dynamic_peers.update_peer(&udp_packet, src_addr.port());
                         }
-                    }
-                    Ping { .. } => {
-                        dynamic_peers.update_peer(udp_packet, src_addr.port());
+                        network_manager.analyze_ping(&udp_packet);
                     }
                 }
             }
+            Ok(Event::SendAdvertisement { to: destination }) => {
+                let routedb_version = network_manager.db_version();
+                let advertisement =
+                    UdpPacket::advertisement_from_config(&static_config, routedb_version);
+                let buf = serde_json::to_vec(&advertisement).unwrap();
+                info!("Send advertisement to {}", destination);
+                crypt_socket.send_to(&buf, destination).ok();
+            }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
                 dynamic_peers.output();
-                let dead_peers = dynamic_peers.check_timeouts(60);
+                let dead_peers = dynamic_peers.check_timeouts(120);
                 if !dead_peers.is_empty() {
                     for wg_ip in dead_peers {
                         info!("Found dead peer {}", wg_ip);

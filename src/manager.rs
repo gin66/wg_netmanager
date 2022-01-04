@@ -26,6 +26,7 @@ use std::net::Ipv4Addr;
 //use std::net::SocketAddr;
 
 use crate::configuration::*;
+use log::*;
 
 #[derive(Debug)]
 pub enum RouteChange {
@@ -112,5 +113,11 @@ impl NetworkManager {
         }
 
         routes
+    }
+    pub fn db_version(&self) -> usize {
+        self.route_db.version
+    }
+    pub fn analyze_ping(&mut self, udp_packet: &UdpPacket) {
+        warn!("NEED ANALYZE");
     }
 }

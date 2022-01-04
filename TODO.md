@@ -17,6 +17,7 @@ Todos:
 * more endpoints per peer
 
 DONE:
+* add github actions
 * monitor connection to peers and remove them, if no connection anymore
 * udp package encryption
 * README

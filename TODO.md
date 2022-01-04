@@ -13,6 +13,7 @@ Todos:
 * Retrieve endpoint from clients out of wg parsed output
 * rename publicIp to e.g. visibleHost or reachableHost
 * Do not sent advertisement to self
+* Public Key should have a timestamp
 
 DONE:
 * monitor connection to peers and remove them, if no connection anymore

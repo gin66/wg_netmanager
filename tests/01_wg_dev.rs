@@ -10,12 +10,6 @@ mod tests {
             .name("test")
             .wg_ip("10.1.1.1")
             .wg_name("wgx")
-            .new_participant_ip("172.16.1.2")
-            .new_participant_listener_ip("172.16.1.1")
-            .public_key_listener("5jdkklXgy65sx67HJziWmHWXv49s2xxx/mUsQ9leDzk=")
-            .private_key_listener("YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=")
-            .public_key_new_participant("5jdkklXgy65sx67HJziWmHWXv49s2xxx/mUsQ9leDzk=")
-            .private_key_new_participant("YJ7Bbyc1KyUmMUqxODAxFDG8m84uZX495iRDzbawKkw=")
     }
 
     #[test]

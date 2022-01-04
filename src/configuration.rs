@@ -24,6 +24,11 @@ impl Verbosity {
     }
 }
 
+pub struct PublicKeyWithTime {
+    pub key: [u8;32],
+    pub priv_key_creation_time: u64,
+}
+
 pub struct PublicPeer {
     pub public_ip: String,
     pub comm_port: u16,
@@ -151,12 +156,12 @@ impl StaticConfiguration {
 
 #[derive(Debug)]
 pub struct DynamicPeer {
-    public_key: String,
-    wg_ip: String,
-    name: String,
-    endpoint: Option<String>,
-    admin_port: u16,
-    lastseen: Instant,
+    pub public_key: String,
+    pub wg_ip: String,
+    pub name: String,
+    pub endpoint: Option<String>,
+    pub admin_port: u16,
+    pub lastseen: Instant,
 }
 
 #[derive(Default)]

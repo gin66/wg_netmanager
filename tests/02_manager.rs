@@ -11,7 +11,7 @@ mod tests {
     fn test_make_manager() {
         let ip: Ipv4Addr = "10.1.1.1".parse().unwrap();
         let mut mgr = NetworkManager::new(ip);
-        assert_eq!(mgr.get_routes().len(), 0);
+        assert_eq!(mgr.get_route_changes().len(), 0);
     }
 
     #[test]
@@ -21,12 +21,12 @@ mod tests {
         let mut mgr = NetworkManager::new(ip);
         let public_key_with_time = PublicKeyWithTime::default();
         mgr.add_dynamic_peer(&peer_ip);
-        assert_eq!(mgr.get_routes().len(), 1);
-        assert_eq!(mgr.get_routes().len(), 0);
+        assert_eq!(mgr.get_route_changes().len(), 1);
+        assert_eq!(mgr.get_route_changes().len(), 0);
 
         // now remove the peer
         mgr.remove_dynamic_peer(&peer_ip);
-        assert_eq!(mgr.get_routes().len(), 1);
-        assert_eq!(mgr.get_routes().len(), 0);
+        assert_eq!(mgr.get_route_changes().len(), 1);
+        assert_eq!(mgr.get_route_changes().len(), 0);
     }
 }

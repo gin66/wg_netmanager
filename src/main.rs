@@ -325,7 +325,7 @@ fn main_loop(
                 wg_dev.sync_conf(&conf)?;
             }
             Ok(Event::UpdateRoutes) => {
-                let changes = network_manager.get_routes();
+                let changes = network_manager.get_route_changes();
                 for rc in changes {
                     use RouteChange::*;
                     println!("{:?}", rc);

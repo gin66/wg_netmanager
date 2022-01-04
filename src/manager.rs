@@ -86,7 +86,7 @@ impl NetworkManager {
         }
     }
 
-    pub fn get_routes(&mut self) -> Vec<RouteChange> {
+    pub fn get_route_changes(&mut self) -> Vec<RouteChange> {
         let mut routes = vec![];
 
         // first routes to be deleted

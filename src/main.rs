@@ -5,6 +5,7 @@ use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
 use std::str::FromStr;
+use std::time::SystemTime;
 
 use clap::{App, Arg};
 use ctrlc;
@@ -124,6 +125,9 @@ fn main() -> BoxResult<()> {
     let mut public_key = String::new();
     cmd.stdout.unwrap().read_to_string(&mut public_key)?;
     let my_public_key = public_key.trim();
+    let mut my_public_key_with_time = PublicKeyWithTime::default();
+    my_public_key_with_time.key.copy_from_slice(my_public_key.as_bytes());
+    my_public_key_with_time.priv_key_creation_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
     if verbosity.info() {
         println!("Network public key: {}", my_public_key);
     }
@@ -133,9 +137,8 @@ fn main() -> BoxResult<()> {
         .name(computer_name)
         .wg_ip(wg_ip)
         .wg_name(interface)
-        .my_public_key(my_public_key)
+        .my_public_key(my_public_key_with_time)
         .my_private_key(my_private_key)
-        .my_public_key(my_public_key)
         .peers(peers)
         .build();
 

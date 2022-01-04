@@ -14,6 +14,7 @@ Todos:
 * rename publicIp to e.g. visibleHost or reachableHost
 * Do not sent advertisement to self
 * Public Key should have a timestamp
+* more endpoints per peer
 
 DONE:
 * monitor connection to peers and remove them, if no connection anymore

@@ -19,8 +19,9 @@ mod tests {
         let ip: Ipv4Addr = "10.1.1.1".parse().unwrap();
         let peer_ip: Ipv4Addr = "10.1.1.1".parse().unwrap();
         let mut mgr = NetworkManager::new(ip);
+        let public_key_with_time = PublicKeyWithTime::default();
         mgr.add_dynamic_peer(&DynamicPeer{
-            public_key: "".to_string(),
+            public_key: public_key_with_time,
             wg_ip: peer_ip,
             name: "".to_string(),
             endpoint: None,

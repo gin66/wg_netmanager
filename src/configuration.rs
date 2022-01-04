@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::borrow::Cow;
 use std::time::Instant;
 use std::net::{SocketAddr,IpAddr,Ipv4Addr};
 
@@ -25,9 +26,15 @@ impl Verbosity {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PublicKeyWithTime {
     pub key: [u8;32],
     pub priv_key_creation_time: u64,
+}
+impl PublicKeyWithTime {
+    pub fn key_to_string(&self) -> Cow<str> {
+        String::from_utf8_lossy(&self.key)
+    }
 }
 
 pub struct PublicPeer {
@@ -44,7 +51,7 @@ pub struct StaticConfigurationBuilder {
     wg_ip: Option<Ipv4Addr>,
     wg_name: Option<String>,
     my_private_key: Option<String>,
-    my_public_key: Option<String>,
+    my_public_key: Option<PublicKeyWithTime>,
     peers: Vec<PublicPeer>,
 }
 impl StaticConfigurationBuilder {
@@ -71,8 +78,8 @@ impl StaticConfigurationBuilder {
         self.my_private_key = Some(private_key.into());
         self
     }
-    pub fn my_public_key<T: Into<String>>(mut self, public_key: T) -> Self {
-        self.my_public_key = Some(public_key.into());
+    pub fn my_public_key(mut self, public_key: PublicKeyWithTime) -> Self {
+        self.my_public_key = Some(public_key);
         self
     }
     pub fn peers(mut self, peers: Vec<PublicPeer>) -> Self {
@@ -111,7 +118,7 @@ pub struct StaticConfiguration {
     pub wg_name: String,
     myself_as_peer: Option<usize>,
     pub my_private_key: String,
-    pub my_public_key: String,
+    pub my_public_key: PublicKeyWithTime,
     pub peers: Vec<PublicPeer>,
     pub peer_cnt: usize,
 }
@@ -136,7 +143,7 @@ impl StaticConfiguration {
         if let Some(peers) = dynamic_peers {
             for peer in peers.peer.values() {
                 lines.push("[Peer]".to_string());
-                lines.push(format!("PublicKey = {}", peer.public_key));
+                lines.push(format!("PublicKey = {}", peer.public_key.key_to_string()));
                 lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));
                 if let Some(endpoint) = peer.endpoint.as_ref() {
                     lines.push(format!("EndPoint = {}", endpoint));
@@ -157,7 +164,7 @@ impl StaticConfiguration {
 
 #[derive(Debug)]
 pub struct DynamicPeer {
-    pub public_key: String,
+    pub public_key: PublicKeyWithTime,
     pub wg_ip: Ipv4Addr,
     pub name: String,
     pub endpoint: Option<SocketAddr>,
@@ -335,24 +342,24 @@ impl DynamicPeerList {
 pub enum UdpPacket {
     // TODO: Change from String to &str
     ListenerAdvertisement {
-        public_key: String,
+        public_key: PublicKeyWithTime,
         wg_ip: Ipv4Addr,
         name: String,
         endpoint: SocketAddr,
     },
     ClientAdvertisement {
-        public_key: String,
+        public_key: PublicKeyWithTime,
         wg_ip: Ipv4Addr,
         name: String,
     },
     ListenerPing {
-        public_key: String,
+        public_key: PublicKeyWithTime,
         wg_ip: Ipv4Addr,
         name: String,
         endpoint: SocketAddr,
     },
     ClientPing {
-        public_key: String,
+        public_key: PublicKeyWithTime,
         wg_ip: Ipv4Addr,
         name: String,
     },

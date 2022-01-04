@@ -15,6 +15,7 @@ use wg_netmanager::error::*;
 use wg_netmanager::configuration::*;
 use wg_netmanager::wg_dev::*;
 use wg_netmanager::crypt_udp::CryptUdp;
+use wg_netmanager::manager::*;
 
 enum Event {
     Udp(UdpPacket, SocketAddr),
@@ -23,6 +24,7 @@ enum Event {
     SendAdvertsementToPublicPeers,
     SendPingToAllDynamicPeers,
     CheckAndRemoveDeadDynamicPeers,
+    UpdateRoutes,
 }
 
 fn main() -> BoxResult<()> {
@@ -213,6 +215,8 @@ fn main_loop(
     // The main difference between listener and client is, 
     // that listener is reachable.
 
+    let mut network_manager = NetworkManager::new(static_config.wg_ip);
+
     let polling_interval = time::Duration::from_millis(10000);
 
     let mut time_5s = time::Instant::now();
@@ -278,8 +282,10 @@ fn main_loop(
                     | ClientAdvertisement { .. } => {
                         if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet, src_addr.port())
                         {
+                            network_manager.add_dynamic_peer(&new_wg_ip);
+
                             tx.send(Event::PeerListChange).unwrap();
-                            wg_dev.add_route(&format!("{}/32", new_wg_ip))?;
+                            tx.send(Event::UpdateRoutes).unwrap();
 
                             // Answers to advertisments are only sent, if the wireguard ip is not
                             // in the list of dynamic peers and as such is new.
@@ -304,9 +310,10 @@ fn main_loop(
                     for wg_ip in dead_peers {
                         println!("Found dead peer {}", wg_ip);
                         dynamic_peers.remove_peer(&wg_ip);
-                        wg_dev.del_route(&format!("{}/32", wg_ip))?;
+                        network_manager.remove_dynamic_peer(&wg_ip);
                     }
                     tx.send(Event::PeerListChange).unwrap();
+                    tx.send(Event::UpdateRoutes).unwrap();
                 }
             }
             Ok(Event::PeerListChange) => {
@@ -316,6 +323,25 @@ fn main_loop(
                     println!("Configuration as peer\n{}\n", conf);
                 }
                 wg_dev.sync_conf(&conf)?;
+            }
+            Ok(Event::UpdateRoutes) => {
+                let changes = network_manager.get_routes();
+                for rc in changes {
+                    use RouteChange::*;
+                    println!("{:?}", rc);
+                    match rc {
+                        AddRouteWithGateway { to, gateway } => {
+                        }
+                        AddRoute { to } => {
+                            wg_dev.add_route(&format!("{}/32", to))?;
+                        }
+                        DelRouteWithGateway { to, gateway } => {
+                        }
+                        DelRoute { to } => {
+                            wg_dev.del_route(&format!("{}/32", to))?;
+                        }
+                    }
+                }
             }
         }
     }

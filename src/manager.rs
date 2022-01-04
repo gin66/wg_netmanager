@@ -28,6 +28,7 @@ use std::net::SocketAddr;
 
 use crate::configuration::*;
 
+#[derive(Debug)]
 pub enum RouteChange {
     AddRouteWithGateway { to: Ipv4Addr, gateway: Ipv4Addr },
     AddRoute { to: Ipv4Addr },
@@ -70,10 +71,10 @@ impl NetworkManager {
         }
     }
 
-    pub fn add_dynamic_peer(&mut self, peer: &DynamicPeer) {
+    pub fn add_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
         // Dynamic peers are ALWAYS reachable without a gateway
-        let ri = RouteInfo { to: peer.wg_ip, gateway: None, issued: false, to_be_deleted: false, };
-        self.route_db.route_for.insert(peer.wg_ip, ri);
+        let ri = RouteInfo { to: *peer_ip, gateway: None, issued: false, to_be_deleted: false, };
+        self.route_db.route_for.insert(*peer_ip, ri);
         self.route_db.version += 1;
     }
     pub fn remove_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {

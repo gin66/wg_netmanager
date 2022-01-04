@@ -62,12 +62,20 @@ impl NetworkManager {
     }
 
     pub fn add_dynamic_peer(&mut self, peer: &DynamicPeer) {
+        // Dynamic peers are ALWAYS reachable without a gateway
+        let ri = RouteInfo { to: peer.wg_ip, gateway: None };
+        self.route_db.route_for.insert(peer.wg_ip, ri);
+        self.route_db.version += 1;
     }
     pub fn remove_dynamic_peer(&mut self, peer: &DynamicPeer) {
     }
 
 
     pub fn get_routes(&mut self) -> Vec<&RouteInfo> {
-        vec![]
+        let mut routes = vec![];
+        for ri in self.route_db.route_for.values() {
+            routes.push(ri);
+        }
+        routes
     }
 }

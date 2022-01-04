@@ -17,7 +17,7 @@ mod tests {
     #[test]
     fn test_with_one_dynamic_peer() {
         let ip: Ipv4Addr = "10.1.1.1".parse().unwrap();
-        let peer_ip: Ipv4Addr = "10.1.1.1".parse().unwrap();
+        let peer_ip: Ipv4Addr = "10.1.1.2".parse().unwrap();
         let mut mgr = NetworkManager::new(ip);
         let public_key_with_time = PublicKeyWithTime::default();
         mgr.add_dynamic_peer(&DynamicPeer{
@@ -28,6 +28,6 @@ mod tests {
             admin_port: 0,
             lastseen: std::time::Instant::now(),
         });
-        assert_eq!(mgr.get_routes().len(), 0);
+        assert_eq!(mgr.get_routes().len(), 1);
     }
 }

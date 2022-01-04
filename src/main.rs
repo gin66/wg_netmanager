@@ -271,7 +271,7 @@ fn main_loop(
             Ok(Event::Udp(udp_packet, src_addr)) => {
                 use UdpPacket::*;
                 match udp_packet {
-                    ListenerAdvertisement { .. } | ClientAdvertisement { .. } => {
+                    Advertisement { .. } => {
                         if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet, src_addr.port())
                         {
                             network_manager.add_dynamic_peer(&new_wg_ip);
@@ -291,7 +291,7 @@ fn main_loop(
                             socket.send_to(&buf, src_addr).ok();
                         }
                     }
-                    ListenerPing { .. } | ClientPing { .. } => {
+                    Ping { .. } => {
                         dynamic_peers.update_peer(udp_packet, src_addr.port());
                     }
                 }

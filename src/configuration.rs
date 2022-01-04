@@ -177,8 +177,8 @@ impl DynamicPeerList {
     pub fn add_peer(&mut self, from_advertisement: UdpPacket, admin_port: u16) -> Option<Ipv4Addr> {
         use UdpPacket::*;
         match from_advertisement {
-            ListenerPing { .. } | ClientPing { .. } => None,
-            ListenerAdvertisement {
+            Ping { .. } => None,
+            Advertisement {
                 public_key,
                 wg_ip,
                 name,
@@ -197,37 +197,7 @@ impl DynamicPeerList {
                             wg_ip,
                             public_key,
                             name,
-                            endpoint: Some(endpoint),
-                            admin_port,
-                            lastseen,
-                        },
-                    )
-                    .is_none()
-                {
-                    Some(new_wg_ip)
-                } else {
-                    None
-                }
-            }
-            ClientAdvertisement {
-                public_key,
-                wg_ip,
-                name,
-            } => {
-                self.fifo_dead.push(wg_ip);
-                self.fifo_ping.push(wg_ip);
-                let lastseen = Instant::now();
-                let key = wg_ip;
-                let new_wg_ip = wg_ip;
-                if self
-                    .peer
-                    .insert(
-                        key,
-                        DynamicPeer {
-                            wg_ip,
-                            public_key,
-                            name,
-                            endpoint: None,
+                            endpoint,
                             admin_port,
                             lastseen,
                         },
@@ -244,8 +214,8 @@ impl DynamicPeerList {
     pub fn update_peer(&mut self, from_ping: UdpPacket, admin_port: u16) {
         use UdpPacket::*;
         match from_ping {
-            ListenerAdvertisement { .. } | ClientAdvertisement { .. } => {}
-            ListenerPing {
+            Advertisement { .. } => {}
+            Ping {
                 public_key,
                 wg_ip,
                 name,
@@ -261,28 +231,7 @@ impl DynamicPeerList {
                         wg_ip,
                         public_key,
                         name,
-                        endpoint: Some(endpoint),
-                        admin_port,
-                        lastseen,
-                    },
-                );
-            }
-            ClientPing {
-                public_key,
-                wg_ip,
-                name,
-            } => {
-                self.fifo_dead.push(wg_ip);
-                self.fifo_ping.push(wg_ip);
-                let lastseen = Instant::now();
-                let key = wg_ip;
-                self.peer.insert(
-                    key,
-                    DynamicPeer {
-                        wg_ip,
-                        public_key,
-                        name,
-                        endpoint: None,
+                        endpoint,
                         admin_port,
                         lastseen,
                     },
@@ -334,62 +283,46 @@ impl DynamicPeerList {
 #[derive(Serialize, Deserialize)]
 pub enum UdpPacket {
     // TODO: Change from String to &str
-    ListenerAdvertisement {
+    Advertisement {
         public_key: PublicKeyWithTime,
         wg_ip: Ipv4Addr,
         name: String,
-        endpoint: SocketAddr,
+        endpoint: Option<SocketAddr>,
     },
-    ClientAdvertisement {
+    Ping {
         public_key: PublicKeyWithTime,
         wg_ip: Ipv4Addr,
         name: String,
-    },
-    ListenerPing {
-        public_key: PublicKeyWithTime,
-        wg_ip: Ipv4Addr,
-        name: String,
-        endpoint: SocketAddr,
-    },
-    ClientPing {
-        public_key: PublicKeyWithTime,
-        wg_ip: Ipv4Addr,
-        name: String,
+        endpoint: Option<SocketAddr>,
     },
 }
 impl UdpPacket {
     pub fn advertisement_from_config(static_config: &StaticConfiguration) -> Self {
-        if static_config.is_listener() {
+        let endpoint = if static_config.is_listener() {
             let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
-            UdpPacket::ListenerAdvertisement {
-                public_key: static_config.my_public_key.clone(),
-                wg_ip: static_config.wg_ip,
-                name: static_config.name.clone(),
-                endpoint: SocketAddr::new(peer.public_ip, peer.comm_port),
-            }
+            Some(SocketAddr::new(peer.public_ip, peer.comm_port))
         } else {
-            UdpPacket::ClientAdvertisement {
-                public_key: static_config.my_public_key.clone(),
-                wg_ip: static_config.wg_ip,
-                name: static_config.name.clone(),
-            }
+            None
+        };
+        UdpPacket::Advertisement {
+            public_key: static_config.my_public_key.clone(),
+            wg_ip: static_config.wg_ip,
+            name: static_config.name.clone(),
+            endpoint,
         }
     }
     pub fn ping_from_config(static_config: &StaticConfiguration) -> Self {
-        if static_config.is_listener() {
+        let endpoint = if static_config.is_listener() {
             let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
-            UdpPacket::ListenerPing {
-                public_key: static_config.my_public_key.clone(),
-                wg_ip: static_config.wg_ip,
-                name: static_config.name.clone(),
-                endpoint: SocketAddr::new(peer.public_ip, peer.comm_port),
-            }
+            Some(SocketAddr::new(peer.public_ip, peer.comm_port))
         } else {
-            UdpPacket::ClientPing {
-                public_key: static_config.my_public_key.clone(),
-                wg_ip: static_config.wg_ip,
-                name: static_config.name.clone(),
-            }
+            None
+        };
+        UdpPacket::Ping {
+            public_key: static_config.my_public_key.clone(),
+            wg_ip: static_config.wg_ip,
+            name: static_config.name.clone(),
+            endpoint
         }
     }
 }

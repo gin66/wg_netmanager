@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
     use wg_netmanager::configuration::*;
     use wg_netmanager::wg_dev::*;
 

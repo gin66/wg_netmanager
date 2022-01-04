@@ -28,13 +28,8 @@ impl Verbosity {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PublicKeyWithTime {
-    pub key: [u8;32],
+    pub key: String,  // base64 encoded
     pub priv_key_creation_time: u64,
-}
-impl PublicKeyWithTime {
-    pub fn key_to_string(&self) -> Cow<str> {
-        String::from_utf8_lossy(&self.key)
-    }
 }
 
 pub struct PublicPeer {
@@ -143,7 +138,7 @@ impl StaticConfiguration {
         if let Some(peers) = dynamic_peers {
             for peer in peers.peer.values() {
                 lines.push("[Peer]".to_string());
-                lines.push(format!("PublicKey = {}", peer.public_key.key_to_string()));
+                lines.push(format!("PublicKey = {}", &peer.public_key.key));
                 lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));
                 if let Some(endpoint) = peer.endpoint.as_ref() {
                     lines.push(format!("EndPoint = {}", endpoint));

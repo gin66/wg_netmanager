@@ -125,9 +125,11 @@ fn main() -> BoxResult<()> {
     let mut public_key = String::new();
     cmd.stdout.unwrap().read_to_string(&mut public_key)?;
     let my_public_key = public_key.trim();
-    let mut my_public_key_with_time = PublicKeyWithTime::default();
-    my_public_key_with_time.key.copy_from_slice(my_public_key.as_bytes());
-    my_public_key_with_time.priv_key_creation_time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+    let timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+    let my_public_key_with_time = PublicKeyWithTime {
+        key: my_public_key.to_string(),
+        priv_key_creation_time: timestamp,
+    };
     if verbosity.info() {
         println!("Network public key: {}", my_public_key);
     }

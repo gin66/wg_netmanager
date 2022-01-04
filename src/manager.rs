@@ -28,15 +28,23 @@ use std::net::SocketAddr;
 
 use crate::configuration::*;
 
+pub enum RouteChange {
+    AddRouteWithGateway { to: Ipv4Addr, gateway: Ipv4Addr },
+    AddRoute { to: Ipv4Addr },
+    DelRouteWithGateway { to: Ipv4Addr, gateway: Ipv4Addr },
+    DelRoute { to: Ipv4Addr },
+}
+
 pub struct NodeInfo {
     timestamp: u64,
     public_key: Option<PublicKeyWithTime>,
 }
 
-pub struct RouteInfo {
+struct RouteInfo {
     to: Ipv4Addr,
     gateway: Option<Ipv4Addr>,
     issued: bool,
+    to_be_deleted: bool,
 }
 
 #[derive(Default)]
@@ -64,20 +72,36 @@ impl NetworkManager {
 
     pub fn add_dynamic_peer(&mut self, peer: &DynamicPeer) {
         // Dynamic peers are ALWAYS reachable without a gateway
-        let ri = RouteInfo { to: peer.wg_ip, gateway: None, issued: false, };
+        let ri = RouteInfo { to: peer.wg_ip, gateway: None, issued: false, to_be_deleted: false, };
         self.route_db.route_for.insert(peer.wg_ip, ri);
         self.route_db.version += 1;
     }
-    pub fn remove_dynamic_peer(&mut self, peer: &DynamicPeer) {
+    pub fn remove_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
+        if let Some(ref mut ri) = self.route_db.route_for.get_mut(peer_ip) {
+            ri.to_be_deleted = true;
+        }
+        else {
+            panic!("should not happe");
+        }
     }
 
-
-    pub fn get_routes(&mut self) -> Vec<&RouteInfo> {
+    pub fn get_routes(&mut self) -> Vec<RouteChange> {
         let mut routes = vec![];
+
+        // first routes to be deleted
+        for ri in self.route_db.route_for.values_mut().filter(|ri| ri.to_be_deleted && ri.issued) {
+            routes.push(RouteChange::DelRoute{ to: ri.to });
+            ri.issued = false;
+        }
+
+        self.route_db.route_for.retain(|_,ri| !ri.to_be_deleted);
+
+        // then routes to be added
         for ri in self.route_db.route_for.values_mut().filter(|ri| !ri.issued) {
             ri.issued = true;
-            routes.push(&*ri);
+            routes.push(RouteChange::AddRoute{ to: ri.to });
         }
+
         routes
     }
 }

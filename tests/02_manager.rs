@@ -29,5 +29,11 @@ mod tests {
             lastseen: std::time::Instant::now(),
         });
         assert_eq!(mgr.get_routes().len(), 1);
+        assert_eq!(mgr.get_routes().len(), 0);
+
+        // now remove the peer
+        mgr.remove_dynamic_peer(&peer_ip);
+        assert_eq!(mgr.get_routes().len(), 1);
+        assert_eq!(mgr.get_routes().len(), 0);
     }
 }

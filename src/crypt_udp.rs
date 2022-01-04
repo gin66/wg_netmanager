@@ -129,8 +129,13 @@ impl CryptUdp {
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
                 .as_secs();
-            debug!("UDP TIMESTAMP {}<=>{}", ts_received, timestamp);
-            if ts_received + 10 < timestamp || ts_received > timestamp + 10 {
+            let dt = if ts_received >= timestamp {
+                ts_received - timestamp
+            } else {
+                timestamp - ts_received
+            };
+            debug!("UDP TIMESTAMP {}", dt);
+            if dt > 10 {
                 strerror("time mismatch")?;
             }
 

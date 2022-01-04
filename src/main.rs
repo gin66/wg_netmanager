@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::{SocketAddr,Ipv4Addr};
+use std::net::{SocketAddr,IpAddr,Ipv4Addr};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
@@ -91,7 +91,7 @@ fn main() -> BoxResult<()> {
     let mut peers: Vec<PublicPeer> = vec![];
     for p in conf[0]["peers"].as_vec().unwrap() {
         println!("PEER: {:?}", p);
-        let public_ip = p["publicIp"].as_str().unwrap().to_string();
+        let public_ip: IpAddr = p["publicIp"].as_str().unwrap().parse().unwrap();
         let comm_port = p["wgPort"].as_i64().unwrap() as u16;
         let admin_port = p["adminPort"].as_i64().unwrap() as u16;
         let wg_ip: Ipv4Addr =p["wgIp"].as_str().unwrap().parse().unwrap();

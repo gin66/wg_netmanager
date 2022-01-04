@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::time::Instant;
-use std::net::Ipv4Addr;
+use std::net::{SocketAddr,IpAddr,Ipv4Addr};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +31,7 @@ pub struct PublicKeyWithTime {
 }
 
 pub struct PublicPeer {
-    pub public_ip: String,
+    pub public_ip: IpAddr,
     pub comm_port: u16,
     pub admin_port: u16,
     pub wg_ip: Ipv4Addr,
@@ -160,7 +160,7 @@ pub struct DynamicPeer {
     pub public_key: String,
     pub wg_ip: Ipv4Addr,
     pub name: String,
-    pub endpoint: Option<String>,
+    pub endpoint: Option<SocketAddr>,
     pub admin_port: u16,
     pub lastseen: Instant,
 }
@@ -338,7 +338,7 @@ pub enum UdpPacket {
         public_key: String,
         wg_ip: Ipv4Addr,
         name: String,
-        endpoint: String,
+        endpoint: SocketAddr,
     },
     ClientAdvertisement {
         public_key: String,
@@ -349,7 +349,7 @@ pub enum UdpPacket {
         public_key: String,
         wg_ip: Ipv4Addr,
         name: String,
-        endpoint: String,
+        endpoint: SocketAddr,
     },
     ClientPing {
         public_key: String,
@@ -365,7 +365,7 @@ impl UdpPacket {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),
-                endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
+                endpoint: SocketAddr::new(peer.public_ip, peer.comm_port),
             }
         } else {
             UdpPacket::ClientAdvertisement {
@@ -382,7 +382,7 @@ impl UdpPacket {
                 public_key: static_config.my_public_key.clone(),
                 wg_ip: static_config.wg_ip.clone(),
                 name: static_config.name.clone(),
-                endpoint: format!("{}:{}", peer.public_ip, peer.comm_port),
+                endpoint: SocketAddr::new(peer.public_ip, peer.comm_port),
             }
         } else {
             UdpPacket::ClientPing {

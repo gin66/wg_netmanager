@@ -1,21 +1,19 @@
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::{SocketAddr,IpAddr,Ipv4Addr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
-use std::str::FromStr;
 use std::time::SystemTime;
 
 use clap::{App, Arg};
-use ctrlc;
 use yaml_rust::YamlLoader;
 
-use wg_netmanager::error::*;
 use wg_netmanager::configuration::*;
-use wg_netmanager::wg_dev::*;
 use wg_netmanager::crypt_udp::CryptUdp;
+use wg_netmanager::error::*;
 use wg_netmanager::manager::*;
+use wg_netmanager::wg_dev::*;
 
 enum Event {
     Udp(UdpPacket, SocketAddr),
@@ -69,7 +67,7 @@ fn main() -> BoxResult<()> {
     let verbosity = match matches.occurrences_of("v") {
         0 => Verbosity::Silent,
         1 => Verbosity::Info,
-        2 | _ => Verbosity::All,
+        _ => Verbosity::All,
     };
 
     let interface = matches.value_of("interface").unwrap();
@@ -97,7 +95,7 @@ fn main() -> BoxResult<()> {
         let public_ip: IpAddr = p["publicIp"].as_str().unwrap().parse().unwrap();
         let comm_port = p["wgPort"].as_i64().unwrap() as u16;
         let admin_port = p["adminPort"].as_i64().unwrap() as u16;
-        let wg_ip: Ipv4Addr =p["wgIp"].as_str().unwrap().parse().unwrap();
+        let wg_ip: Ipv4Addr = p["wgIp"].as_str().unwrap().parse().unwrap();
         let pp = PublicPeer {
             public_ip,
             comm_port,
@@ -127,7 +125,10 @@ fn main() -> BoxResult<()> {
     let mut public_key = String::new();
     cmd.stdout.unwrap().read_to_string(&mut public_key)?;
     let my_public_key = public_key.trim();
-    let timestamp = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+    let timestamp = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
     let my_public_key_with_time = PublicKeyWithTime {
         key: my_public_key.to_string(),
         priv_key_creation_time: timestamp,
@@ -212,7 +213,7 @@ fn main_loop(
     // set up initial wireguard configuration without peers
     tx.send(Event::PeerListChange).unwrap();
 
-    // The main difference between listener and client is, 
+    // The main difference between listener and client is,
     // that listener is reachable.
 
     let mut network_manager = NetworkManager::new(static_config.wg_ip);
@@ -261,16 +262,8 @@ fn main_loop(
                     if !dynamic_peers.knows_peer(&peer.wg_ip) {
                         let advertisement = UdpPacket::advertisement_from_config(&static_config);
                         let buf = serde_json::to_vec(&advertisement).unwrap();
-                        let destination = 
-                            format!(
-                            "{}:{}",
-                            peer.public_ip,
-                            peer.admin_port
-                        );
-                        println!(
-                            "Send advertisement to {}",
-                            destination
-                        );
+                        let destination = format!("{}:{}", peer.public_ip, peer.admin_port);
+                        println!("Send advertisement to {}", destination);
                         socket.send_to(&buf, destination).ok();
                     }
                 }
@@ -278,8 +271,7 @@ fn main_loop(
             Ok(Event::Udp(udp_packet, src_addr)) => {
                 use UdpPacket::*;
                 match udp_packet {
-                    ListenerAdvertisement { .. }
-                    | ClientAdvertisement { .. } => {
+                    ListenerAdvertisement { .. } | ClientAdvertisement { .. } => {
                         if let Some(new_wg_ip) = dynamic_peers.add_peer(udp_packet, src_addr.port())
                         {
                             network_manager.add_dynamic_peer(&new_wg_ip);
@@ -293,12 +285,13 @@ fn main_loop(
                             // wireguard tunnel.
                             //
                             println!("Send advertisement to new participant");
-                            let advertisement = UdpPacket::advertisement_from_config(&static_config);
+                            let advertisement =
+                                UdpPacket::advertisement_from_config(&static_config);
                             let buf = serde_json::to_vec(&advertisement).unwrap();
                             socket.send_to(&buf, src_addr).ok();
                         }
                     }
-                    ListenerPing { .. } | ClientPing {..} => {
+                    ListenerPing { .. } | ClientPing { .. } => {
                         dynamic_peers.update_peer(udp_packet, src_addr.port());
                     }
                 }
@@ -330,13 +323,11 @@ fn main_loop(
                     use RouteChange::*;
                     println!("{:?}", rc);
                     match rc {
-                        AddRouteWithGateway { to, gateway } => {
-                        }
+                        AddRouteWithGateway { to: _, gateway: _ } => {}
                         AddRoute { to } => {
                             wg_dev.add_route(&format!("{}/32", to))?;
                         }
-                        DelRouteWithGateway { to, gateway } => {
-                        }
+                        DelRouteWithGateway { to: _, gateway: _ } => {}
                         DelRoute { to } => {
                             wg_dev.del_route(&format!("{}/32", to))?;
                         }

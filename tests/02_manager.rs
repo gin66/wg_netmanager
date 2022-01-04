@@ -4,8 +4,8 @@ mod tests {
     use std::str::FromStr;
 
     use wg_netmanager::configuration::*;
-    use wg_netmanager::wg_dev::*;
     use wg_netmanager::manager::*;
+    use wg_netmanager::wg_dev::*;
 
     #[test]
     fn test_make_manager() {

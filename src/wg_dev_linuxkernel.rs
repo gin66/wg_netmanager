@@ -1,6 +1,6 @@
 use std::io::Write;
-use std::process::{Command, Stdio};
 use std::net::Ipv4Addr;
+use std::process::{Command, Stdio};
 
 use crate::configuration::Verbosity;
 use crate::wg_dev::WireguardDevice;

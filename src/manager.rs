@@ -1,4 +1,3 @@
-
 //
 // Any peer will send out their view of the network on request.
 //
@@ -7,7 +6,7 @@
 //
 // On every change the version is updated and status info sent out to the direct peers
 // If a peer does not know this, then it will request an updated list
-// 
+//
 // The NetworkManager shall provide as output
 //      All info to set up routing to the network nodes with gateway information
 //      wg_ip list of peers in order to request the public key and endpoints
@@ -73,15 +72,19 @@ impl NetworkManager {
 
     pub fn add_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
         // Dynamic peers are ALWAYS reachable without a gateway
-        let ri = RouteInfo { to: *peer_ip, gateway: None, issued: false, to_be_deleted: false, };
+        let ri = RouteInfo {
+            to: *peer_ip,
+            gateway: None,
+            issued: false,
+            to_be_deleted: false,
+        };
         self.route_db.route_for.insert(*peer_ip, ri);
         self.route_db.version += 1;
     }
     pub fn remove_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
         if let Some(ref mut ri) = self.route_db.route_for.get_mut(peer_ip) {
             ri.to_be_deleted = true;
-        }
-        else {
+        } else {
             panic!("should not happe");
         }
     }
@@ -90,17 +93,22 @@ impl NetworkManager {
         let mut routes = vec![];
 
         // first routes to be deleted
-        for ri in self.route_db.route_for.values_mut().filter(|ri| ri.to_be_deleted && ri.issued) {
-            routes.push(RouteChange::DelRoute{ to: ri.to });
+        for ri in self
+            .route_db
+            .route_for
+            .values_mut()
+            .filter(|ri| ri.to_be_deleted && ri.issued)
+        {
+            routes.push(RouteChange::DelRoute { to: ri.to });
             ri.issued = false;
         }
 
-        self.route_db.route_for.retain(|_,ri| !ri.to_be_deleted);
+        self.route_db.route_for.retain(|_, ri| !ri.to_be_deleted);
 
         // then routes to be added
         for ri in self.route_db.route_for.values_mut().filter(|ri| !ri.issued) {
             ri.issued = true;
-            routes.push(RouteChange::AddRoute{ to: ri.to });
+            routes.push(RouteChange::AddRoute { to: ri.to });
         }
 
         routes

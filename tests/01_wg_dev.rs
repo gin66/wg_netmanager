@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
     use wg_netmanager::configuration::*;
     use wg_netmanager::wg_dev::*;
-    use std::str::FromStr;
 
     #[allow(dead_code)]
     fn demo_config() -> StaticConfigurationBuilder {

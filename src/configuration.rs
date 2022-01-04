@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::Instant;
-use std::net::{SocketAddr,IpAddr,Ipv4Addr};
 
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +28,7 @@ impl Verbosity {
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PublicKeyWithTime {
-    pub key: String,  // base64 encoded
+    pub key: String, // base64 encoded
     pub priv_key_creation_time: u64,
 }
 
@@ -177,18 +177,18 @@ impl DynamicPeerList {
     pub fn add_peer(&mut self, from_advertisement: UdpPacket, admin_port: u16) -> Option<Ipv4Addr> {
         use UdpPacket::*;
         match from_advertisement {
-            ListenerPing {..} | ClientPing  {..}=> None,
+            ListenerPing { .. } | ClientPing { .. } => None,
             ListenerAdvertisement {
                 public_key,
                 wg_ip,
                 name,
                 endpoint,
             } => {
-                self.fifo_dead.push(wg_ip.clone());
-                self.fifo_ping.push(wg_ip.clone());
+                self.fifo_dead.push(wg_ip);
+                self.fifo_ping.push(wg_ip);
                 let lastseen = Instant::now();
-                let key = wg_ip.clone();
-                let new_wg_ip = wg_ip.clone();
+                let key = wg_ip;
+                let new_wg_ip = wg_ip;
                 if self
                     .peer
                     .insert(
@@ -214,11 +214,11 @@ impl DynamicPeerList {
                 wg_ip,
                 name,
             } => {
-                self.fifo_dead.push(wg_ip.clone());
-                self.fifo_ping.push(wg_ip.clone());
+                self.fifo_dead.push(wg_ip);
+                self.fifo_ping.push(wg_ip);
                 let lastseen = Instant::now();
-                let key = wg_ip.clone();
-                let new_wg_ip = wg_ip.clone();
+                let key = wg_ip;
+                let new_wg_ip = wg_ip;
                 if self
                     .peer
                     .insert(
@@ -244,51 +244,49 @@ impl DynamicPeerList {
     pub fn update_peer(&mut self, from_ping: UdpPacket, admin_port: u16) {
         use UdpPacket::*;
         match from_ping {
-            ListenerAdvertisement {..} | ClientAdvertisement {..} => {},
+            ListenerAdvertisement { .. } | ClientAdvertisement { .. } => {}
             ListenerPing {
                 public_key,
                 wg_ip,
                 name,
                 endpoint,
             } => {
-                self.fifo_dead.push(wg_ip.clone());
-                self.fifo_ping.push(wg_ip.clone());
+                self.fifo_dead.push(wg_ip);
+                self.fifo_ping.push(wg_ip);
                 let lastseen = Instant::now();
-                let key = wg_ip.clone();
-                self.peer
-                    .insert(
-                        key,
-                        DynamicPeer {
-                            wg_ip,
-                            public_key,
-                            name,
-                            endpoint: Some(endpoint),
-                            admin_port,
-                            lastseen,
-                        },
-                    );
+                let key = wg_ip;
+                self.peer.insert(
+                    key,
+                    DynamicPeer {
+                        wg_ip,
+                        public_key,
+                        name,
+                        endpoint: Some(endpoint),
+                        admin_port,
+                        lastseen,
+                    },
+                );
             }
             ClientPing {
                 public_key,
                 wg_ip,
                 name,
             } => {
-                self.fifo_dead.push(wg_ip.clone());
-                self.fifo_ping.push(wg_ip.clone());
+                self.fifo_dead.push(wg_ip);
+                self.fifo_ping.push(wg_ip);
                 let lastseen = Instant::now();
-                let key = wg_ip.clone();
-                self.peer
-                    .insert(
-                        key,
-                        DynamicPeer {
-                            wg_ip,
-                            public_key,
-                            name,
-                            endpoint: None,
-                            admin_port,
-                            lastseen,
-                        },
-                    );
+                let key = wg_ip;
+                self.peer.insert(
+                    key,
+                    DynamicPeer {
+                        wg_ip,
+                        public_key,
+                        name,
+                        endpoint: None,
+                        admin_port,
+                        lastseen,
+                    },
+                );
             }
         }
     }
@@ -299,7 +297,7 @@ impl DynamicPeerList {
                 if peer.lastseen.elapsed().as_secs() < limit {
                     break;
                 }
-                dead_peers.push(*wg_ip.clone());
+                dead_peers.push(**wg_ip);
             }
             self.fifo_dead.remove(0);
         }
@@ -312,7 +310,7 @@ impl DynamicPeerList {
                 if peer.lastseen.elapsed().as_secs() < limit {
                     break;
                 }
-                ping_peers.push((*wg_ip.clone(), peer.admin_port));
+                ping_peers.push((**wg_ip, peer.admin_port));
             }
             self.fifo_ping.remove(0);
         }
@@ -365,14 +363,14 @@ impl UdpPacket {
             let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
             UdpPacket::ListenerAdvertisement {
                 public_key: static_config.my_public_key.clone(),
-                wg_ip: static_config.wg_ip.clone(),
+                wg_ip: static_config.wg_ip,
                 name: static_config.name.clone(),
                 endpoint: SocketAddr::new(peer.public_ip, peer.comm_port),
             }
         } else {
             UdpPacket::ClientAdvertisement {
                 public_key: static_config.my_public_key.clone(),
-                wg_ip: static_config.wg_ip.clone(),
+                wg_ip: static_config.wg_ip,
                 name: static_config.name.clone(),
             }
         }
@@ -382,14 +380,14 @@ impl UdpPacket {
             let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
             UdpPacket::ListenerPing {
                 public_key: static_config.my_public_key.clone(),
-                wg_ip: static_config.wg_ip.clone(),
+                wg_ip: static_config.wg_ip,
                 name: static_config.name.clone(),
                 endpoint: SocketAddr::new(peer.public_ip, peer.comm_port),
             }
         } else {
             UdpPacket::ClientPing {
                 public_key: static_config.my_public_key.clone(),
-                wg_ip: static_config.wg_ip.clone(),
+                wg_ip: static_config.wg_ip,
                 name: static_config.name.clone(),
             }
         }

@@ -59,28 +59,6 @@ jobs:
         with:
           command: build
           args: --release
-      - name: Package
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: |
-          cd /project
-          strip target/release/${{ matrix.bin }}
-          cd target/release
-          if [[ "${{ matrix.os }}" == "windows-latest" ]]
-          then
-          7z a ../../${{ matrix.name }} ${{ matrix.bin }}
-          else
-          tar czvf ../../${{ matrix.name }} ${{ matrix.bin }}
-          fi
-          cd -
-      - name: Publish
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          draft: false
-          files: 'wg_manager*'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   cross_builds:
     name: Cross-build
@@ -113,21 +91,6 @@ jobs:
           use-cross: true
           command: build
           args: --target ${{ matrix.target }} --release
-      - name: Package
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: bash
-        run: |
-          cd target/${{ matrix.target }}/release/
-          tar czvf ../../../wg_manager-${{ matrix.target }}.tar.gz wg_manager
-          cd -
-      - name: Publish
-        uses: softprops/action-gh-release@v1
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          draft: false
-          files: 'wg_manager*'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   check:
     name: Check

@@ -79,6 +79,31 @@ fn set_up_logging(log_filter: log::LevelFilter) {
     debug!("finished setting up logging! yay!");
 }
 
+fn get_interfaces() -> Vec<IpAddr> {
+    let ifaces = ifcfg::IfCfg::get().expect("could not get interfaces");
+    let mut ip_list: Vec<IpAddr> = vec![];
+    trace!("Interfaces");
+    for iface in ifaces.iter() {
+        for addr in iface.addresses.iter() {
+            use ifcfg::AddressFamily::*;
+            match addr.address_family {
+                IPv4 => {
+                    trace!("{:#?}", addr.address.as_ref().unwrap().ip());
+                    ip_list.push(addr.address.as_ref().unwrap().ip());
+                }
+                IPv6 => {
+                    trace!("{:#?}", addr.address.as_ref().unwrap().ip());
+                    ip_list.push(addr.address.as_ref().unwrap().ip());
+                }
+                _ => {}
+            }
+        }
+    }
+    let ip_list = ip_list.into_iter().filter(|ip| !ip.is_loopback()).collect();
+    debug!("Interfaces: {:#?}", ip_list);
+    ip_list
+}
+
 fn main() -> BoxResult<()> {
     let matches = App::new("Wireguard Network Manager")
         .version("0.1")
@@ -130,6 +155,7 @@ fn main() -> BoxResult<()> {
     let interface = matches.value_of("interface").unwrap();
     let wg_ip: Ipv4Addr = matches.value_of("wg_ip").unwrap().parse().unwrap();
     let computer_name = matches.value_of("name").unwrap();
+    let ip_list = get_interfaces();
 
     let config = matches.value_of("config").unwrap_or("network.yaml");
 
@@ -190,6 +216,7 @@ fn main() -> BoxResult<()> {
 
     let static_config = StaticConfiguration::builder()
         .name(computer_name)
+        .ip_list(ip_list)
         .wg_ip(wg_ip)
         .wg_name(interface)
         .shared_key(shared_key)

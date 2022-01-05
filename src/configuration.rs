@@ -25,6 +25,7 @@ pub struct PublicPeer {
 #[derive(Default)]
 pub struct StaticConfigurationBuilder {
     name: Option<String>,
+    ip_list: Option<Vec<IpAddr>>,
     wg_ip: Option<Ipv4Addr>,
     wg_name: Option<String>,
     shared_key: Option<Vec<u8>>,
@@ -38,6 +39,10 @@ impl StaticConfigurationBuilder {
     }
     pub fn name<T: Into<String>>(mut self, name: T) -> Self {
         self.name = Some(name.into());
+        self
+    }
+    pub fn ip_list(mut self, ip_list: Vec<IpAddr>) -> Self {
+        self.ip_list = Some(ip_list);
         self
     }
     pub fn wg_ip<T: Into<Ipv4Addr>>(mut self, wg_ip: T) -> Self {
@@ -77,6 +82,7 @@ impl StaticConfigurationBuilder {
         let peer_cnt = self.peers.len();
         StaticConfiguration {
             name: self.name.unwrap(),
+            ip_list: self.ip_list.unwrap(),
             wg_ip: self.wg_ip.unwrap(),
             wg_name: self.wg_name.unwrap(),
             myself_as_peer,
@@ -91,6 +97,7 @@ impl StaticConfigurationBuilder {
 
 pub struct StaticConfiguration {
     pub name: String,
+    pub ip_list: Vec<IpAddr>,
     pub wg_ip: Ipv4Addr,
     pub wg_name: String,
     myself_as_peer: Option<usize>,
@@ -151,6 +158,7 @@ impl StaticConfiguration {
 #[derive(Debug)]
 pub struct DynamicPeer {
     pub public_key: PublicKeyWithTime,
+    pub local_ip_list: Vec<IpAddr>,
     pub wg_ip: Ipv4Addr,
     pub name: String,
     pub endpoint: Option<SocketAddr>,
@@ -176,6 +184,7 @@ impl DynamicPeerList {
             RouteDatabase { .. } => None,
             Advertisement {
                 public_key,
+                local_ip_list,
                 wg_ip,
                 name,
                 endpoint,
@@ -190,6 +199,7 @@ impl DynamicPeerList {
                         *wg_ip,
                         DynamicPeer {
                             wg_ip: *wg_ip,
+                            local_ip_list: local_ip_list.clone(),
                             public_key: public_key.clone(),
                             name: name.to_string(),
                             endpoint: *endpoint,
@@ -249,6 +259,7 @@ impl DynamicPeerList {
 pub enum UdpPacket {
     Advertisement {
         public_key: PublicKeyWithTime,
+        local_ip_list: Vec<IpAddr>,
         wg_ip: Ipv4Addr,
         name: String,
         endpoint: Option<SocketAddr>,
@@ -275,6 +286,7 @@ impl UdpPacket {
         };
         UdpPacket::Advertisement {
             public_key: static_config.my_public_key.clone(),
+            local_ip_list: static_config.ip_list.clone(),
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
             endpoint,

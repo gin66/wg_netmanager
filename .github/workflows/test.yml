@@ -63,6 +63,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash
         run: |
+          find target
           strip target/release/${{ matrix.bin }}
           cd target/release
           if [[ "${{ matrix.os }}" == "windows-latest" ]]

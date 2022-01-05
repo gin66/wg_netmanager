@@ -89,8 +89,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn bring_up_device(&self) -> BoxResult<()> {
         debug!("Bring up device");
-        let mut cmd = Command::new("sudo")
-            .arg("ip")
+        let mut cmd = Command::new("ip")
             .arg("link")
             .arg("add")
             .arg(&self.device_name)
@@ -106,8 +105,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         } else {
         }
 
-        let mut cmd = Command::new("sudo")
-            .arg("ip")
+        let mut cmd = Command::new("ip")
             .arg("link")
             .arg("set")
             .arg(&self.device_name)
@@ -126,8 +124,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn take_down_device(&self) -> BoxResult<()> {
         debug!("Take down device");
-        let mut cmd = Command::new("sudo")
-            .arg("ip")
+        let mut cmd = Command::new("ip")
             .arg("link")
             .arg("del")
             .arg(&self.device_name)
@@ -144,8 +141,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn set_ip(&self, ip: &Ipv4Addr) -> BoxResult<()> {
         debug!("Set IP {}", ip);
-        let mut cmd = Command::new("sudo")
-            .arg("ip")
+        let mut cmd = Command::new("ip")
             .arg("addr")
             .arg("add")
             .arg(ip.to_string())
@@ -165,8 +161,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     fn add_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route {}", route);
         let mut cmd = if let Some(gateway) = gateway {
-            Command::new("sudo")
-                .arg("ip")
+            Command::new("ip")
                 .arg("route")
                 .arg("add")
                 .arg(route)
@@ -177,8 +172,7 @@ impl WireguardDevice for WireguardDeviceLinux {
                 .spawn()
                 .unwrap()
         } else {
-            Command::new("sudo")
-                .arg("ip")
+            Command::new("ip")
                 .arg("route")
                 .arg("add")
                 .arg(route)
@@ -199,8 +193,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     fn del_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route {}", route);
         let mut cmd = if let Some(gateway) = gateway {
-            Command::new("sudo")
-                .arg("ip")
+            Command::new("ip")
                 .arg("route")
                 .arg("del")
                 .arg(route)
@@ -209,8 +202,7 @@ impl WireguardDevice for WireguardDeviceLinux {
                 .spawn()
                 .unwrap()
         } else {
-            Command::new("sudo")
-                .arg("ip")
+            Command::new("ip")
                 .arg("route")
                 .arg("del")
                 .arg(route)

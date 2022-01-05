@@ -1,5 +1,4 @@
 Todos:
-* exchange known peer list
 * routing
 * send default gateway
 * exchange info about new public listeners and update config-file
@@ -7,17 +6,21 @@ Todos:
 * warn about readbility of config file if not -rw-------
 * check availability of used shell commands (ip/wg)
 * include boringtun, if kernel does not provide wireguard interface
-* find a solution for sudo
 * share unbound UDP socket addresses between clients
 * put udp comm port/socketaddr info into advertisement
 * Retrieve endpoint from clients out of wg parsed output
 * rename publicIp to e.g. visibleHost or reachableHost
+* allow publicIp to be a hostname
 * Do not sent advertisement to self
-* Public Key should have a timestamp
 * more endpoints per peer
-* simplify RouteInfo for Peers
+* remove need for wg genkey/pubkey
+* remove need for sudo wg
 
 DONE:
+* exchange known peer list
+* Public Key should have a timestamp
+* simplify RouteInfo for Peers
+* find a solution for sudo => use capability
 * add github actions
 * monitor connection to peers and remove them, if no connection anymore
 * udp package encryption

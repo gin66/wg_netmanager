@@ -1,15 +1,11 @@
 Wireguard network manager
 =========================
 
-# Status: WORK IN PROGRESS - not ready for use
-
 # Motivation / Problem
 
-Situation is a couple of vps, some IoT devices in the home network and couple of roaming laptops/iPads/smartphones.
-Till now a quite complex setup involving wireguard, openvpn, ssh'ing from box to box was in use.
+Situation is a couple of vps, some IoT devices in the home network and couple of roaming laptops/iPads/smartphones.  Till now a quite complex setup involving wireguard, openvpn, ssh'ing from box to box was in use.
 
-Using wireguard all the time is not an option, because then the Laptop in the home network would route traffic
-to the box one meter away via the long route (the vps somewhere in the Internet), instead of using the short path within the home network.
+Using wireguard all the time is not an option, because then the Laptop in the home network would route traffic to the box one meter away via the long route (the vps somewhere in the Internet), instead of using the short path within the home network.
 
 An alternative could have been [tinc](https://tinc-vpn.org/), but tinc - licensed under GPL v2 - may never hit iOs/iPadOS AppStore. So not a solution.
 
@@ -21,13 +17,11 @@ Use wireguard and add the missing management part. This shall:
 - set up routes automagically
 - identify shorter routes
 
-Instead of manually creating keys (which is still the case in gui versions) the network uses one file to be distributed to all participants.
-Here a work in progress example (filename net.yaml):
+Instead of manually creating keys (which is still the case in gui versions) the network uses one file to be distributed to all participants.  Here a work in progress example (filename net.yaml):
 
 ```yaml
 network:
   sharedKey: YDUBM6FhERePZ4gPlxzAbCN7K61BPjy7HApWYL+P128=
-    #ipRange: 10.1.0.0/16
 
 peers:
   - publicIp: 192.168.1.70
@@ -39,6 +33,9 @@ peers:
     adminPort: 55555
     wgIp: 10.1.1.2
 ```
+
+The sharedKey can be created with `wg genkey`.
+
 
 Unfortunately there is still the need to define at least ONE static peer.
 

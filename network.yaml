@@ -1,9 +1,9 @@
 # This is an example config file for a wireguard network
 #
 # A network uses ONE shared private key.
-# Any new network participant can use this key to join any wireguard network at any current node
+# Any new network participant can use this key to join at any current node
 #
-# Private address ranges:
+# Private address ranges as reference:
 # 10.0.0.0/8 IP addresses: 10.0.0.0 – 10.255.255.255
 # 172.16.0.0/12 IP addresses: 172.16.0.0 – 172.31.255.255
 # 192.168.0.0/16 IP addresses: 192.168.0.0 – 192.168.255.255
@@ -13,7 +13,6 @@
 #
 network:
   sharedKey: YDUBM6FhERePZ4gPlxzAbCN7K61BPjy7HApWYL+P128=
-    #ipRange: 10.1.0.0/16
 
 peers:
   - publicIp: 192.168.1.70

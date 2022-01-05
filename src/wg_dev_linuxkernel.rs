@@ -155,17 +155,32 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
-    fn add_route(&self, route: &str) -> BoxResult<()> {
+    fn add_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route {}", route);
-        let mut cmd = Command::new("sudo")
-            .arg("ip")
-            .arg("route")
-            .arg("add")
-            .arg(route)
-            .arg("dev")
-            .arg(&self.device_name)
-            .spawn()
-            .unwrap();
+        let mut cmd = if let Some(gateway) = gateway {
+            Command::new("sudo")
+                .arg("ip")
+                .arg("route")
+                .arg("add")
+                .arg(route)
+                .arg("via")
+                .arg(gateway.to_string())
+                .arg("dev")
+                .arg(&self.device_name)
+                .spawn()
+                .unwrap()
+        }
+        else {
+            Command::new("sudo")
+                .arg("ip")
+                .arg("route")
+                .arg("add")
+                .arg(route)
+                .arg("dev")
+                .arg(&self.device_name)
+                .spawn()
+                .unwrap()
+        };
 
         let result = cmd.wait().unwrap();
 
@@ -175,15 +190,28 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
-    fn del_route(&self, route: &str) -> BoxResult<()> {
+    fn del_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route {}", route);
-        let mut cmd = Command::new("sudo")
-            .arg("ip")
-            .arg("route")
-            .arg("del")
-            .arg(route)
-            .spawn()
-            .unwrap();
+        let mut cmd = if let Some(gateway) = gateway {
+            Command::new("sudo")
+                .arg("ip")
+                .arg("route")
+                .arg("del")
+                .arg(route)
+                .arg("via")
+                .arg(gateway.to_string())
+                .spawn()
+                .unwrap()
+        }
+        else {
+            Command::new("sudo")
+                .arg("ip")
+                .arg("route")
+                .arg("del")
+                .arg(route)
+                .spawn()
+                .unwrap()
+        };
 
         let result = cmd.wait().unwrap();
 

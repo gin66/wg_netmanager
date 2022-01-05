@@ -15,6 +15,7 @@ Todos:
 * Do not sent advertisement to self
 * Public Key should have a timestamp
 * more endpoints per peer
+* simplify RouteInfo for Peers
 
 DONE:
 * add github actions

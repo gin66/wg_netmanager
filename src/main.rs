@@ -359,7 +359,7 @@ fn main_loop(
                             tx.send(Event::SendRouteDatabaseRequest { to: destination }).unwrap();
                         }
                     }
-                    RouteDatabaseRequest { wg_ip } => {
+                    RouteDatabaseRequest { .. } => {
                         info!("RouteDatabaseRequest from {:?}", src_addr);
                         match src_addr {
                             SocketAddr::V4(destination) => {
@@ -370,9 +370,11 @@ fn main_loop(
                             }
                         }
                     }
-                    RouteDatabase { wg_ip,  .. } => {
-                        info!("RouteDatabase from {}", wg_ip);
-                        network_manager.process_route_database(udp_packet);
+                    RouteDatabase { sender,  .. } => {
+                        info!("RouteDatabase for {}", sender);
+                        if network_manager.process_route_database(udp_packet) {
+                            tx.send(Event::UpdateRoutes).unwrap();
+                        }
                     }
                 }
             }
@@ -385,13 +387,13 @@ fn main_loop(
                 crypt_socket.send_to(&buf, destination).ok();
             }
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
-                let request = UdpPacket::route_database_request(destination.ip());
+                let request = UdpPacket::route_database_request();
                 let buf = serde_json::to_vec(&request).unwrap();
                 info!("Send RouteDatabaseRequest to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
             }
             Ok(Event::SendRouteDatabase{ to: destination }) => {
-                let packages = network_manager.provide_route_database(destination.ip());
+                let packages = network_manager.provide_route_database();
                 for p in packages {
                     let buf = serde_json::to_vec(&p).unwrap();
                     info!("Send RouteDatabase to {}", destination);
@@ -413,7 +415,7 @@ fn main_loop(
             }
             Ok(Event::PeerListChange) => {
                 info!("Update peers");
-                let conf = static_config.as_conf_as_peer(Some(&dynamic_peers));
+                let conf = static_config.as_conf_as_peer(Some(&dynamic_peers), &network_manager);
                 info!("Configuration as peer\n{}\n", conf);
                 wg_dev.sync_conf(&conf)?;
             }
@@ -421,18 +423,24 @@ fn main_loop(
                 let changes = network_manager.get_route_changes();
                 for rc in changes {
                     use RouteChange::*;
+                    error!("{:?}", rc);
                     debug!("{:?}", rc);
                     match rc {
-                        AddRouteWithGateway { to: _, gateway: _ } => {}
-                        AddRoute { to } => {
-                            wg_dev.add_route(&format!("{}/32", to))?;
+                        AddRouteWithGateway { to, gateway } => {
+                            wg_dev.add_route(&format!("{}/32", to), Some(gateway))?;
                         }
-                        DelRouteWithGateway { to: _, gateway: _ } => {}
+                        AddRoute { to } => {
+                            wg_dev.add_route(&format!("{}/32", to), None)?;
+                        }
+                        DelRouteWithGateway { to, gateway } => {
+                            wg_dev.del_route(&format!("{}/32", to), Some(gateway))?;
+                        }
                         DelRoute { to } => {
-                            wg_dev.del_route(&format!("{}/32", to))?;
+                            wg_dev.del_route(&format!("{}/32", to), None)?;
                         }
                     }
                 }
+                tx.send(Event::PeerListChange).unwrap();
             }
         }
     }

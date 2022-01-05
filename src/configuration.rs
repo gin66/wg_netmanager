@@ -7,6 +7,8 @@ use std::time::Instant;
 use log::*;
 use serde::{Deserialize, Serialize};
 
+use crate::manager::*;
+
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PublicKeyWithTime {
     pub key: String, // base64 encoded
@@ -99,7 +101,7 @@ impl StaticConfiguration {
     pub fn is_listener(&self) -> bool {
         self.myself_as_peer.is_some()
     }
-    pub fn as_conf_as_peer(&self, dynamic_peers: Option<&DynamicPeerList>) -> String {
+    pub fn as_conf_as_peer(&self, dynamic_peers: Option<&DynamicPeerList>, manager: &NetworkManager) -> String {
         let mut lines: Vec<String> = vec![];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.my_private_key));
@@ -114,6 +116,10 @@ impl StaticConfiguration {
                 lines.push("[Peer]".to_string());
                 lines.push(format!("PublicKey = {}", &peer.public_key.key));
                 lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));
+                let ips = manager.get_ips_for_peer(peer.wg_ip);
+                for ip in ips {
+                    lines.push(format!("AllowedIPs = {}/32", ip));
+                }
                 if let Some(endpoint) = peer.endpoint.as_ref() {
                     lines.push(format!("EndPoint = {}", endpoint));
                 }
@@ -238,14 +244,12 @@ pub enum UdpPacket {
         routedb_version: usize,
     },
     RouteDatabaseRequest {
-        wg_ip: Ipv4Addr,
     },
     RouteDatabase {
-        wg_ip: Ipv4Addr,
+        sender: Ipv4Addr,
         routedb_version: usize,
-        packet_index: usize,
-        nr_packets: usize,
-        known_wg_ip: Vec<Ipv4Addr>,
+        nr_entries: usize,
+        known_routes: Vec<RouteInfo>,
     }
 }
 impl UdpPacket {
@@ -268,25 +272,21 @@ impl UdpPacket {
         }
     }
     pub fn route_database_request(
-        destination: &Ipv4Addr,
     ) -> Self {
         UdpPacket::RouteDatabaseRequest {
-            wg_ip: *destination,
         }
     }
     pub fn make_route_database(
-        wg_ip: Ipv4Addr,
+        sender: Ipv4Addr,
         routedb_version: usize,
-        packet_index: usize,
-        nr_packets: usize,
-        known_wg_ip: Vec<Ipv4Addr>,
+        nr_entries: usize,
+        known_routes: Vec<&RouteInfo>,
     ) -> Self {
         UdpPacket::RouteDatabase{
-            wg_ip,
+            sender,
             routedb_version,
-            packet_index,
-            nr_packets,
-            known_wg_ip,
+            nr_entries,
+            known_routes: known_routes.into_iter().map(|ri| ri.clone()).collect(),
         }
     }
 }

@@ -4,6 +4,7 @@ mod tests {
 
     //use wg_netmanager::configuration::*;
     use wg_netmanager::manager::*;
+    use wg_netmanager::configuration::*;
 
     #[test]
     fn test_make_manager() {
@@ -20,6 +21,18 @@ mod tests {
         mgr.add_dynamic_peer(&peer_ip);
         assert_eq!(mgr.get_route_changes().len(), 1);
         assert_eq!(mgr.get_route_changes().len(), 0);
+
+        println!("ROUTE");
+        for udp in mgr.provide_route_database() {
+            use UdpPacket::*;
+            match udp {
+                Advertisement {..} => {}
+                RouteDatabaseRequest {..} => { }
+                RouteDatabase { sender, known_routes, routedb_version, nr_entries} => {
+                    println!("{} {:?}", sender, known_routes);
+                }
+            }
+        }
 
         // now remove the peer
         mgr.remove_dynamic_peer(&peer_ip);

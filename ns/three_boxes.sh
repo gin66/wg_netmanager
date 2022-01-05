@@ -84,11 +84,22 @@ echo bob is client
 echo charlie is client
 echo expectation is, that after a while the ping succeeds: bob can reach charlie via the tunnel
 
+VERBOSITY=-vvv
 #tmux split-pane -h sh -c "sudo ip netns exec alice ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.1 alice || sleep 10"
-tmux split-pane -h sudo ip netns exec alice ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.1 alice
-tmux split-pane -h sudo ip netns exec bob ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.3 bob
-tmux split-pane -h sudo ip netns exec charlie ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.4 charlie
-sleep 120
+tmux split-pane -h sudo ip netns exec alice ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.1 alice
+tmux split-pane -h sudo ip netns exec bob ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.3 bob
+sleep 20
+tmux split-pane -h sudo ip netns exec charlie ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.4 charlie
+sleep 50
+
+echo ROUTE ALICE
+sudo ip netns exec alice ip route 
+echo ROUTE BOB
+sudo ip netns exec bob ip route
+echo ROUTE CHARLIE
+sudo ip netns exec charlie ip route
+
+sleep 10
 sudo ip netns exec bob ping -c 2 10.1.1.1 || echo -e $FAIL
 sudo ip netns exec charlie ping -c 2 10.1.1.1 || echo -e $FAIL
 sudo ip netns exec alice ping -c 2 10.1.1.3 || echo -e $FAIL

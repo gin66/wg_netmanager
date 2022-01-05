@@ -27,6 +27,7 @@ pub struct StaticConfigurationBuilder {
     name: Option<String>,
     wg_ip: Option<Ipv4Addr>,
     wg_name: Option<String>,
+    shared_key: Option<Vec<u8>>,
     my_private_key: Option<String>,
     my_public_key: Option<PublicKeyWithTime>,
     peers: Vec<PublicPeer>,
@@ -45,6 +46,10 @@ impl StaticConfigurationBuilder {
     }
     pub fn wg_name<T: Into<String>>(mut self, wg_name: T) -> Self {
         self.wg_name = Some(wg_name.into());
+        self
+    }
+    pub fn shared_key(mut self, shared_key: Vec<u8>) -> Self {
+        self.shared_key = Some(shared_key);
         self
     }
     pub fn my_private_key<T: Into<String>>(mut self, private_key: T) -> Self {
@@ -75,6 +80,7 @@ impl StaticConfigurationBuilder {
             wg_ip: self.wg_ip.unwrap(),
             wg_name: self.wg_name.unwrap(),
             myself_as_peer,
+            shared_key: self.shared_key.unwrap(),
             my_private_key: self.my_private_key.unwrap(),
             my_public_key: self.my_public_key.unwrap(),
             peers: self.peers,
@@ -88,6 +94,7 @@ pub struct StaticConfiguration {
     pub wg_ip: Ipv4Addr,
     pub wg_name: String,
     myself_as_peer: Option<usize>,
+    pub shared_key: Vec<u8>,
     pub my_private_key: String,
     pub my_public_key: PublicKeyWithTime,
     pub peers: Vec<PublicPeer>,

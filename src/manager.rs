@@ -21,6 +21,7 @@
 //      allow multiple instances of NetworkManager, which can be connected by glue code freely
 //
 
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::net::Ipv4Addr;
@@ -45,9 +46,15 @@ pub enum RouteChange {
 //}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Gateway {
+    hop_cnt: usize,
+    ip: Ipv4Addr,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RouteInfo {
     to: Ipv4Addr,
-    gateway: Option<Ipv4Addr>,
+    gateway: Option<Gateway>,
 }
 
 struct RouteInfoWithStatus {
@@ -125,10 +132,10 @@ impl NetworkManager {
             .filter(|ri| ri.to_be_deleted && ri.issued)
         {
             ri.issued = false;
-            if let Some(gateway) = ri.ri.gateway {
+            if let Some(gateway) = ri.ri.gateway.as_ref() {
                 routes.push(RouteChange::DelRouteWithGateway {
                     to: ri.ri.to,
-                    gateway,
+                    gateway: gateway.ip,
                 });
             } else {
                 routes.push(RouteChange::DelRoute { to: ri.ri.to });
@@ -140,10 +147,10 @@ impl NetworkManager {
         // then routes to be added
         for ri in self.route_db.route_for.values_mut().filter(|ri| !ri.issued) {
             ri.issued = true;
-            if let Some(gateway) = ri.ri.gateway {
+            if let Some(gateway) = ri.ri.gateway.as_ref() {
                 routes.push(RouteChange::AddRouteWithGateway {
                     to: ri.ri.to,
-                    gateway,
+                    gateway: gateway.ip,
                 });
             } else {
                 routes.push(RouteChange::AddRoute { to: ri.ri.to });
@@ -210,10 +217,10 @@ impl NetworkManager {
                             need_routes_update = nr_entries == peer_route_db.route_for.len();
                             self.peer_route_db.insert(sender, peer_route_db);
                         } else {
-                            error!("Mismatch of route db version");
+                            warn!("Mismatch of route db version");
                         }
                     } else {
-                        error!("Mismatch of nr_entries");
+                        warn!("Mismatch of nr_entries");
                     }
                 } else {
                     let routes = known_routes
@@ -236,11 +243,11 @@ impl NetworkManager {
         need_routes_update
     }
     fn recalculate_routes(&mut self) {
-        error!("RECALC ROUTES");
+        trace!("RECALC ROUTES");
         // Use as input:
         //    list of peers (being alive)
         //    peer route_db, if valid
-        let mut new_routes: HashMap<Ipv4Addr, Option<Ipv4Addr>> = HashMap::new();
+        let mut new_routes: HashMap<Ipv4Addr, Option<Gateway>> = HashMap::new();
 
         for peer in self.peers.iter() {
             new_routes.insert(*peer, None);
@@ -248,7 +255,7 @@ impl NetworkManager {
         for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
             if peer_route_db.nr_entries == peer_route_db.route_for.len() {
                 // is valid database for peer
-                error!("VALID {:?}", peer_route_db.route_for);
+                debug!("VALID {:?}", peer_route_db.route_for);
                 for ri in peer_route_db.route_for.values() {
                     if ri.to == self.wg_ip {
                         continue;
@@ -256,27 +263,33 @@ impl NetworkManager {
                     if self.peers.contains(&ri.to) {
                         continue;
                     }
-                    if let Some(gateway) = ri.gateway {
-                        if gateway == self.wg_ip {
+                    let mut hop_cnt = 1;
+                    if let Some(gateway) = ri.gateway.as_ref() {
+                        hop_cnt = gateway.hop_cnt + 1;
+                        if gateway.ip == self.wg_ip {
                             continue;
                         }
-                        if self.peers.contains(&gateway) {
+                        if self.peers.contains(&gateway.ip) {
                             continue;
                         }
-                        if self.peer_route_db.contains_key(&gateway) {
+                        if self.peer_route_db.contains_key(&gateway.ip) {
                             continue;
                         }
                     }
                     // to-host can be reached via wg_ip
-                    new_routes.insert(ri.to, Some(*wg_ip));
+                    let gateway = Gateway {
+                        ip: *wg_ip,
+                        hop_cnt,
+                    };
+                    new_routes.insert(ri.to, Some(gateway));
                 }
             } else {
-                error!("VALID {:?}", peer_route_db.route_for);
+                debug!("VALID {:?}", peer_route_db.route_for);
             }
         }
 
         for entry in new_routes.iter() {
-            error!("{:?}", entry);
+            debug!("{:?}", entry);
         }
 
         // new_routes is built. So update route_db
@@ -291,19 +304,38 @@ impl NetworkManager {
         }
         // finally routes to be updated / added
         for (to, gateway) in new_routes.into_iter() {
-            if let std::collections::hash_map::Entry::Vacant(e) = self.route_db.route_for.entry(to)
-            {
-                // new route
-                let ri = RouteInfoWithStatus {
-                    ri: RouteInfo { to, gateway },
-                    issued: false,
-                    to_be_deleted: false,
-                };
-                e.insert(ri);
-                changed = true;
-            } else {
-                // update route
-                error!("UNIMPLEMENTED: UPDATE ROUTE");
+            let ng = gateway.clone().map(|mut gw| {
+                gw.hop_cnt += 1;
+                gw
+            });
+            match self.route_db.route_for.entry(to) {
+                Entry::Vacant(e) => {
+                    // new route
+                    let ri = RouteInfoWithStatus {
+                        ri: RouteInfo { to, gateway },
+                        issued: false,
+                        to_be_deleted: false,
+                    };
+                    e.insert(ri);
+                    changed = true;
+                }
+                Entry::Occupied(mut e) => {
+                    // update route
+                    let current = e.get_mut();
+                    let current_hop_cnt =
+                        current.ri.gateway.as_ref().map(|e| e.hop_cnt).unwrap_or(0);
+                    let new_hop_cnt = ng.as_ref().map(|e| e.hop_cnt).unwrap_or(0);
+                    if current_hop_cnt > new_hop_cnt {
+                        // new route is better
+                        let ri = RouteInfoWithStatus {
+                            ri: RouteInfo { to, gateway: ng },
+                            issued: false,
+                            to_be_deleted: false,
+                        };
+                        *current = ri;
+                        changed = true;
+                    }
+                }
             }
         }
         if changed {
@@ -314,8 +346,10 @@ impl NetworkManager {
         let mut ips = vec![];
 
         for ri in self.route_db.route_for.values() {
-            if ri.ri.gateway == Some(peer) {
-                ips.push(ri.ri.to);
+            if let Some(gateway) = ri.ri.gateway.as_ref() {
+                if gateway.ip == peer {
+                    ips.push(ri.ri.to);
+                }
             }
         }
 

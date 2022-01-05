@@ -139,14 +139,14 @@ fn main() -> BoxResult<()> {
     let conf = YamlLoader::load_from_str(&content).unwrap();
 
     debug!("Raw configuration:");
-    debug!("{:?}", conf);
+    debug!("{:#?}", conf);
 
     let network = &conf[0]["network"];
     let shared_key = base64::decode(&network["sharedKey"].as_str().unwrap()).unwrap();
 
     let mut peers: Vec<PublicPeer> = vec![];
     for p in conf[0]["peers"].as_vec().unwrap() {
-        info!("PEER: {:?}", p);
+        info!("PEER: {:#?}", p);
         let public_ip: IpAddr = p["publicIp"].as_str().unwrap().parse().unwrap();
         let comm_port = p["wgPort"].as_i64().unwrap() as u16;
         let admin_port = p["adminPort"].as_i64().unwrap() as u16;
@@ -167,7 +167,7 @@ fn main() -> BoxResult<()> {
         .stdout;
     let raw_private_key = String::from_utf8_lossy(&output);
     let my_private_key = raw_private_key.trim();
-    info!("Network private key: {}", my_private_key);
+    trace!("My private key: {}", my_private_key);
     let mut cmd = Command::new("wg")
         .arg("pubkey")
         .stdin(Stdio::piped())
@@ -186,17 +186,21 @@ fn main() -> BoxResult<()> {
         key: my_public_key.to_string(),
         priv_key_creation_time: timestamp,
     };
-    info!("Network public key: {}", my_public_key);
+    trace!("My public key: {}", my_public_key);
 
     let static_config = StaticConfiguration::builder()
         .name(computer_name)
         .wg_ip(wg_ip)
         .wg_name(interface)
+        .shared_key(shared_key)
         .my_public_key(my_public_key_with_time)
         .my_private_key(my_private_key)
         .peers(peers)
         .build();
+    run(static_config)
+}
 
+fn run(static_config: StaticConfiguration) -> BoxResult<()> {
     let (tx, rx) = channel();
 
     let tx_handler = tx.clone();
@@ -210,7 +214,7 @@ fn main() -> BoxResult<()> {
 
     let port = static_config.my_admin_port().unwrap_or(0);
     debug!("bind to 0.0.0.0:{}", port);
-    let crypt_socket = CryptUdp::bind(port)?.key(&shared_key)?;
+    let crypt_socket = CryptUdp::bind(port)?.key(&static_config.shared_key)?;
 
     // Set up udp receiver thread
     let tx_clone = tx.clone();
@@ -368,7 +372,7 @@ fn main_loop(
                                     .unwrap();
                             }
                             SocketAddr::V6(..) => {
-                                error!("IPV6 address");
+                                error!("Expected IPV4 and not IPV6 address");
                             }
                         }
                     }
@@ -425,7 +429,6 @@ fn main_loop(
                 let changes = network_manager.get_route_changes();
                 for rc in changes {
                     use RouteChange::*;
-                    error!("{:?}", rc);
                     debug!("{:?}", rc);
                     match rc {
                         AddRouteWithGateway { to, gateway } => {

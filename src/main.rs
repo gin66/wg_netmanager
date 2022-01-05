@@ -14,22 +14,8 @@ use wg_netmanager::configuration::*;
 use wg_netmanager::crypt_udp::CryptUdp;
 use wg_netmanager::error::*;
 use wg_netmanager::manager::*;
+use wg_netmanager::tui_display::TuiApp;
 use wg_netmanager::wg_dev::*;
-
-#[derive(Debug)]
-enum Event {
-    Udp(UdpPacket, SocketAddr),
-    PeerListChange,
-    CtrlC,
-    SendAdvertisement { to: SocketAddr },
-    SendAdvertisementToPublicPeers,
-    SendPingToAllDynamicPeers,
-    SendRouteDatabaseRequest { to: SocketAddrV4 },
-    SendRouteDatabase { to: SocketAddrV4 },
-    CheckAndRemoveDeadDynamicPeers,
-    UpdateRoutes,
-    TimerTick1s,
-}
 
 // ===================== Logging Set Up =====================
 fn set_up_logging(log_filter: log::LevelFilter) {
@@ -118,6 +104,11 @@ fn main() -> BoxResult<()> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("tui")
+                .short("t")
+                .help("Use text user interface"),
+        )
+        .arg(
             Arg::with_name("v")
                 .short("v")
                 .multiple(true)
@@ -150,7 +141,17 @@ fn main() -> BoxResult<()> {
         3 => log::LevelFilter::Debug,
         _ => log::LevelFilter::Trace,
     };
-    set_up_logging(log_filter);
+
+    // Select logger based on command line flag
+    //
+    let use_tui = matches.is_present("tui");
+
+    if use_tui {
+        tui_logger::init_logger(log::LevelFilter::Trace).unwrap();
+        tui_logger::set_default_level(log::LevelFilter::Trace);
+    } else {
+        set_up_logging(log_filter);
+    }
 
     let interface = matches.value_of("interface").unwrap();
     let wg_ip: Ipv4Addr = matches.value_of("wg_ip").unwrap().parse().unwrap();
@@ -223,7 +224,9 @@ fn main() -> BoxResult<()> {
         .my_public_key(my_public_key_with_time)
         .my_private_key(my_private_key)
         .peers(peers)
+        .use_tui(use_tui)
         .build();
+
     run(static_config)
 }
 
@@ -285,7 +288,16 @@ fn run(static_config: StaticConfiguration) -> BoxResult<()> {
     wg_dev.bring_up_device()?;
     wg_dev.set_ip(&static_config.wg_ip)?;
 
-    let rc = main_loop(static_config, &wg_dev, crypt_socket, tx, rx);
+    let mut tui_app = if static_config.use_tui {
+        TuiApp::init(tx.clone())
+    }
+    else {
+        TuiApp::off()
+    };
+
+    let rc = main_loop(static_config, &wg_dev, crypt_socket, tx, rx, &mut tui_app);
+
+    tui_app.deinit();
 
     wg_dev.take_down_device().ok();
 
@@ -298,6 +310,7 @@ fn main_loop(
     crypt_socket: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
+    tui_app: &mut TuiApp,
 ) -> BoxResult<()> {
     let mut dynamic_peers = DynamicPeerList::default();
     let mut network_manager = NetworkManager::new(static_config.wg_ip);
@@ -320,6 +333,8 @@ fn main_loop(
                 break;
             }
             Ok(Event::TimerTick1s) => {
+                tui_app.draw()?;
+
                 if tick_cnt % 15 == 1 {
                     // every 15s
                     tx.send(Event::CheckAndRemoveDeadDynamicPeers).unwrap();
@@ -473,6 +488,8 @@ fn main_loop(
                     }
                 }
                 tx.send(Event::PeerListChange).unwrap();
+            }
+            Ok(Event::TuiApp) => {
             }
         }
     }

@@ -28,3 +28,6 @@ log = "0.4"
 fern =  { version = "0.6", features = ["colored"]}
 chrono = "0.4"
 ifcfg = "0.1"
+tui = { version = "0.16", default-features = true }
+termion = "1.5"
+tui-logger = "0.6"

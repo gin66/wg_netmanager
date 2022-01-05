@@ -1,13 +1,29 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::time::Instant;
 
 use log::*;
 use serde::{Deserialize, Serialize};
 
 use crate::manager::*;
+
+#[derive(Debug)]
+pub enum Event {
+    Udp(UdpPacket, SocketAddr),
+    PeerListChange,
+    CtrlC,
+    SendAdvertisement { to: SocketAddr },
+    SendAdvertisementToPublicPeers,
+    SendPingToAllDynamicPeers,
+    SendRouteDatabaseRequest { to: SocketAddrV4 },
+    SendRouteDatabase { to: SocketAddrV4 },
+    CheckAndRemoveDeadDynamicPeers,
+    UpdateRoutes,
+    TimerTick1s,
+    TuiApp,
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PublicKeyWithTime {
@@ -32,6 +48,7 @@ pub struct StaticConfigurationBuilder {
     my_private_key: Option<String>,
     my_public_key: Option<PublicKeyWithTime>,
     peers: Vec<PublicPeer>,
+    use_tui: Option<bool>,
 }
 impl StaticConfigurationBuilder {
     pub fn new() -> Self {
@@ -69,6 +86,10 @@ impl StaticConfigurationBuilder {
         self.peers = peers;
         self
     }
+    pub fn use_tui(mut self, use_tui: bool) -> Self {
+        self.use_tui = Some(use_tui);
+        self
+    }
     pub fn build(self) -> StaticConfiguration {
         let mut myself_as_peer: Option<usize> = None;
         for (i, peer) in self.peers.iter().enumerate() {
@@ -91,6 +112,7 @@ impl StaticConfigurationBuilder {
             my_public_key: self.my_public_key.unwrap(),
             peers: self.peers,
             peer_cnt,
+            use_tui: self.use_tui.unwrap(),
         }
     }
 }
@@ -106,6 +128,7 @@ pub struct StaticConfiguration {
     pub my_public_key: PublicKeyWithTime,
     pub peers: Vec<PublicPeer>,
     pub peer_cnt: usize,
+    pub use_tui: bool,
 }
 
 impl StaticConfiguration {

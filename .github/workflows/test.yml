@@ -19,12 +19,12 @@ jobs:
           - os: ubuntu-latest
             bin: wg_manager
             name: wg_manager-Linux-x86_64.tar.gz
-          - os: macOS-latest
-            bin: wg_manager
-            name: wg_manager-Darwin-x86_64.tar.gz
-          - os: windows-latest
-            bin: wg_manager.exe
-            name: wg_manager-Windows-x86_64.zip
+          #- os: macOS-latest
+          #  bin: wg_manager
+          #  name: wg_manager-Darwin-x86_64.tar.gz
+          #- os: windows-latest
+          #  bin: wg_manager.exe
+          #  name: wg_manager-Windows-x86_64.zip
     env:
       RUST_BACKTRACE: "1"
     steps:
@@ -87,10 +87,10 @@ jobs:
     strategy:
       matrix:
         target:
-          - armv7-linux-androideabi
+          #- armv7-linux-androideabi
           - armv7-unknown-linux-gnueabihf
           - armv7-unknown-linux-musleabihf
-          - aarch64-linux-android
+            #- aarch64-linux-android
           - aarch64-unknown-linux-gnu
           - aarch64-unknown-linux-musl
           - x86_64-unknown-linux-musl

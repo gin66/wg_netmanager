@@ -101,9 +101,9 @@ fn ensure_capability() -> BoxResult<()> {
             .wait()
             .unwrap();
 
-        let args: Vec<*const i8> = std::env::args().map(|a| a.as_ptr() as *const i8).collect();
+        let args = std::env::args().map(|a| a.as_ptr() as *const _).collect::<Vec<_>>();
         let rc = unsafe {
-            libc::execv(exe.as_ptr() as *const i8, args.as_ptr());
+            libc::execv(exe.as_ptr() as *const _, args.as_ptr());
         };
         println!("HERE <{:?}>", rc);
     }

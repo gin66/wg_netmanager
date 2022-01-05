@@ -155,6 +155,8 @@ impl DynamicPeerList {
     ) -> Option<Ipv4Addr> {
         use UdpPacket::*;
         match from_advertisement {
+            RouteDatabaseRequest {..} => { None }
+            RouteDatabase {..} => { None }
             Advertisement {
                 public_key,
                 wg_ip,
@@ -228,7 +230,6 @@ impl DynamicPeerList {
 
 #[derive(Serialize, Deserialize)]
 pub enum UdpPacket {
-    // TODO: Change from String to &str
     Advertisement {
         public_key: PublicKeyWithTime,
         wg_ip: Ipv4Addr,
@@ -236,6 +237,16 @@ pub enum UdpPacket {
         endpoint: Option<SocketAddr>,
         routedb_version: usize,
     },
+    RouteDatabaseRequest {
+        wg_ip: Ipv4Addr,
+    },
+    RouteDatabase {
+        wg_ip: Ipv4Addr,
+        routedb_version: usize,
+        packet_index: usize,
+        nr_packets: usize,
+        known_wg_ip: Vec<Ipv4Addr>,
+    }
 }
 impl UdpPacket {
     pub fn advertisement_from_config(
@@ -256,11 +267,35 @@ impl UdpPacket {
             routedb_version,
         }
     }
+    pub fn route_database_request(
+        destination: &Ipv4Addr,
+    ) -> Self {
+        UdpPacket::RouteDatabaseRequest {
+            wg_ip: *destination,
+        }
+    }
+    pub fn make_route_database(
+        wg_ip: Ipv4Addr,
+        routedb_version: usize,
+        packet_index: usize,
+        nr_packets: usize,
+        known_wg_ip: Vec<Ipv4Addr>,
+    ) -> Self {
+        UdpPacket::RouteDatabase{
+            wg_ip,
+            routedb_version,
+            packet_index,
+            nr_packets,
+            known_wg_ip,
+        }
+    }
 }
 impl fmt::Debug for UdpPacket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UdpPacket::Advertisement { .. } => f.debug_struct("Adverisement"),
+            UdpPacket::RouteDatabaseRequest { .. } => f.debug_struct("RouteDatabaseRequest"),
+            UdpPacket::RouteDatabase { .. } => f.debug_struct("RouteDatabase"),
         }
         .finish()
     }

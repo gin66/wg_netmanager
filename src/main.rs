@@ -25,6 +25,7 @@ enum Event {
     SendAdvertisementToPublicPeers,
     SendPingToAllDynamicPeers,
     SendRouteDatabaseRequest{to: SocketAddrV4 },
+    SendRouteDatabase{to: SocketAddrV4 },
     CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,
     TimerTick1s,
@@ -358,6 +359,21 @@ fn main_loop(
                             tx.send(Event::SendRouteDatabaseRequest { to: destination }).unwrap();
                         }
                     }
+                    RouteDatabaseRequest { wg_ip } => {
+                        info!("RouteDatabaseRequest from {:?}", src_addr);
+                        match src_addr {
+                            SocketAddr::V4(destination) => {
+                                tx.send(Event::SendRouteDatabase{ to: destination }).unwrap();
+                            }
+                            SocketAddr::V6(..) => {
+                                error!("IPV6 address");
+                            }
+                        }
+                    }
+                    RouteDatabase { wg_ip,  .. } => {
+                        info!("RouteDatabase from {}", wg_ip);
+                        network_manager.process_route_database(udp_packet);
+                    }
                 }
             }
             Ok(Event::SendAdvertisement { to: destination }) => {
@@ -369,10 +385,18 @@ fn main_loop(
                 crypt_socket.send_to(&buf, destination).ok();
             }
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
-                // let advertisement = UdpPacket::advertisement_from_config(&static_config, routedb_version);
-                // let buf = serde_json::to_vec(&advertisement).unwrap();
+                let request = UdpPacket::route_database_request(destination.ip());
+                let buf = serde_json::to_vec(&request).unwrap();
                 info!("Send RouteDatabaseRequest to {}", destination);
-                // crypt_socket.send_to(&buf, destination).ok();
+                crypt_socket.send_to(&buf, destination).ok();
+            }
+            Ok(Event::SendRouteDatabase{ to: destination }) => {
+                let packages = network_manager.provide_route_database(destination.ip());
+                for p in packages {
+                    let buf = serde_json::to_vec(&p).unwrap();
+                    info!("Send RouteDatabase to {}", destination);
+                    crypt_socket.send_to(&buf, destination).ok();
+                }
             }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
                 dynamic_peers.output();

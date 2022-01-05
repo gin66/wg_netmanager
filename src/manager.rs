@@ -54,11 +54,19 @@ pub struct RouteDB {
     route_for: HashMap<Ipv4Addr, RouteInfo>,
 }
 
+#[derive(Default)]
+pub struct PeerRouteDB {
+    version: usize,
+    nr_packets_received: usize,
+    nr_packets: usize,
+    route_for: HashMap<Ipv4Addr, RouteInfo>,
+}
+
 pub struct NetworkManager {
     wg_ip: Ipv4Addr,
     all_nodes: HashMap<Ipv4Addr, NodeInfo>,
     route_db: RouteDB,
-    peer_route_db: HashMap<Ipv4Addr, RouteDB>,
+    peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
 }
 
 impl NetworkManager {
@@ -121,21 +129,43 @@ impl NetworkManager {
         warn!("NEED ANALYZE");
         use UdpPacket::*;
         match udp_packet {
+            RouteDatabaseRequest {..} => { None }
+            RouteDatabase {..} => { None }
             Advertisement {
                 wg_ip,
                 routedb_version, ..
             } => {
                 if let Some(peer_route_db) = self.peer_route_db.get(wg_ip) {
                     if peer_route_db.version == *routedb_version {
-                        None
+                        return None
                     }
-                    else {
-                        Some(*wg_ip)
-                    }
+                    self.peer_route_db.remove(wg_ip);
                 }
-                else {
-                    Some(*wg_ip)
-                }
+                Some(*wg_ip)
+            }
+        }
+    }
+    pub fn provide_route_database(&mut self, wg_ip: &Ipv4Addr) -> Vec<UdpPacket> {
+        let mut known_wg_ip = vec![];
+        for ri in self.route_db.route_for.values().filter(|ri| ri.issued) {
+            known_wg_ip.push(ri.to);
+        }
+        let p = UdpPacket::make_route_database(
+            *wg_ip,
+            self.route_db.version,
+            0,
+            1,
+            known_wg_ip,
+        );
+        vec![p]
+    }
+    pub fn process_route_database(&mut self, udp_packet: UdpPacket) {
+        use UdpPacket::*;
+        match udp_packet {
+            Advertisement {..} => {}
+            RouteDatabaseRequest {..} => { }
+            RouteDatabase { known_wg_ip, ..} => {
+                debug!("RouteDatabase: {:?}", known_wg_ip);
             }
         }
     }

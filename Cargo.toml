@@ -27,3 +27,6 @@ crc = "2.1"
 log = "0.4"
 fern =  { version = "0.6", features = ["colored"]}
 chrono = "0.4"
+wireguard-uapi = "2.0"
+caps = "0.5"
+libc = "0.2"

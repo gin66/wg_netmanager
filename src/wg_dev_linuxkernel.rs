@@ -3,6 +3,7 @@ use std::net::Ipv4Addr;
 use std::process::{Command, Stdio};
 
 use log::*;
+use wireguard_uapi::{DeviceInterface, WgSocket};
 
 use crate::error::*;
 use crate::wg_dev::WireguardDevice;
@@ -58,6 +59,11 @@ impl WireguardDeviceLinux {
             .arg(&*fname)
             .status()
             .unwrap();
+
+        let mut wg = WgSocket::connect()?;
+        let device = wg.get_device(DeviceInterface::from_name(&self.device_name))?;
+
+        println!("{:?}", device.public_key);
 
         if result.success() {
             Ok(())
@@ -115,6 +121,7 @@ impl WireguardDevice for WireguardDeviceLinux {
             debug!("Interface {} up", self.device_name);
         } else {
         }
+
         Ok(())
     }
     fn take_down_device(&self) -> BoxResult<()> {

@@ -79,6 +79,37 @@ fn set_up_logging(log_filter: log::LevelFilter) {
     debug!("finished setting up logging! yay!");
 }
 
+fn get_exec_name() -> Option<String> {
+    std::env::current_exe()
+        .ok()
+        .map(|pb| pb.into_os_string())
+        .and_then(|s| s.into_string().ok())
+}
+
+fn ensure_capability() -> BoxResult<()> {
+    // Check capability
+    let cur = caps::read(None, caps::CapSet::Permitted)?;
+    debug!("Current permitted caps: {:?}.", cur);
+    if !cur.contains(&caps::Capability::CAP_NET_ADMIN) {
+        let exe = get_exec_name().unwrap();
+        let _ = std::process::Command::new("sudo")
+            .arg("setcap")
+            .arg("CAP_NET_ADMIN=+eip")
+            .arg(&exe)
+            .spawn()
+            .unwrap()
+            .wait()
+            .unwrap();
+
+        let args: Vec<*const i8> = std::env::args().map(|a| a.as_ptr() as *const i8).collect();
+        let rc = unsafe {
+            libc::execv(exe.as_ptr() as *const i8, args.as_ptr());
+        };
+        println!("HERE <{:?}>", rc);
+    }
+    Ok(())
+}
+
 fn main() -> BoxResult<()> {
     let matches = App::new("Wireguard Network Manager")
         .version("0.1")
@@ -126,6 +157,8 @@ fn main() -> BoxResult<()> {
         _ => log::LevelFilter::Trace,
     };
     set_up_logging(log_filter);
+
+    ensure_capability()?;
 
     let interface = matches.value_of("interface").unwrap();
     let wg_ip: Ipv4Addr = matches.value_of("wg_ip").unwrap().parse().unwrap();

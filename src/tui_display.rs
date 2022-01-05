@@ -63,7 +63,48 @@ impl TuiApp {
                                 tx.send(Event::CtrlC).unwrap();
                                 break;
                             }
-                            _ => tx.send(Event::TuiApp).unwrap(),
+                            termion::event::Event::Key(key) => {
+                                match key {
+                                    Key::Char(' ') => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::SpaceKey)).unwrap();
+                                    }
+                                    Key::Esc => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::EscapeKey)).unwrap();
+                                    }
+                                    Key::PageUp => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::PrevPageKey)).unwrap();
+                                    }
+                                    Key::PageDown => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::NextPageKey)).unwrap();
+                                    }
+                                    Key::Up => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::UpKey)).unwrap();
+                                    }
+                                    Key::Down => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::DownKey)).unwrap();
+                                    }
+                                    Key::Left => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::LeftKey)).unwrap();
+                                    }
+                                    Key::Right => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::RightKey)).unwrap();
+                                    }
+                                    Key::Char('+') => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::PlusKey)).unwrap();
+                                    }
+                                    Key::Char('-') => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::MinusKey)).unwrap();
+                                    }
+                                    Key::Char('h') => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::HideKey)).unwrap();
+                                    }
+                                    Key::Char('f') => {
+                                        tx.send(Event::TuiApp(TuiWidgetEvent::FocusKey)).unwrap();
+                                    }
+                                    _ => {}
+                                }
+                            }
+                            _ => {},
                         }
                     }
                 }
@@ -84,6 +125,9 @@ impl TuiApp {
             terminal.show_cursor().unwrap();
             terminal.clear().unwrap();
         }
+    }
+    pub fn process_event(&mut self, evt: TuiWidgetEvent) {
+        self.states[0].transition(&evt);
     }
     pub fn draw(&mut self) -> BoxResult<()> {
         if let Some(mut terminal) = self.terminal.take() {

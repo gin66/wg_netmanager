@@ -489,7 +489,9 @@ fn main_loop(
                 }
                 tx.send(Event::PeerListChange).unwrap();
             }
-            Ok(Event::TuiApp) => {
+            Ok(Event::TuiApp(evt)) => {
+                tui_app.process_event(evt);
+                tui_app.draw()?;
             }
         }
     }

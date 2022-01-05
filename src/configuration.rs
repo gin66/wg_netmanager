@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use log::*;
 use serde::{Deserialize, Serialize};
+use tui_logger::TuiWidgetEvent;
 
 use crate::manager::*;
 
@@ -22,7 +23,7 @@ pub enum Event {
     CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,
     TimerTick1s,
-    TuiApp,
+    TuiApp(TuiWidgetEvent),
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]

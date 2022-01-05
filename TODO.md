@@ -1,5 +1,4 @@
 Todos:
-* exchange known peer list
 * routing
 * send default gateway
 * exchange info about new public listeners and update config-file
@@ -12,12 +11,13 @@ Todos:
 * put udp comm port/socketaddr info into advertisement
 * Retrieve endpoint from clients out of wg parsed output
 * rename publicIp to e.g. visibleHost or reachableHost
-* Do not sent advertisement to self
-* Public Key should have a timestamp
 * more endpoints per peer
-* simplify RouteInfo for Peers
 
 DONE:
+* exchange known peer list
+* Public Key should have a timestamp
+* simplify RouteInfo for Peers
+* Do not send advertisement to self
 * add github actions
 * monitor connection to peers and remove them, if no connection anymore
 * udp package encryption

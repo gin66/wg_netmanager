@@ -126,9 +126,11 @@ impl NetworkManager {
         {
             ri.issued = false;
             if let Some(gateway) = ri.ri.gateway {
-                routes.push(RouteChange::DelRouteWithGateway{ to: ri.ri.to, gateway });
-            }
-            else {
+                routes.push(RouteChange::DelRouteWithGateway {
+                    to: ri.ri.to,
+                    gateway,
+                });
+            } else {
                 routes.push(RouteChange::DelRoute { to: ri.ri.to });
             }
         }
@@ -139,9 +141,11 @@ impl NetworkManager {
         for ri in self.route_db.route_for.values_mut().filter(|ri| !ri.issued) {
             ri.issued = true;
             if let Some(gateway) = ri.ri.gateway {
-                routes.push(RouteChange::AddRouteWithGateway { to: ri.ri.to, gateway });
-            }
-            else {
+                routes.push(RouteChange::AddRouteWithGateway {
+                    to: ri.ri.to,
+                    gateway,
+                });
+            } else {
                 routes.push(RouteChange::AddRoute { to: ri.ri.to });
             }
         }
@@ -154,15 +158,16 @@ impl NetworkManager {
     pub fn analyze_advertisement(&mut self, udp_packet: &UdpPacket) -> Option<Ipv4Addr> {
         use UdpPacket::*;
         match udp_packet {
-            RouteDatabaseRequest {..} => { None }
-            RouteDatabase {..} => { None }
+            RouteDatabaseRequest { .. } => None,
+            RouteDatabase { .. } => None,
             Advertisement {
                 wg_ip,
-                routedb_version, ..
+                routedb_version,
+                ..
             } => {
                 if let Some(peer_route_db) = self.peer_route_db.get(wg_ip) {
                     if peer_route_db.version == *routedb_version {
-                        return None
+                        return None;
                     }
                     self.peer_route_db.remove(wg_ip);
                 }
@@ -183,13 +188,18 @@ impl NetworkManager {
         );
         vec![p]
     }
-    pub fn process_route_database(&mut self, udp_packet: UdpPacket) -> bool{
+    pub fn process_route_database(&mut self, udp_packet: UdpPacket) -> bool {
         use UdpPacket::*;
         let mut need_routes_update = false;
         match udp_packet {
-            Advertisement {..} => {}
-            RouteDatabaseRequest {..} => { }
-            RouteDatabase { sender, known_routes, routedb_version, nr_entries} => {
+            Advertisement { .. } => {}
+            RouteDatabaseRequest { .. } => {}
+            RouteDatabase {
+                sender,
+                known_routes,
+                routedb_version,
+                nr_entries,
+            } => {
                 debug!("RouteDatabase from {}: {:?}", sender, known_routes);
                 if let Some(mut peer_route_db) = self.peer_route_db.remove(&sender) {
                     if nr_entries == peer_route_db.nr_entries {
@@ -199,17 +209,17 @@ impl NetworkManager {
                             }
                             need_routes_update = nr_entries == peer_route_db.route_for.len();
                             self.peer_route_db.insert(sender, peer_route_db);
-                        }
-                        else {
+                        } else {
                             error!("Mismatch of route db version");
                         }
-                    }
-                    else {
+                    } else {
                         error!("Mismatch of nr_entries");
                     }
-                }
-                else {
-                    let routes = known_routes.iter().map(|e| (e.to,e.clone())).collect::<HashMap<Ipv4Addr,RouteInfo>>();
+                } else {
+                    let routes = known_routes
+                        .iter()
+                        .map(|e| (e.to, e.clone()))
+                        .collect::<HashMap<Ipv4Addr, RouteInfo>>();
                     let peer_route_db = PeerRouteDB {
                         version: routedb_version,
                         nr_entries,
@@ -230,7 +240,7 @@ impl NetworkManager {
         // Use as input:
         //    list of peers (being alive)
         //    peer route_db, if valid
-        let mut new_routes: HashMap<Ipv4Addr, Option<Ipv4Addr>>  = HashMap::new();
+        let mut new_routes: HashMap<Ipv4Addr, Option<Ipv4Addr>> = HashMap::new();
 
         for peer in self.peers.iter() {
             new_routes.insert(*peer, None);
@@ -260,8 +270,7 @@ impl NetworkManager {
                     // to-host can be reached via wg_ip
                     new_routes.insert(ri.to, Some(*wg_ip));
                 }
-            }
-            else {
+            } else {
                 error!("VALID {:?}", peer_route_db.route_for);
             }
         }
@@ -282,29 +291,26 @@ impl NetworkManager {
         }
         // finally routes to be updated / added
         for (to, gateway) in new_routes.into_iter() {
-            if self.route_db.route_for.contains_key(&to) {
-                // update route
-                error!("UNIMPLEMENTED: UPDATE ROUTE");
-            }
-            else {
+            if let std::collections::hash_map::Entry::Vacant(e) = self.route_db.route_for.entry(to)
+            {
                 // new route
                 let ri = RouteInfoWithStatus {
-                    ri: RouteInfo {
-                        to,
-                        gateway,
-                    },
+                    ri: RouteInfo { to, gateway },
                     issued: false,
                     to_be_deleted: false,
                 };
-                self.route_db.route_for.insert(to, ri);
+                e.insert(ri);
                 changed = true;
+            } else {
+                // update route
+                error!("UNIMPLEMENTED: UPDATE ROUTE");
             }
         }
         if changed {
             self.route_db.version += 1;
         }
     }
-    pub fn get_ips_for_peer(&self, peer: Ipv4Addr) -> Vec<Ipv4Addr>{
+    pub fn get_ips_for_peer(&self, peer: Ipv4Addr) -> Vec<Ipv4Addr> {
         let mut ips = vec![];
 
         for ri in self.route_db.route_for.values() {

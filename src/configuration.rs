@@ -101,7 +101,11 @@ impl StaticConfiguration {
     pub fn is_listener(&self) -> bool {
         self.myself_as_peer.is_some()
     }
-    pub fn as_conf_as_peer(&self, dynamic_peers: Option<&DynamicPeerList>, manager: &NetworkManager) -> String {
+    pub fn as_conf_as_peer(
+        &self,
+        dynamic_peers: Option<&DynamicPeerList>,
+        manager: &NetworkManager,
+    ) -> String {
         let mut lines: Vec<String> = vec![];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.my_private_key));
@@ -161,8 +165,8 @@ impl DynamicPeerList {
     ) -> Option<Ipv4Addr> {
         use UdpPacket::*;
         match from_advertisement {
-            RouteDatabaseRequest {..} => { None }
-            RouteDatabase {..} => { None }
+            RouteDatabaseRequest { .. } => None,
+            RouteDatabase { .. } => None,
             Advertisement {
                 public_key,
                 wg_ip,
@@ -243,14 +247,13 @@ pub enum UdpPacket {
         endpoint: Option<SocketAddr>,
         routedb_version: usize,
     },
-    RouteDatabaseRequest {
-    },
+    RouteDatabaseRequest {},
     RouteDatabase {
         sender: Ipv4Addr,
         routedb_version: usize,
         nr_entries: usize,
         known_routes: Vec<RouteInfo>,
-    }
+    },
 }
 impl UdpPacket {
     pub fn advertisement_from_config(
@@ -271,10 +274,8 @@ impl UdpPacket {
             routedb_version,
         }
     }
-    pub fn route_database_request(
-    ) -> Self {
-        UdpPacket::RouteDatabaseRequest {
-        }
+    pub fn route_database_request() -> Self {
+        UdpPacket::RouteDatabaseRequest {}
     }
     pub fn make_route_database(
         sender: Ipv4Addr,
@@ -282,11 +283,11 @@ impl UdpPacket {
         nr_entries: usize,
         known_routes: Vec<&RouteInfo>,
     ) -> Self {
-        UdpPacket::RouteDatabase{
+        UdpPacket::RouteDatabase {
             sender,
             routedb_version,
             nr_entries,
-            known_routes: known_routes.into_iter().map(|ri| ri.clone()).collect(),
+            known_routes: known_routes.into_iter().cloned().collect(),
         }
     }
 }

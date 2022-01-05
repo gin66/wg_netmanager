@@ -24,8 +24,8 @@ enum Event {
     SendAdvertisement { to: SocketAddr },
     SendAdvertisementToPublicPeers,
     SendPingToAllDynamicPeers,
-    SendRouteDatabaseRequest{to: SocketAddrV4 },
-    SendRouteDatabase{to: SocketAddrV4 },
+    SendRouteDatabaseRequest { to: SocketAddrV4 },
+    SendRouteDatabase { to: SocketAddrV4 },
     CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,
     TimerTick1s,
@@ -47,7 +47,7 @@ fn set_up_logging(log_filter: log::LevelFilter) {
     // configure colors for the name of the level.
     // since almost all of them are the same as the color for the whole line, we
     // just clone `colors_line` and overwrite our changes
-    let colors_level = colors_line.clone().info(Color::Green);
+    let colors_level = colors_line.info(Color::Green);
     // here we set up our fern Dispatch
     fern::Dispatch::new()
         .format(move |out, message, record| {
@@ -356,21 +356,23 @@ fn main_loop(
                         if let Some(wg_ip) = network_manager.analyze_advertisement(&udp_packet) {
                             // need to request new route database
                             let destination = SocketAddrV4::new(wg_ip, src_addr.port());
-                            tx.send(Event::SendRouteDatabaseRequest { to: destination }).unwrap();
+                            tx.send(Event::SendRouteDatabaseRequest { to: destination })
+                                .unwrap();
                         }
                     }
                     RouteDatabaseRequest { .. } => {
                         info!("RouteDatabaseRequest from {:?}", src_addr);
                         match src_addr {
                             SocketAddr::V4(destination) => {
-                                tx.send(Event::SendRouteDatabase{ to: destination }).unwrap();
+                                tx.send(Event::SendRouteDatabase { to: destination })
+                                    .unwrap();
                             }
                             SocketAddr::V6(..) => {
                                 error!("IPV6 address");
                             }
                         }
                     }
-                    RouteDatabase { sender,  .. } => {
+                    RouteDatabase { sender, .. } => {
                         info!("RouteDatabase for {}", sender);
                         if network_manager.process_route_database(udp_packet) {
                             tx.send(Event::UpdateRoutes).unwrap();
@@ -392,7 +394,7 @@ fn main_loop(
                 info!("Send RouteDatabaseRequest to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
             }
-            Ok(Event::SendRouteDatabase{ to: destination }) => {
+            Ok(Event::SendRouteDatabase { to: destination }) => {
                 let packages = network_manager.provide_route_database();
                 for p in packages {
                     let buf = serde_json::to_vec(&p).unwrap();

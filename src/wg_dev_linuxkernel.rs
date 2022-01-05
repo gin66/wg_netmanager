@@ -169,8 +169,7 @@ impl WireguardDevice for WireguardDeviceLinux {
                 .arg(&self.device_name)
                 .spawn()
                 .unwrap()
-        }
-        else {
+        } else {
             Command::new("sudo")
                 .arg("ip")
                 .arg("route")
@@ -202,8 +201,7 @@ impl WireguardDevice for WireguardDeviceLinux {
                 .arg(gateway.to_string())
                 .spawn()
                 .unwrap()
-        }
-        else {
+        } else {
             Command::new("sudo")
                 .arg("ip")
                 .arg("route")

@@ -89,7 +89,8 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn bring_up_device(&self) -> BoxResult<()> {
         debug!("Bring up device");
-        let mut cmd = Command::new("ip")
+        let mut cmd = Command::new("sudo")
+            .arg("ip")
             .arg("link")
             .arg("add")
             .arg(&self.device_name)
@@ -124,7 +125,8 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn take_down_device(&self) -> BoxResult<()> {
         debug!("Take down device");
-        let mut cmd = Command::new("ip")
+        let mut cmd = Command::new("sudo")
+            .arg("ip")
             .arg("link")
             .arg("del")
             .arg(&self.device_name)

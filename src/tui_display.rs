@@ -71,7 +71,7 @@ impl TuiApp {
         thread::spawn({
             move || loop {
                 let evt = read();
-                trace!(target:"DEMO", "Event received {:?}", evt);
+                trace!("Event received {:?}", evt);
                 if let Ok(Event::Key(keyevent)) = evt {
                     use crate::event::Event::*;
                     use TuiAppEvent::*;

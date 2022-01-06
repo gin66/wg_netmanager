@@ -1,30 +1,9 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::fmt;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
-use std::time::Instant;
+use std::net::{IpAddr, Ipv4Addr};
 
 use log::*;
 use serde::{Deserialize, Serialize};
-use tui_logger::TuiWidgetEvent;
 
 use crate::manager::*;
-
-#[derive(Debug)]
-pub enum Event {
-    Udp(UdpPacket, SocketAddr),
-    PeerListChange,
-    CtrlC,
-    SendAdvertisement { to: SocketAddr },
-    SendAdvertisementToPublicPeers,
-    SendPingToAllDynamicPeers,
-    SendRouteDatabaseRequest { to: SocketAddrV4 },
-    SendRouteDatabase { to: SocketAddrV4 },
-    CheckAndRemoveDeadDynamicPeers,
-    UpdateRoutes,
-    TimerTick1s,
-    TuiApp(TuiWidgetEvent),
-}
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct PublicKeyWithTime {
@@ -34,7 +13,7 @@ pub struct PublicKeyWithTime {
 
 pub struct PublicPeer {
     pub public_ip: IpAddr,
-    pub comm_port: u16,
+    pub wg_port: u16,
     pub admin_port: u16,
     pub wg_ip: Ipv4Addr,
 }
@@ -45,6 +24,8 @@ pub struct StaticConfigurationBuilder {
     ip_list: Option<Vec<IpAddr>>,
     wg_ip: Option<Ipv4Addr>,
     wg_name: Option<String>,
+    wg_port: Option<u16>,
+    admin_port: Option<u16>,
     shared_key: Option<Vec<u8>>,
     my_private_key: Option<String>,
     my_public_key: Option<PublicKeyWithTime>,
@@ -69,6 +50,14 @@ impl StaticConfigurationBuilder {
     }
     pub fn wg_name<T: Into<String>>(mut self, wg_name: T) -> Self {
         self.wg_name = Some(wg_name.into());
+        self
+    }
+    pub fn wg_port(mut self, port: u16) -> Self {
+        self.wg_port = Some(port);
+        self
+    }
+    pub fn admin_port(mut self, port: u16) -> Self {
+        self.admin_port = Some(port);
         self
     }
     pub fn shared_key(mut self, shared_key: Vec<u8>) -> Self {
@@ -107,6 +96,8 @@ impl StaticConfigurationBuilder {
             ip_list: self.ip_list.unwrap(),
             wg_ip: self.wg_ip.unwrap(),
             wg_name: self.wg_name.unwrap(),
+            wg_port: self.wg_port.unwrap(),
+            admin_port: self.admin_port.unwrap(),
             myself_as_peer,
             shared_key: self.shared_key.unwrap(),
             my_private_key: self.my_private_key.unwrap(),
@@ -123,7 +114,9 @@ pub struct StaticConfiguration {
     pub ip_list: Vec<IpAddr>,
     pub wg_ip: Ipv4Addr,
     pub wg_name: String,
-    myself_as_peer: Option<usize>,
+    pub wg_port: u16,
+    pub admin_port: u16,
+    pub myself_as_peer: Option<usize>,
     pub shared_key: Vec<u8>,
     pub my_private_key: String,
     pub my_public_key: PublicKeyWithTime,
@@ -139,208 +132,41 @@ impl StaticConfiguration {
     pub fn is_listener(&self) -> bool {
         self.myself_as_peer.is_some()
     }
-    pub fn as_conf_as_peer(
-        &self,
-        dynamic_peers: Option<&DynamicPeerList>,
-        manager: &NetworkManager,
-    ) -> String {
+    pub fn as_conf_as_peer(&self, manager: &NetworkManager) -> String {
         let mut lines: Vec<String> = vec![];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.my_private_key));
-        if let Some(myself) = self.myself_as_peer {
+        let port = if let Some(myself) = self.myself_as_peer {
             let peer = &self.peers[myself];
-            lines.push(format!("ListenPort = {}", peer.comm_port));
-        }
+            peer.wg_port
+        } else {
+            self.wg_port
+        };
+        lines.push(format!("ListenPort = {}", port));
         lines.push("".to_string());
 
-        if let Some(peers) = dynamic_peers {
-            for peer in peers.peer.values() {
-                lines.push("[Peer]".to_string());
-                lines.push(format!("PublicKey = {}", &peer.public_key.key));
-                lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));
-                let ips = manager.get_ips_for_peer(peer.wg_ip);
-                for ip in ips {
-                    lines.push(format!("AllowedIPs = {}/32", ip));
-                }
-                if let Some(endpoint) = peer.endpoint.as_ref() {
-                    lines.push(format!("EndPoint = {}", endpoint));
-                }
-                lines.push("".to_string());
+        for peer in manager.peer.values() {
+            lines.push("[Peer]".to_string());
+            lines.push(format!("PublicKey = {}", &peer.public_key.key));
+            lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));
+            let ips = manager.get_ips_for_peer(peer.wg_ip);
+            for ip in ips {
+                lines.push(format!("AllowedIPs = {}/32", ip));
             }
+            if let Some(endpoint) = peer.endpoint.as_ref() {
+                lines.push(format!("EndPoint = {}", endpoint));
+            }
+            lines.push("".to_string());
         }
 
         lines.join("\n")
     }
-    pub fn my_admin_port(&self) -> Option<u16> {
-        self.myself_as_peer.map(|i| self.peers[i].admin_port)
+    pub fn my_admin_port(&self) -> u16 {
+        self.myself_as_peer
+            .map(|i| self.peers[i].admin_port)
+            .unwrap_or(self.admin_port)
     }
     pub fn admin_port(&self, peer_index: usize) -> u16 {
         self.peers[peer_index].admin_port
-    }
-}
-
-#[derive(Debug)]
-pub struct DynamicPeer {
-    pub public_key: PublicKeyWithTime,
-    pub local_ip_list: Vec<IpAddr>,
-    pub wg_ip: Ipv4Addr,
-    pub name: String,
-    pub endpoint: Option<SocketAddr>,
-    pub admin_port: u16,
-    pub lastseen: Instant,
-}
-
-#[derive(Default)]
-pub struct DynamicPeerList {
-    pub peer: HashMap<Ipv4Addr, DynamicPeer>,
-    pub fifo_dead: Vec<Ipv4Addr>,
-    pub fifo_ping: Vec<Ipv4Addr>,
-}
-impl DynamicPeerList {
-    pub fn analyze_advertisement(
-        &mut self,
-        from_advertisement: &UdpPacket,
-        admin_port: u16,
-    ) -> Option<Ipv4Addr> {
-        use UdpPacket::*;
-        match from_advertisement {
-            RouteDatabaseRequest { .. } => None,
-            RouteDatabase { .. } => None,
-            Advertisement {
-                public_key,
-                local_ip_list,
-                wg_ip,
-                name,
-                endpoint,
-                routedb_version: _,
-            } => {
-                self.fifo_dead.push(*wg_ip);
-                self.fifo_ping.push(*wg_ip);
-                let lastseen = Instant::now();
-                if self
-                    .peer
-                    .insert(
-                        *wg_ip,
-                        DynamicPeer {
-                            wg_ip: *wg_ip,
-                            local_ip_list: local_ip_list.clone(),
-                            public_key: public_key.clone(),
-                            name: name.to_string(),
-                            endpoint: *endpoint,
-                            admin_port,
-                            lastseen,
-                        },
-                    )
-                    .is_none()
-                {
-                    Some(*wg_ip)
-                } else {
-                    None
-                }
-            }
-        }
-    }
-    pub fn check_timeouts(&mut self, limit: u64) -> HashSet<Ipv4Addr> {
-        let mut dead_peers = HashSet::new();
-        while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
-            if let Some(peer) = self.peer.get(*wg_ip) {
-                if peer.lastseen.elapsed().as_secs() < limit {
-                    break;
-                }
-                dead_peers.insert(**wg_ip);
-            }
-            self.fifo_dead.remove(0);
-        }
-        dead_peers
-    }
-    pub fn check_ping_timeouts(&mut self, limit: u64) -> HashSet<(Ipv4Addr, u16)> {
-        let mut ping_peers = HashSet::new();
-        while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
-            if let Some(peer) = self.peer.get(*wg_ip) {
-                if peer.lastseen.elapsed().as_secs() < limit {
-                    break;
-                }
-                ping_peers.insert((**wg_ip, peer.admin_port));
-            }
-            self.fifo_ping.remove(0);
-        }
-        ping_peers
-    }
-    pub fn remove_peer(&mut self, wg_ip: &Ipv4Addr) {
-        self.peer.remove(wg_ip);
-    }
-    pub fn knows_peer(&mut self, wg_ip: &Ipv4Addr) -> bool {
-        self.peer.contains_key(wg_ip)
-    }
-    pub fn output(&self) {
-        for peer in self.peer.values() {
-            info!("{:?}", peer);
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize)]
-pub enum UdpPacket {
-    Advertisement {
-        public_key: PublicKeyWithTime,
-        local_ip_list: Vec<IpAddr>,
-        wg_ip: Ipv4Addr,
-        name: String,
-        endpoint: Option<SocketAddr>,
-        routedb_version: usize,
-    },
-    RouteDatabaseRequest {},
-    RouteDatabase {
-        sender: Ipv4Addr,
-        routedb_version: usize,
-        nr_entries: usize,
-        known_routes: Vec<RouteInfo>,
-    },
-}
-impl UdpPacket {
-    pub fn advertisement_from_config(
-        static_config: &StaticConfiguration,
-        routedb_version: usize,
-    ) -> Self {
-        let endpoint = if static_config.is_listener() {
-            let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
-            Some(SocketAddr::new(peer.public_ip, peer.comm_port))
-        } else {
-            None
-        };
-        UdpPacket::Advertisement {
-            public_key: static_config.my_public_key.clone(),
-            local_ip_list: static_config.ip_list.clone(),
-            wg_ip: static_config.wg_ip,
-            name: static_config.name.clone(),
-            endpoint,
-            routedb_version,
-        }
-    }
-    pub fn route_database_request() -> Self {
-        UdpPacket::RouteDatabaseRequest {}
-    }
-    pub fn make_route_database(
-        sender: Ipv4Addr,
-        routedb_version: usize,
-        nr_entries: usize,
-        known_routes: Vec<&RouteInfo>,
-    ) -> Self {
-        UdpPacket::RouteDatabase {
-            sender,
-            routedb_version,
-            nr_entries,
-            known_routes: known_routes.into_iter().cloned().collect(),
-        }
-    }
-}
-impl fmt::Debug for UdpPacket {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            UdpPacket::Advertisement { .. } => f.debug_struct("Adverisement"),
-            UdpPacket::RouteDatabaseRequest { .. } => f.debug_struct("RouteDatabaseRequest"),
-            UdpPacket::RouteDatabase { .. } => f.debug_struct("RouteDatabase"),
-        }
-        .finish()
     }
 }

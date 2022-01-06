@@ -12,6 +12,8 @@ Todos:
 * Retrieve endpoint from clients out of wg parsed output
 * rename publicIp to e.g. visibleHost or reachableHost
 * more endpoints per peer
+* try local endpoints
+* refactor UdpPacket enum
 
 DONE:
 * exchange known peer list

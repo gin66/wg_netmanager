@@ -12,7 +12,9 @@ use yaml_rust::YamlLoader;
 
 use wg_netmanager::configuration::*;
 use wg_netmanager::crypt_udp::CryptUdp;
+use wg_netmanager::crypt_udp::UdpPacket;
 use wg_netmanager::error::*;
+use wg_netmanager::event::Event;
 use wg_netmanager::manager::*;
 use wg_netmanager::tui_display::TuiApp;
 use wg_netmanager::wg_dev::*;
@@ -104,6 +106,24 @@ fn main() -> BoxResult<()> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("wireguard_port")
+                .short("w")
+                .long("wireguard-port")
+                .value_name("PORT")
+                .default_value("55555")
+                .help("Wireguard udp port aka Listen port, if not defined in config file")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("admin_port")
+                .short("u")
+                .long("admin-port")
+                .value_name("PORT")
+                .default_value("50000")
+                .help("udp port for encrypted communication, if not defined in config file")
+                .takes_value(true),
+        )
+        .arg(
             Arg::with_name("tui")
                 .short("t")
                 .help("Use text user interface"),
@@ -155,6 +175,8 @@ fn main() -> BoxResult<()> {
 
     let interface = matches.value_of("interface").unwrap();
     let wg_ip: Ipv4Addr = matches.value_of("wg_ip").unwrap().parse().unwrap();
+    let wg_port: u16 = matches.value_of("wireguard_port").unwrap().parse().unwrap();
+    let admin_port: u16 = matches.value_of("admin_port").unwrap().parse().unwrap();
     let computer_name = matches.value_of("name").unwrap();
     let ip_list = get_interfaces();
 
@@ -173,14 +195,14 @@ fn main() -> BoxResult<()> {
 
     let mut peers: Vec<PublicPeer> = vec![];
     for p in conf[0]["peers"].as_vec().unwrap() {
-        info!("PEER: {:#?}", p);
+        info!("STATIC PEER: {:#?}", p);
         let public_ip: IpAddr = p["publicIp"].as_str().unwrap().parse().unwrap();
-        let comm_port = p["wgPort"].as_i64().unwrap() as u16;
+        let wg_port = p["wgPort"].as_i64().unwrap() as u16;
         let admin_port = p["adminPort"].as_i64().unwrap() as u16;
         let wg_ip: Ipv4Addr = p["wgIp"].as_str().unwrap().parse().unwrap();
         let pp = PublicPeer {
             public_ip,
-            comm_port,
+            wg_port,
             admin_port,
             wg_ip,
         };
@@ -220,6 +242,8 @@ fn main() -> BoxResult<()> {
         .ip_list(ip_list)
         .wg_ip(wg_ip)
         .wg_name(interface)
+        .wg_port(wg_port)
+        .admin_port(admin_port)
         .shared_key(shared_key)
         .my_public_key(my_public_key_with_time)
         .my_private_key(my_private_key)
@@ -242,7 +266,7 @@ fn run(static_config: StaticConfiguration) -> BoxResult<()> {
     })
     .expect("Error setting Ctrl-C handler");
 
-    let port = static_config.my_admin_port().unwrap_or(0);
+    let port = static_config.my_admin_port();
     debug!("bind to 0.0.0.0:{}", port);
     let crypt_socket = CryptUdp::bind(port)?.key(&static_config.shared_key)?;
 
@@ -290,8 +314,7 @@ fn run(static_config: StaticConfiguration) -> BoxResult<()> {
 
     let mut tui_app = if static_config.use_tui {
         TuiApp::init(tx.clone())
-    }
-    else {
+    } else {
         TuiApp::off()
     };
 
@@ -312,7 +335,6 @@ fn main_loop(
     rx: Receiver<Event>,
     tui_app: &mut TuiApp,
 ) -> BoxResult<()> {
-    let mut dynamic_peers = DynamicPeerList::default();
     let mut network_manager = NetworkManager::new(static_config.wg_ip);
 
     // set up initial wireguard configuration without peers
@@ -321,7 +343,7 @@ fn main_loop(
 
     let mut tick_cnt = 0;
     loop {
-        trace!("Main loop: {} peers", dynamic_peers.peer.len());
+        trace!("Main loop: {} peers", network_manager.peer.len());
         let evt = rx.recv();
         trace!("{:?}", evt);
         match evt {
@@ -345,7 +367,7 @@ fn main_loop(
                 }
                 if tick_cnt % 30 == 2 {
                     // every 30s
-                    info!("Main loop: {} peers", dynamic_peers.peer.len());
+                    info!("Main loop: {} peers", network_manager.peer.len());
                 }
                 if tick_cnt % 60 == 3 {
                     // every 60s
@@ -356,7 +378,7 @@ fn main_loop(
             Ok(Event::SendPingToAllDynamicPeers) => {
                 // Pings are sent out only via the wireguard interface.
                 //
-                let ping_peers = dynamic_peers.check_ping_timeouts(10); // should be < half of dead peer timeout
+                let ping_peers = network_manager.check_ping_timeouts(10); // should be < half of dead peer timeout
                 for (wg_ip, admin_port) in ping_peers {
                     let destination = SocketAddr::V4(SocketAddrV4::new(wg_ip, admin_port));
                     tx.send(Event::SendAdvertisement { to: destination })
@@ -368,7 +390,7 @@ fn main_loop(
                 // As all udp packets are encrypted, this should not be an issue.
                 //
                 for peer in static_config.peers.iter() {
-                    if !dynamic_peers.knows_peer(&peer.wg_ip) {
+                    if !network_manager.knows_peer(&peer.wg_ip) {
                         // ensure not to send to myself
                         if peer.wg_ip != static_config.wg_ip {
                             let destination = SocketAddr::new(peer.public_ip, peer.admin_port);
@@ -381,9 +403,9 @@ fn main_loop(
             Ok(Event::Udp(udp_packet, src_addr)) => {
                 use UdpPacket::*;
                 match udp_packet {
-                    Advertisement { .. } => {
+                    Advertisement(ad) => {
                         if let Some(new_wg_ip) =
-                            dynamic_peers.analyze_advertisement(&udp_packet, src_addr.port())
+                            network_manager.analyze_advertisement_for_new_peer(&ad, src_addr.port())
                         {
                             info!("Unknown peer {}", src_addr);
                             network_manager.add_dynamic_peer(&new_wg_ip);
@@ -399,14 +421,14 @@ fn main_loop(
                         } else {
                             info!("Existing peer {}", src_addr);
                         }
-                        if let Some(wg_ip) = network_manager.analyze_advertisement(&udp_packet) {
+                        if let Some(wg_ip) = network_manager.analyze_advertisement(&ad) {
                             // need to request new route database
                             let destination = SocketAddrV4::new(wg_ip, src_addr.port());
                             tx.send(Event::SendRouteDatabaseRequest { to: destination })
                                 .unwrap();
                         }
                     }
-                    RouteDatabaseRequest { .. } => {
+                    RouteDatabaseRequest => {
                         info!("RouteDatabaseRequest from {:?}", src_addr);
                         match src_addr {
                             SocketAddr::V4(destination) => {
@@ -418,9 +440,9 @@ fn main_loop(
                             }
                         }
                     }
-                    RouteDatabase { sender, .. } => {
-                        info!("RouteDatabase for {}", sender);
-                        if network_manager.process_route_database(udp_packet) {
+                    RouteDatabase(req) => {
+                        info!("RouteDatabase from {}", src_addr);
+                        if network_manager.process_route_database(req) {
                             tx.send(Event::UpdateRoutes).unwrap();
                         }
                     }
@@ -449,12 +471,11 @@ fn main_loop(
                 }
             }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
-                dynamic_peers.output();
-                let dead_peers = dynamic_peers.check_timeouts(120);
+                network_manager.output();
+                let dead_peers = network_manager.check_timeouts(120);
                 if !dead_peers.is_empty() {
                     for wg_ip in dead_peers {
                         info!("Found dead peer {}", wg_ip);
-                        dynamic_peers.remove_peer(&wg_ip);
                         network_manager.remove_dynamic_peer(&wg_ip);
                     }
                     tx.send(Event::PeerListChange).unwrap();
@@ -463,7 +484,7 @@ fn main_loop(
             }
             Ok(Event::PeerListChange) => {
                 info!("Update peers");
-                let conf = static_config.as_conf_as_peer(Some(&dynamic_peers), &network_manager);
+                let conf = static_config.as_conf_as_peer(&network_manager);
                 info!("Configuration as peer\n{}\n", conf);
                 wg_dev.sync_conf(&conf)?;
             }

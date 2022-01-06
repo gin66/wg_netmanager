@@ -3,7 +3,7 @@ mod tests {
     use std::net::Ipv4Addr;
 
     //use wg_netmanager::configuration::*;
-    use wg_netmanager::configuration::*;
+    use wg_netmanager::crypt_udp::*;
     use wg_netmanager::manager::*;
 
     #[test]
@@ -26,14 +26,10 @@ mod tests {
         for udp in mgr.provide_route_database() {
             use UdpPacket::*;
             match udp {
-                Advertisement { .. } => {}
-                RouteDatabaseRequest { .. } => {}
-                RouteDatabase {
-                    sender,
-                    known_routes,
-                    ..
-                } => {
-                    println!("{} {:?}", sender, known_routes);
+                Advertisement(_) => {}
+                RouteDatabaseRequest => {}
+                RouteDatabase(req) => {
+                    println!("{} {:?}", req.sender, req.known_routes);
                 }
             }
         }

@@ -1,3 +1,5 @@
+use std::fmt;
+use std::net::{IpAddr, Ipv4Addr};
 use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use std::time::SystemTime;
 
@@ -5,8 +7,85 @@ use chacha20poly1305::aead::{Aead, NewAead};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 use crc::Crc;
 use log::*;
+use serde::{Deserialize, Serialize};
 
+use crate::configuration::*;
 use crate::error::*;
+use crate::manager::*;
+
+#[derive(Serialize, Deserialize)]
+pub struct AdvertisementPacket {
+    pub public_key: PublicKeyWithTime,
+    pub local_ip_list: Vec<IpAddr>,
+    pub local_wg_port: u16,
+    pub local_admin_port: u16,
+    pub wg_ip: Ipv4Addr,
+    pub name: String,
+    pub endpoint: Option<SocketAddr>,
+    pub routedb_version: usize,
+}
+#[derive(Serialize, Deserialize)]
+pub struct RouteDatabasePacket {
+    pub sender: Ipv4Addr,
+    pub routedb_version: usize,
+    pub nr_entries: usize,
+    pub known_routes: Vec<RouteInfo>,
+}
+#[derive(Serialize, Deserialize)]
+pub enum UdpPacket {
+    Advertisement(AdvertisementPacket),
+    RouteDatabaseRequest,
+    RouteDatabase(RouteDatabasePacket),
+}
+impl UdpPacket {
+    pub fn advertisement_from_config(
+        static_config: &StaticConfiguration,
+        routedb_version: usize,
+    ) -> Self {
+        let endpoint = if static_config.is_listener() {
+            let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
+            Some(SocketAddr::new(peer.public_ip, peer.wg_port))
+        } else {
+            None
+        };
+        UdpPacket::Advertisement(AdvertisementPacket {
+            public_key: static_config.my_public_key.clone(),
+            local_ip_list: static_config.ip_list.clone(),
+            local_wg_port: static_config.wg_port,
+            local_admin_port: static_config.admin_port,
+            wg_ip: static_config.wg_ip,
+            name: static_config.name.clone(),
+            endpoint,
+            routedb_version,
+        })
+    }
+    pub fn route_database_request() -> Self {
+        UdpPacket::RouteDatabaseRequest {}
+    }
+    pub fn make_route_database(
+        sender: Ipv4Addr,
+        routedb_version: usize,
+        nr_entries: usize,
+        known_routes: Vec<&RouteInfo>,
+    ) -> Self {
+        UdpPacket::RouteDatabase(RouteDatabasePacket {
+            sender,
+            routedb_version,
+            nr_entries,
+            known_routes: known_routes.into_iter().cloned().collect(),
+        })
+    }
+}
+impl fmt::Debug for UdpPacket {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            UdpPacket::Advertisement { .. } => f.debug_struct("Adverisement"),
+            UdpPacket::RouteDatabaseRequest { .. } => f.debug_struct("RouteDatabaseRequest"),
+            UdpPacket::RouteDatabase { .. } => f.debug_struct("RouteDatabase"),
+        }
+        .finish()
+    }
+}
 
 // Udp-Packet structure:
 //   n Bytes   Encrypted data

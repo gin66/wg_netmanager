@@ -383,9 +383,12 @@ impl NetworkManager {
     }
     pub fn check_timeouts(&mut self, limit: u64) -> HashSet<Ipv4Addr> {
         let mut dead_peers = HashSet::new();
+        let now = crate::util::now();
         while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
-                if crate::util::now() - peer.lastseen < limit {
+                let dt = now - peer.lastseen;
+                trace!(target: "dead_peer", "Peer last seen {} s before, limit = {}", dt, limit);
+                if dt < limit {
                     break;
                 }
                 dead_peers.insert(**wg_ip);
@@ -396,9 +399,11 @@ impl NetworkManager {
     }
     pub fn check_ping_timeouts(&mut self, limit: u64) -> HashSet<(Ipv4Addr, u16)> {
         let mut ping_peers = HashSet::new();
+        let now = crate::util::now();
         while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
-                if crate::util::now() - peer.lastseen < limit {
+                let dt = now - peer.lastseen;
+                if dt < limit {
                     break;
                 }
                 ping_peers.insert((**wg_ip, peer.admin_port));

@@ -4,7 +4,6 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
-use std::time::SystemTime;
 
 use clap::{App, Arg};
 use log::*;
@@ -212,10 +211,7 @@ fn main() -> BoxResult<()> {
     let mut public_key = String::new();
     cmd.stdout.unwrap().read_to_string(&mut public_key)?;
     let my_public_key = public_key.trim();
-    let timestamp = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+    let timestamp = wg_netmanager::util::now();
     let my_public_key_with_time = PublicKeyWithTime {
         key: my_public_key.to_string(),
         priv_key_creation_time: timestamp,

@@ -25,7 +25,6 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
-use std::time::Instant;
 
 use log::*;
 use serde::{Deserialize, Serialize};
@@ -87,7 +86,7 @@ pub struct DynamicPeer {
     pub name: String,
     pub endpoint: Option<SocketAddr>,
     pub admin_port: u16,
-    pub lastseen: Instant,
+    pub lastseen: u64,
 }
 
 pub struct NetworkManager {
@@ -175,7 +174,7 @@ impl NetworkManager {
     ) -> Option<Ipv4Addr> {
         self.fifo_dead.push(advertisement.wg_ip);
         self.fifo_ping.push(advertisement.wg_ip);
-        let lastseen = Instant::now();
+        let lastseen = crate::util::now();
         if self
             .peer
             .insert(
@@ -386,7 +385,7 @@ impl NetworkManager {
         let mut dead_peers = HashSet::new();
         while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
-                if peer.lastseen.elapsed().as_secs() < limit {
+                if crate::util::now() - peer.lastseen < limit {
                     break;
                 }
                 dead_peers.insert(**wg_ip);
@@ -399,7 +398,7 @@ impl NetworkManager {
         let mut ping_peers = HashSet::new();
         while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
-                if peer.lastseen.elapsed().as_secs() < limit {
+                if crate::util::now() - peer.lastseen < limit {
                     break;
                 }
                 ping_peers.insert((**wg_ip, peer.admin_port));

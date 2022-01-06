@@ -8,7 +8,6 @@ Todos:
 * include boringtun, if kernel does not provide wireguard interface
 * find a solution for sudo
 * Retrieve endpoint from clients out of wg parsed output
-* lastseen is a weird timestamp. looks like uptime
 * rename publicIp to e.g. visibleHost or reachableHost
 * more endpoints per peer
 * try local endpoints
@@ -16,6 +15,7 @@ Todos:
   This would allow to ssh in a machine and start wg_manager without storing the shared key on the filesystem
 
 DONE:
+* lastseen is a weird timestamp. looks like uptime
 * add option to use an existing wireguard interface
 * put udp comm port/socketaddr info into advertisement
 * refactor UdpPacket enum

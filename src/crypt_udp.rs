@@ -1,7 +1,6 @@
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
 use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
-use std::time::SystemTime;
 
 use chacha20poly1305::aead::{Aead, NewAead};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
@@ -130,10 +129,7 @@ impl CryptUdp {
             let padded = ((p + 2 + 7) / 8) * 8; // +2 for 2 Byte length
             let enc_length = padded + 16;
 
-            let timestamp: u64 = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
+            let timestamp = crate::util::now();
             let mut buf = vec![0u8; enc_length];
             buf[..p].copy_from_slice(payload);
             buf[padded - 2..padded].copy_from_slice(&(p as u16).to_le_bytes());
@@ -203,10 +199,7 @@ impl CryptUdp {
             ts_buf.copy_from_slice(&decrypted[padded..padded + 8]);
             let ts_received = u64::from_le_bytes(ts_buf);
 
-            let timestamp: u64 = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
+            let timestamp = crate::util::now();
             let dt = if ts_received >= timestamp {
                 ts_received - timestamp
             } else {

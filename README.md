@@ -55,9 +55,9 @@ See as [example](https://github.com/gin66/wg_netmanager/blob/main/ns/three_boxes
 # Technical Background
 
 wg_manager will add and delete routes on demand on two levels:
-- As routing policy of the kernel using `ip route add <ip>/32`
+- As routing policy of the kernel using `ip route add <ip>/32 dev <wg_dev>`
 - If a node is directly reachable, by adding a peer entry in the wireguard configuration
-  with a list of allowed ip's including the peer and all peers, for which gateway service can be offered
+  with a list of allowed ip's. This list includes the peer and all further nodes, for which this peer can forward traffic to.
 
 # Security Consideration
 

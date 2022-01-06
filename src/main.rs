@@ -298,7 +298,7 @@ fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
         wg_dev.bring_up_device()?;
     }
     else {
-        wg_dev.flush_routes()?;
+        wg_dev.flush_all()?;
     }
 
     wg_dev.set_ip(&static_config.wg_ip)?;

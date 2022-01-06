@@ -10,7 +10,7 @@ pub trait WireguardDevice {
     fn set_ip(&self, ip: &Ipv4Addr) -> BoxResult<()>;
     fn add_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()>;
     fn del_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()>;
-    fn flush_routes(&self) -> BoxResult<()>;
     fn set_conf(&self, conf: &str) -> BoxResult<()>;
     fn sync_conf(&self, conf: &str) -> BoxResult<()>;
+    fn flush_all(&self) -> BoxResult<()>;
 }

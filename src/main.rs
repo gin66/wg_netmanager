@@ -463,9 +463,10 @@ fn main_loop(
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
                 network_manager.output();
                 let dead_peers = network_manager.check_timeouts(120);
+                info!(target: "dead_peer", "Dead peers found {}", dead_peer.len());
                 if !dead_peers.is_empty() {
                     for wg_ip in dead_peers {
-                        info!("Found dead peer {}", wg_ip);
+                        debug!(target: "dead_peer", "Found dead peer {}", wg_ip);
                         network_manager.remove_dynamic_peer(&wg_ip);
                     }
                     tx.send(Event::PeerListChange).unwrap();

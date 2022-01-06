@@ -6,8 +6,8 @@ use log::*;
 
 use crossterm::event::{read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode};
 use crossterm::execute;
-use crossterm::terminal::enable_raw_mode;
 use crossterm::terminal::disable_raw_mode;
+use crossterm::terminal::enable_raw_mode;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::terminal::LeaveAlternateScreen;
 use tui::backend::Backend;

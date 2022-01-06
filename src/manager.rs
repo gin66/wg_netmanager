@@ -172,6 +172,8 @@ impl NetworkManager {
         advertisement: &AdvertisementPacket,
         admin_port: u16,
     ) -> Option<Ipv4Addr> {
+        self.fifo_dead.retain(|ip| *ip != advertisement.wg_ip);
+        self.fifo_dead.retain(|ip| *ip != advertisement.wg_ip);
         self.fifo_dead.push(advertisement.wg_ip);
         self.fifo_ping.push(advertisement.wg_ip);
         let lastseen = crate::util::now();

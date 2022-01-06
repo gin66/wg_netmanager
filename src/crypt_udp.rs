@@ -13,7 +13,7 @@ use crate::configuration::*;
 use crate::error::*;
 use crate::manager::*;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AdvertisementPacket {
     pub public_key: PublicKeyWithTime,
     pub local_ip_list: Vec<IpAddr>,
@@ -79,11 +79,10 @@ impl UdpPacket {
 impl fmt::Debug for UdpPacket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            UdpPacket::Advertisement { .. } => f.debug_struct("Adverisement"),
-            UdpPacket::RouteDatabaseRequest { .. } => f.debug_struct("RouteDatabaseRequest"),
-            UdpPacket::RouteDatabase { .. } => f.debug_struct("RouteDatabase"),
+            UdpPacket::Advertisement(ad) => ad.fmt(f),
+            UdpPacket::RouteDatabaseRequest => f.debug_struct("RouteDatabaseRequest").finish(),
+            UdpPacket::RouteDatabase(_) => f.debug_struct("RouteDatabase").finish(),
         }
-        .finish()
     }
 }
 

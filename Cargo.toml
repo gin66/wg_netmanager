@@ -1,12 +1,12 @@
 [package]
 name = "wg_netmanager"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 authors = ["Jochen Kiemes <jochen@kiemes.de>"]
 license = "MIT"
 description = "Wireguard network manager"
-documentation = "https://docs.rs/wg_manager/latest/wg_manager"
-repository = "https://github.com/gin66/wg_manager"
+documentation = "https://docs.rs/wg_netmanager/latest/wg_netmanager"
+repository = "https://github.com/gin66/wg_netmanager"
 readme = "README.md"
 keywords = ["wireguard", "network", "automatic", "configuration", "route"]
 

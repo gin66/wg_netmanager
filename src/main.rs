@@ -81,6 +81,12 @@ fn main() -> BoxResult<()> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("existing_interface")
+                .short("e")
+                .long("existing_wg")
+                .help("Use an existing wireguard interface and do not try to create one"),
+        )
+        .arg(
             Arg::with_name("wireguard_port")
                 .short("w")
                 .long("wireguard-port")
@@ -229,10 +235,10 @@ fn main() -> BoxResult<()> {
         .use_tui(use_tui)
         .build();
 
-    run(static_config)
+    run(&static_config)
 }
 
-fn run(static_config: StaticConfiguration) -> BoxResult<()> {
+fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
     let (tx, rx) = channel();
 
     let tx_handler = tx.clone();
@@ -284,10 +290,17 @@ fn run(static_config: StaticConfiguration) -> BoxResult<()> {
     });
 
     let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name);
-    // in case there are dangling devices
-    wg_dev.take_down_device().ok();
 
-    wg_dev.bring_up_device()?;
+    // in case there are dangling routes
+    if !static_config.use_existing_interface {
+        wg_dev.take_down_device().ok();
+
+        wg_dev.bring_up_device()?;
+    }
+    else {
+        wg_dev.flush_routes()?;
+    }
+
     wg_dev.set_ip(&static_config.wg_ip)?;
 
     let mut tui_app = if static_config.use_tui {
@@ -298,7 +311,9 @@ fn run(static_config: StaticConfiguration) -> BoxResult<()> {
 
     let rc = main_loop(static_config, &wg_dev, crypt_socket, tx, rx, &mut tui_app);
 
-    wg_dev.take_down_device().ok();
+    if !static_config.use_existing_interface {
+        wg_dev.take_down_device().ok();
+    } 
 
     tui_app.deinit()?;
 
@@ -306,7 +321,7 @@ fn run(static_config: StaticConfiguration) -> BoxResult<()> {
 }
 
 fn main_loop(
-    static_config: StaticConfiguration,
+    static_config: &StaticConfiguration,
     wg_dev: &dyn WireguardDevice,
     crypt_socket: CryptUdp,
     tx: Sender<Event>,
@@ -429,7 +444,7 @@ fn main_loop(
             Ok(Event::SendAdvertisement { to: destination }) => {
                 let routedb_version = network_manager.db_version();
                 let advertisement =
-                    UdpPacket::advertisement_from_config(&static_config, routedb_version);
+                    UdpPacket::advertisement_from_config(static_config, routedb_version);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 info!("Send advertisement to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();

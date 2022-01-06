@@ -7,15 +7,17 @@ Todos:
 * check availability of used shell commands (ip/wg)
 * include boringtun, if kernel does not provide wireguard interface
 * find a solution for sudo
-* share unbound UDP socket addresses between clients
-* put udp comm port/socketaddr info into advertisement
 * Retrieve endpoint from clients out of wg parsed output
 * rename publicIp to e.g. visibleHost or reachableHost
 * more endpoints per peer
 * try local endpoints
-* refactor UdpPacket enum
+* allow the possibility to read config from stdin.
+  This would allow to ssh in a machine and start wg_manager without storing the shared key on the filesystem
 
 DONE:
+* add option to use an existing wireguard interface
+* put udp comm port/socketaddr info into advertisement
+* refactor UdpPacket enum
 * exchange known peer list
 * Public Key should have a timestamp
 * simplify RouteInfo for Peers

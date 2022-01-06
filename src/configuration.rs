@@ -31,6 +31,7 @@ pub struct StaticConfigurationBuilder {
     my_public_key: Option<PublicKeyWithTime>,
     peers: Vec<PublicPeer>,
     use_tui: Option<bool>,
+    use_existing_interface: Option<bool>,
 }
 impl StaticConfigurationBuilder {
     pub fn new() -> Self {
@@ -80,6 +81,10 @@ impl StaticConfigurationBuilder {
         self.use_tui = Some(use_tui);
         self
     }
+    pub fn use_existing_interface(mut self, use_existing_interface: bool) -> Self {
+        self.use_existing_interface = Some(use_existing_interface);
+        self
+    }
     pub fn build(self) -> StaticConfiguration {
         let mut myself_as_peer: Option<usize> = None;
         for (i, peer) in self.peers.iter().enumerate() {
@@ -105,6 +110,7 @@ impl StaticConfigurationBuilder {
             peers: self.peers,
             peer_cnt,
             use_tui: self.use_tui.unwrap(),
+            use_existing_interface: self.use_existing_interface.unwrap(),
         }
     }
 }
@@ -123,6 +129,7 @@ pub struct StaticConfiguration {
     pub peers: Vec<PublicPeer>,
     pub peer_cnt: usize,
     pub use_tui: bool,
+    pub use_existing_interface: bool,
 }
 
 impl StaticConfiguration {

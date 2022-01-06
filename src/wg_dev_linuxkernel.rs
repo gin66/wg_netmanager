@@ -219,6 +219,25 @@ impl WireguardDevice for WireguardDeviceLinux {
         }
         Ok(())
     }
+    fn flush_routes(&self) -> BoxResult<()> {
+        debug!("Flush routes");
+        let mut cmd = Command::new("sudo")
+            .arg("ip")
+            .arg("route")
+            .arg("flush")
+            .arg("dev")
+            .arg(&self.device_name)
+            .spawn()
+            .unwrap();
+
+        let result = cmd.wait().unwrap();
+
+        if result.success() {
+            debug!("routes flushed");
+        } else {
+        }
+        Ok(())
+    }
     fn set_conf(&self, conf: &str) -> BoxResult<()> {
         self.update_conf(conf, true)
     }

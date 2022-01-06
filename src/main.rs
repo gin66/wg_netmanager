@@ -143,10 +143,11 @@ fn main() -> BoxResult<()> {
         _ => log::LevelFilter::Trace,
     };
 
+    let use_tui = matches.is_present("tui");
+    let use_existing_interface = matches.is_present("existing_interface");
+
     // Select logger based on command line flag
     //
-    let use_tui = matches.is_present("tui");
-
     if use_tui {
         tui_logger::init_logger(log::LevelFilter::Trace).unwrap();
         tui_logger::set_default_level(log::LevelFilter::Trace);
@@ -233,6 +234,7 @@ fn main() -> BoxResult<()> {
         .my_private_key(my_private_key)
         .peers(peers)
         .use_tui(use_tui)
+        .use_existing_interface(use_existing_interface)
         .build();
 
     run(&static_config)

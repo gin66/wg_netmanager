@@ -51,3 +51,22 @@ with alice being reachable on 192.168.1.70
 
 Using namespaces several boxes can be simulated on one linux machine.
 See as [example](https://github.com/gin66/wg_netmanager/blob/main/ns/three_boxes.sh)
+
+# Technical Background
+
+wg_manager will add and delete routes on demand on two levels:
+- As routing policy of the kernel using `ip route add <ip>/32`
+- If a node is directly reachable, by adding a peer entry in the wireguard configuration
+  with a list of allowed ip's including the peer and all peers, for which gateway service can be offered
+
+# Security Consideration
+
+In case one node of this wireguard network is compromised, then the implications are severe. The symmetric key can be distributed and any attacker's node can join the network.
+
+With the current implementation an attacker could even issue this command:
+```
+ATTACKER'S BOX> wg_netmanager -c net.yaml wg0 8.8.8.8  alice
+```
+And ALL network participant will start to route all DNS request to 8.8.8.8 to ATTACKER's box.
+
+This is actually a very cool feature and on the other hand quite frightening.

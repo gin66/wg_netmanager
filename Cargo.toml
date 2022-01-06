@@ -27,7 +27,9 @@ crc = "2.1"
 log = "0.4"
 fern =  { version = "0.6", features = ["colored"]}
 chrono = "0.4"
-ifcfg = "0.1"
 tui = { version = "0.16", default-features = false, features = ["crossterm"] }
 crossterm = "0.22.1"
 tui-logger = "0.6"
+
+[target.'cfg(unix)'.dependencies]
+ifcfg = "0.1"

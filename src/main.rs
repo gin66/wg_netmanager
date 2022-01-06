@@ -68,9 +68,7 @@ fn set_up_logging(log_filter: log::LevelFilter) {
 }
 
 fn get_interfaces() -> Vec<IpAddr> {
-    if cfg!(target_os = "android") {
-        vec![]
-    } else {
+    if cfg!(linux) {
         let ifaces = ifcfg::IfCfg::get().expect("could not get interfaces");
         let mut ip_list: Vec<IpAddr> = vec![];
         trace!("Interfaces");
@@ -93,6 +91,8 @@ fn get_interfaces() -> Vec<IpAddr> {
         let ip_list = ip_list.into_iter().filter(|ip| !ip.is_loopback()).collect();
         debug!("Interfaces: {:#?}", ip_list);
         ip_list
+    } else {
+        vec![]
     }
 }
 

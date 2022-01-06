@@ -31,5 +31,5 @@ tui = { version = "0.16", default-features = false, features = ["crossterm"] }
 crossterm = "0.22.1"
 tui-logger = "0.6"
 
-[target.'cfg(unix)'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 ifcfg = "0.1"

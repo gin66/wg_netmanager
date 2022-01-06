@@ -8,6 +8,7 @@ Todos:
 * include boringtun, if kernel does not provide wireguard interface
 * find a solution for sudo
 * Retrieve endpoint from clients out of wg parsed output
+* lastseen is a weird timestamp. looks like uptime
 * rename publicIp to e.g. visibleHost or reachableHost
 * more endpoints per peer
 * try local endpoints

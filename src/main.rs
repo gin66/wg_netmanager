@@ -298,8 +298,7 @@ fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
         wg_dev.take_down_device().ok();
 
         wg_dev.bring_up_device()?;
-    }
-    else {
+    } else {
         wg_dev.flush_all()?;
     }
 
@@ -315,7 +314,7 @@ fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
 
     if !static_config.use_existing_interface {
         wg_dev.take_down_device().ok();
-    } 
+    }
 
     tui_app.deinit()?;
 

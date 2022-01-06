@@ -221,22 +221,22 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn flush_all(&self) -> BoxResult<()> {
         for what in ["route", "addr"] {
-        debug!("Flush {}", what);
-        let mut cmd = Command::new("sudo")
-            .arg("ip")
-            .arg(what)
-            .arg("flush")
-            .arg("dev")
-            .arg(&self.device_name)
-            .spawn()
-            .unwrap();
+            debug!("Flush {}", what);
+            let mut cmd = Command::new("sudo")
+                .arg("ip")
+                .arg(what)
+                .arg("flush")
+                .arg("dev")
+                .arg(&self.device_name)
+                .spawn()
+                .unwrap();
 
-        let result = cmd.wait().unwrap();
+            let result = cmd.wait().unwrap();
 
-        if result.success() {
-            debug!("{} flushed", what);
-        } else {
-        }
+            if result.success() {
+                debug!("{} flushed", what);
+            } else {
+            }
         }
         Ok(())
     }

@@ -11,6 +11,9 @@ Todos:
 * rename publicIp to e.g. visibleHost or reachableHost
 * more endpoints per peer
 * try local endpoints
+* add dns
+* restarting wg_manager on one machine will not cause other machines to replace new public key
+* provide a REST interface, so by ssh'ing in any machine it is possibly to retrieve a ascii qrcode and use this as log in for pure wireguard client
 * allow the possibility to read config from stdin.
   This would allow to ssh in a machine and start wg_manager without storing the shared key on the filesystem
 

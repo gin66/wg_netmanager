@@ -67,6 +67,6 @@ With the current implementation an attacker could even issue this command:
 ```
 ATTACKER'S BOX> wg_netmanager -c net.yaml wg0 8.8.8.8  alice
 ```
-And ALL network participant will start to route all DNS request to 8.8.8.8 to ATTACKER's box.
+And ALL network participants will start to route any DNS request addressed to 8.8.8.8 to the ATTACKER's box.
 
 This is actually a very cool feature and on the other hand quite frightening.

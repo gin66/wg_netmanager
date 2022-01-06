@@ -387,7 +387,7 @@ impl NetworkManager {
         while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
             if let Some(peer) = self.peer.get(*wg_ip) {
                 let dt = now - peer.lastseen;
-                trace!(target: "dead_peer", "Peer last seen {} s before, limit = {}", dt, limit);
+                trace!(target: "dead_peer", "Peer {} last seen {} s before, limit = {}. fifo_dead = {:?}", wg_ip, dt, limit, self.fifo_dead);
                 if dt < limit {
                     break;
                 }

@@ -313,16 +313,16 @@ fn run(static_config: StaticConfiguration) -> BoxResult<()> {
     wg_dev.set_ip(&static_config.wg_ip)?;
 
     let mut tui_app = if static_config.use_tui {
-        TuiApp::init(tx.clone())
+        TuiApp::init(tx.clone())?
     } else {
         TuiApp::off()
     };
 
     let rc = main_loop(static_config, &wg_dev, crypt_socket, tx, rx, &mut tui_app);
 
-    tui_app.deinit();
-
     wg_dev.take_down_device().ok();
+
+    tui_app.deinit()?;
 
     rc
 }

@@ -4,14 +4,14 @@ use std::thread;
 
 use log::*;
 
-use termion::{
-    input::TermRead,
-    raw::{IntoRawMode, RawTerminal},
-    screen::AlternateScreen,
-};
-
+use crossterm::event::{read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode};
+use crossterm::execute;
+use crossterm::terminal::enable_raw_mode;
+use crossterm::terminal::disable_raw_mode;
+use crossterm::terminal::EnterAlternateScreen;
+use crossterm::terminal::LeaveAlternateScreen;
 use tui::backend::Backend;
-use tui::backend::TermionBackend;
+use tui::backend::CrosstermBackend;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
@@ -24,7 +24,7 @@ use crate::error::*;
 use crate::event;
 
 pub struct TuiApp {
-    terminal: Option<Terminal<TermionBackend<AlternateScreen<RawTerminal<io::Stdout>>>>>,
+    terminal: Option<Terminal<CrosstermBackend<io::Stdout>>>,
     states: Vec<TuiWidgetState>,
     tabs: Vec<String>,
     selected_tab: usize,
@@ -58,70 +58,63 @@ impl TuiApp {
             opt_info_cnt: None,
         }
     }
-    pub fn init(tx: mpsc::Sender<event::Event>) -> Self {
-        let backend = {
-            let stdout = io::stdout().into_raw_mode().unwrap();
-            let stdout = AlternateScreen::from(stdout);
-            TermionBackend::new(stdout)
-        };
+    pub fn init(tx: mpsc::Sender<event::Event>) -> BoxResult<Self> {
+        enable_raw_mode()?;
+        let mut stdout = io::stdout();
+        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        let backend = CrosstermBackend::new(stdout);
+        let mut terminal = Terminal::new(backend)?;
 
-        let mut terminal = Terminal::new(backend).unwrap();
         terminal.clear().unwrap();
         terminal.hide_cursor().unwrap();
 
         thread::spawn({
-            let stdin = io::stdin();
-            move || {
-                for c in stdin.events() {
-                    trace!(target:"DEMO", "Stdin event received {:?}", c);
-                    use termion::event::Key;
-                    match c.unwrap() {
-                        termion::event::Event::Key(Key::Char('q')) => {
+            move || loop {
+                let evt = read();
+                trace!(target:"DEMO", "Event received {:?}", evt);
+                if let Ok(Event::Key(keyevent)) = evt {
+                    use crate::event::Event::*;
+                    use TuiAppEvent::*;
+                    match keyevent.code {
+                        KeyCode::Char('q') => {
                             tx.send(event::Event::CtrlC).unwrap();
                             break;
                         }
-                        termion::event::Event::Key(key) => {
-                            use crate::event::Event::*;
-                            use TuiAppEvent::*;
-                            match key {
-                                Key::Char(' ') => {
-                                    tx.send(TuiApp(SpaceKey)).unwrap();
-                                }
-                                Key::Esc => {
-                                    tx.send(TuiApp(EscapeKey)).unwrap();
-                                }
-                                Key::PageUp => {
-                                    tx.send(TuiApp(PrevPageKey)).unwrap();
-                                }
-                                Key::PageDown => {
-                                    tx.send(TuiApp(NextPageKey)).unwrap();
-                                }
-                                Key::Up => {
-                                    tx.send(TuiApp(UpKey)).unwrap();
-                                }
-                                Key::Down => {
-                                    tx.send(TuiApp(DownKey)).unwrap();
-                                }
-                                Key::Left => {
-                                    tx.send(TuiApp(LeftKey)).unwrap();
-                                }
-                                Key::Right => {
-                                    tx.send(TuiApp(RightKey)).unwrap();
-                                }
-                                Key::Char('+') => {
-                                    tx.send(TuiApp(PlusKey)).unwrap();
-                                }
-                                Key::Char('-') => {
-                                    tx.send(TuiApp(MinusKey)).unwrap();
-                                }
-                                Key::Char('h') => {
-                                    tx.send(TuiApp(HideKey)).unwrap();
-                                }
-                                Key::Char('f') => {
-                                    tx.send(TuiApp(FocusKey)).unwrap();
-                                }
-                                _ => {}
-                            }
+                        KeyCode::Char(' ') => {
+                            tx.send(TuiApp(SpaceKey)).unwrap();
+                        }
+                        KeyCode::Esc => {
+                            tx.send(TuiApp(EscapeKey)).unwrap();
+                        }
+                        KeyCode::PageUp => {
+                            tx.send(TuiApp(PrevPageKey)).unwrap();
+                        }
+                        KeyCode::PageDown => {
+                            tx.send(TuiApp(NextPageKey)).unwrap();
+                        }
+                        KeyCode::Up => {
+                            tx.send(TuiApp(UpKey)).unwrap();
+                        }
+                        KeyCode::Down => {
+                            tx.send(TuiApp(DownKey)).unwrap();
+                        }
+                        KeyCode::Left => {
+                            tx.send(TuiApp(LeftKey)).unwrap();
+                        }
+                        KeyCode::Right => {
+                            tx.send(TuiApp(RightKey)).unwrap();
+                        }
+                        KeyCode::Char('+') => {
+                            tx.send(TuiApp(PlusKey)).unwrap();
+                        }
+                        KeyCode::Char('-') => {
+                            tx.send(TuiApp(MinusKey)).unwrap();
+                        }
+                        KeyCode::Char('h') => {
+                            tx.send(TuiApp(HideKey)).unwrap();
+                        }
+                        KeyCode::Char('f') => {
+                            tx.send(TuiApp(FocusKey)).unwrap();
                         }
                         _ => {}
                     }
@@ -129,19 +122,26 @@ impl TuiApp {
             }
         });
 
-        TuiApp {
+        Ok(TuiApp {
             terminal: Some(terminal),
             states: vec![],
             tabs: vec!["V1".into()],
             selected_tab: 0,
             opt_info_cnt: None,
-        }
+        })
     }
-    pub fn deinit(&mut self) {
+    pub fn deinit(&mut self) -> BoxResult<()> {
         if let Some(terminal) = self.terminal.as_mut() {
-            terminal.show_cursor().unwrap();
-            terminal.clear().unwrap();
+            // restore terminal
+            disable_raw_mode()?;
+            execute!(
+                terminal.backend_mut(),
+                LeaveAlternateScreen,
+                DisableMouseCapture
+            )?;
+            terminal.show_cursor()?;
         }
+        Ok(())
     }
     pub fn process_event(&mut self, evt: TuiAppEvent) {
         use TuiAppEvent::*;

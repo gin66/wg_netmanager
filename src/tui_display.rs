@@ -16,7 +16,7 @@ use tui::backend::CrosstermBackend;
 use tui::layout::{Constraint, Direction, Layout, Rect};
 use tui::style::{Color, Modifier, Style};
 use tui::text::{Span, Spans};
-use tui::widgets::{Block, Borders, Gauge, Tabs};
+use tui::widgets::{Block, Borders, Tabs};
 use tui::Frame;
 use tui::Terminal;
 use tui_logger::*;
@@ -29,7 +29,6 @@ pub struct TuiApp {
     states: Vec<TuiWidgetState>,
     tabs: Vec<String>,
     selected_tab: usize,
-    opt_info_cnt: Option<u16>,
 }
 
 #[derive(Debug)]
@@ -56,7 +55,6 @@ impl TuiApp {
             states: vec![],
             tabs: vec![],
             selected_tab: 0,
-            opt_info_cnt: None,
         }
     }
     pub fn init(tx: mpsc::Sender<event::Event>) -> BoxResult<Self> {
@@ -130,9 +128,8 @@ impl TuiApp {
         Ok(TuiApp {
             terminal: Some(terminal),
             states: vec![],
-            tabs: vec!["V1".into()],
+            tabs: vec!["1","2","3","4","5","6","7","8","9"].into_iter().map(|t| t.into()).collect(),
             selected_tab: 0,
-            opt_info_cnt: None,
         })
     }
     pub fn deinit(&mut self) -> BoxResult<()> {
@@ -192,14 +189,10 @@ fn draw_frame<B: Backend>(t: &mut Frame<B>, size: Rect, app: &mut TuiApp) {
         app.states.push(TuiWidgetState::new().set_default_display_level(LevelFilter::Info));
     }
 
-    let mut constraints = vec![
+    let constraints = vec![
         Constraint::Length(3),
-        Constraint::Percentage(50),
         Constraint::Min(3),
     ];
-    if app.opt_info_cnt.is_some() {
-        constraints.push(Constraint::Length(3));
-    }
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
@@ -225,31 +218,4 @@ fn draw_frame<B: Backend>(t: &mut Frame<B>, size: Rect, app: &mut TuiApp) {
         .output_line(true)
         .state(&app.states[sel]);
     t.render_widget(tui_sm, chunks[1]);
-    let tui_w: TuiLoggerWidget = TuiLoggerWidget::default()
-        .block(
-            Block::default()
-                .title("Independent Tui Logger View")
-                .border_style(Style::default().fg(Color::White).bg(Color::Black))
-                .borders(Borders::ALL),
-        )
-        .output_separator('|')
-        .output_timestamp(Some("%F %H:%M:%S%.3f".to_string()))
-        .output_level(Some(TuiLoggerLevelOutput::Long))
-        .output_target(false)
-        .output_file(false)
-        .output_line(false)
-        .style(Style::default().fg(Color::White).bg(Color::Black));
-    t.render_widget(tui_w, chunks[2]);
-    if let Some(percent) = app.opt_info_cnt {
-        let gauge = Gauge::default()
-            .block(Block::default().borders(Borders::ALL).title("Progress"))
-            .gauge_style(
-                Style::default()
-                    .fg(Color::Black)
-                    .bg(Color::White)
-                    .add_modifier(Modifier::ITALIC),
-            )
-            .percent(percent);
-        t.render_widget(gauge, chunks[3]);
-    }
 }

@@ -160,7 +160,10 @@ impl TuiApp {
             MinusKey => Some(TuiWidgetEvent::MinusKey),
             HideKey => Some(TuiWidgetEvent::HideKey),
             FocusKey => Some(TuiWidgetEvent::FocusKey),
-            TabKey => None,
+            TabKey => {
+                self.selected_tab = (self.selected_tab+1) % self.tabs.len();
+                None
+            },
         };
         if let Some(widget_evt) = widget_evt {
             self.states[self.selected_tab].transition(&widget_evt);

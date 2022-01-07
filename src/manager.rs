@@ -53,7 +53,7 @@ pub enum RouteChange {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RouteInfo {
     to: Ipv4Addr,
-    admin_port: u16,
+    local_admin_port: u16,
     hop_cnt: usize,
     gateway: Option<Ipv4Addr>,
 }
@@ -283,7 +283,7 @@ impl NetworkManager {
             trace!(target: "routing", "Include to routes: {}", dp.wg_ip);
             let ri = RouteInfo {
                 to: dp.wg_ip,
-                admin_port: dp.admin_port,
+                local_admin_port: dp.local_admin_port,
                 hop_cnt: 0,
                 gateway: None,
             };
@@ -326,7 +326,7 @@ impl NetworkManager {
                     trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
                     let ri_new = RouteInfo {
                         to: ri.to,
-                        admin_port: ri.admin_port,
+                        local_admin_port: ri.local_admin_port,
                         hop_cnt,
                         gateway: Some(*wg_ip),
                     };
@@ -368,12 +368,12 @@ impl NetworkManager {
                     });
                     if ri.gateway.is_some() {
                         info!(target: "probing", "detected a new host {} via {}", to, ri.gateway.as_ref().unwrap());
-                        let sa = SocketAddrV4::new(to, ri.admin_port);
+                        let sa = SocketAddrV4::new(to, ri.local_admin_port);
                         self.new_nodes.push(sa);
                     }
                     let ri = RouteInfo {
                         to,
-                        admin_port: ri.admin_port,
+                        local_admin_port: ri.local_admin_port,
                         hop_cnt: ri.hop_cnt + 1,
                         gateway: ri.gateway,
                     };
@@ -400,7 +400,7 @@ impl NetworkManager {
                         });
                         *current = RouteInfo {
                             to,
-                            admin_port: ri.admin_port,
+                            local_admin_port: ri.local_admin_port,
                             hop_cnt: ri.hop_cnt,
                             gateway: ri.gateway,
                         };

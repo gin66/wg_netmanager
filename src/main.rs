@@ -134,14 +134,6 @@ fn main() -> BoxResult<()> {
         )
         .get_matches();
 
-    let log_filter = match matches.occurrences_of("v") {
-        0 => log::LevelFilter::Error,
-        1 => log::LevelFilter::Warn,
-        2 => log::LevelFilter::Info,
-        3 => log::LevelFilter::Debug,
-        _ => log::LevelFilter::Trace,
-    };
-
     let use_tui = matches.is_present("tui");
     let use_existing_interface = matches.is_present("existing_interface");
 
@@ -151,6 +143,13 @@ fn main() -> BoxResult<()> {
         tui_logger::init_logger(log::LevelFilter::Trace).unwrap();
         tui_logger::set_default_level(log::LevelFilter::Trace);
     } else {
+        let log_filter = match matches.occurrences_of("v") {
+            0 => log::LevelFilter::Error,
+            1 => log::LevelFilter::Warn,
+            2 => log::LevelFilter::Info,
+            3 => log::LevelFilter::Debug,
+            _ => log::LevelFilter::Trace,
+        };
         set_up_logging(log_filter);
     }
 
@@ -392,50 +391,28 @@ fn main_loop(
             }
             Ok(Event::Udp(udp_packet, src_addr)) => {
                 use UdpPacket::*;
+                let events: Vec<Event>;
                 match udp_packet {
                     Advertisement(ad) => {
-                        if let Some(new_wg_ip) =
-                            network_manager.analyze_advertisement_for_new_peer(&ad, src_addr.port())
-                        {
-                            info!("Unknown peer {}", src_addr);
-                            network_manager.add_dynamic_peer(&new_wg_ip);
-
-                            tx.send(Event::PeerListChange).unwrap();
-                            tx.send(Event::UpdateRoutes).unwrap();
-
-                            // Answers to advertisments are only sent, if the wireguard ip is not
-                            // in the list of dynamic peers and as such is new.
-                            // Consequently the reply is sent over the internet and not via
-                            // wireguard tunnel.
-                            tx.send(Event::SendAdvertisement { to: src_addr }).unwrap();
-                        } else {
-                            info!("Existing peer {}", src_addr);
-                        }
-                        if let Some(wg_ip) = network_manager.analyze_advertisement(&ad) {
-                            // need to request new route database
-                            let destination = SocketAddrV4::new(wg_ip, src_addr.port());
-                            tx.send(Event::SendRouteDatabaseRequest { to: destination })
-                                .unwrap();
-                        }
+                        events = network_manager.analyze_advertisement(ad, src_addr);
                     }
-                    RouteDatabaseRequest => {
-                        info!("RouteDatabaseRequest from {:?}", src_addr);
-                        match src_addr {
-                            SocketAddr::V4(destination) => {
-                                tx.send(Event::SendRouteDatabase { to: destination })
-                                    .unwrap();
-                            }
-                            SocketAddr::V6(..) => {
-                                error!("Expected IPV4 and not IPV6 address");
-                            }
+                    RouteDatabaseRequest => match src_addr {
+                        SocketAddr::V4(destination) => {
+                            info!(target: "routing", "RouteDatabaseRequest from {:?}", src_addr);
+                            events = vec![Event::SendRouteDatabase { to: destination }];
                         }
-                    }
+                        SocketAddr::V6(..) => {
+                            error!(target: "routing", "Expected IPV4 and not IPV6 address");
+                            events = vec![];
+                        }
+                    },
                     RouteDatabase(req) => {
-                        info!("RouteDatabase from {}", src_addr);
-                        if network_manager.process_route_database(req) {
-                            tx.send(Event::UpdateRoutes).unwrap();
-                        }
+                        info!(target: "routing", "RouteDatabase from {}", src_addr);
+                        events = network_manager.process_route_database(req);
                     }
+                }
+                for evt in events {
+                    tx.send(evt).unwrap();
                 }
             }
             Ok(Event::SendAdvertisement { to: destination }) => {
@@ -443,27 +420,29 @@ fn main_loop(
                 let advertisement =
                     UdpPacket::advertisement_from_config(static_config, routedb_version);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
-                info!("Send advertisement to {}", destination);
+                info!(target: "advertisement", "Send advertisement to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
             }
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
                 let request = UdpPacket::route_database_request();
                 let buf = serde_json::to_vec(&request).unwrap();
-                info!("Send RouteDatabaseRequest to {}", destination);
+                info!(target: "routing", "Send RouteDatabaseRequest to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
             }
             Ok(Event::SendRouteDatabase { to: destination }) => {
                 let packages = network_manager.provide_route_database();
                 for p in packages {
                     let buf = serde_json::to_vec(&p).unwrap();
-                    info!("Send RouteDatabase to {}", destination);
+                    info!(target: "routing", "Send RouteDatabase to {}", destination);
                     crypt_socket.send_to(&buf, destination).ok();
                 }
             }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
                 network_manager.output();
                 let dead_peers = network_manager.check_timeouts(120);
-                info!(target: "dead_peer", "Dead peers found {}", dead_peers.len());
+                if !dead_peers.is_empty() {
+                    info!(target: "dead_peer", "Dead peers found {}", dead_peers.len());
+                }
                 if !dead_peers.is_empty() {
                     for wg_ip in dead_peers {
                         debug!(target: "dead_peer", "Found dead peer {}", wg_ip);
@@ -485,16 +464,22 @@ fn main_loop(
                     use RouteChange::*;
                     debug!("{:?}", rc);
                     match rc {
-                        AddRouteWithGateway { to, gateway } => {
+                        AddRoute {
+                            to,
+                            gateway: Some(gateway),
+                        } => {
                             wg_dev.add_route(&format!("{}/32", to), Some(gateway))?;
                         }
-                        AddRoute { to } => {
+                        AddRoute { to, gateway: None } => {
                             wg_dev.add_route(&format!("{}/32", to), None)?;
                         }
-                        DelRouteWithGateway { to, gateway } => {
+                        DelRoute {
+                            to,
+                            gateway: Some(gateway),
+                        } => {
                             wg_dev.del_route(&format!("{}/32", to), Some(gateway))?;
                         }
-                        DelRoute { to } => {
+                        DelRoute { to, gateway: None } => {
                             wg_dev.del_route(&format!("{}/32", to), None)?;
                         }
                     }

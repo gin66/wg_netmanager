@@ -24,20 +24,25 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use log::*;
 use serde::{Deserialize, Serialize};
 
 use crate::configuration::*;
 use crate::crypt_udp::*;
+use crate::event::Event;
 
 #[derive(Debug)]
 pub enum RouteChange {
-    AddRouteWithGateway { to: Ipv4Addr, gateway: Ipv4Addr },
-    AddRoute { to: Ipv4Addr },
-    DelRouteWithGateway { to: Ipv4Addr, gateway: Ipv4Addr },
-    DelRoute { to: Ipv4Addr },
+    AddRoute {
+        to: Ipv4Addr,
+        gateway: Option<Ipv4Addr>,
+    },
+    DelRoute {
+        to: Ipv4Addr,
+        gateway: Option<Ipv4Addr>,
+    },
 }
 
 //pub struct NodeInfo {
@@ -56,17 +61,16 @@ pub struct RouteInfo {
     to: Ipv4Addr,
     gateway: Option<Gateway>,
 }
-
-struct RouteInfoWithStatus {
-    ri: RouteInfo,
-    issued: bool,
-    to_be_deleted: bool,
+impl RouteInfo {
+    pub fn gw_ip(&self) -> Option<Ipv4Addr> {
+        self.gateway.as_ref().map(|gw| gw.ip)
+    }
 }
 
 #[derive(Default)]
 pub struct RouteDB {
     version: usize,
-    route_for: HashMap<Ipv4Addr, RouteInfoWithStatus>,
+    route_for: HashMap<Ipv4Addr, RouteInfo>,
 }
 
 #[derive(Default)]
@@ -96,6 +100,8 @@ pub struct NetworkManager {
     route_db: RouteDB,
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
 
+    pending_route_changes: Vec<RouteChange>,
+
     pub peer: HashMap<Ipv4Addr, DynamicPeer>,
     pub fifo_dead: Vec<Ipv4Addr>,
     pub fifo_ping: Vec<Ipv4Addr>,
@@ -109,7 +115,7 @@ impl NetworkManager {
             peers: HashSet::new(),
             route_db: RouteDB::default(),
             peer_route_db: HashMap::new(),
-
+            pending_route_changes: vec![],
             peer: HashMap::new(),
             fifo_dead: vec![],
             fifo_ping: vec![],
@@ -117,6 +123,7 @@ impl NetworkManager {
     }
 
     pub fn add_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
+        // only used from tests
         self.peers.insert(*peer_ip);
         self.recalculate_routes();
     }
@@ -128,94 +135,81 @@ impl NetworkManager {
 
     pub fn get_route_changes(&mut self) -> Vec<RouteChange> {
         let mut routes = vec![];
-
-        // first routes to be deleted
-        for ri in self
-            .route_db
-            .route_for
-            .values_mut()
-            .filter(|ri| ri.to_be_deleted && ri.issued)
-        {
-            ri.issued = false;
-            if let Some(gateway) = ri.ri.gateway.as_ref() {
-                routes.push(RouteChange::DelRouteWithGateway {
-                    to: ri.ri.to,
-                    gateway: gateway.ip,
-                });
-            } else {
-                routes.push(RouteChange::DelRoute { to: ri.ri.to });
-            }
-        }
-
-        self.route_db.route_for.retain(|_, ri| !ri.to_be_deleted);
-
-        // then routes to be added
-        for ri in self.route_db.route_for.values_mut().filter(|ri| !ri.issued) {
-            ri.issued = true;
-            if let Some(gateway) = ri.ri.gateway.as_ref() {
-                routes.push(RouteChange::AddRouteWithGateway {
-                    to: ri.ri.to,
-                    gateway: gateway.ip,
-                });
-            } else {
-                routes.push(RouteChange::AddRoute { to: ri.ri.to });
-            }
-        }
-
+        routes.append(&mut self.pending_route_changes);
         routes
     }
     pub fn db_version(&self) -> usize {
         self.route_db.version
     }
-    pub fn analyze_advertisement_for_new_peer(
+    pub fn analyze_advertisement(
         &mut self,
-        advertisement: &AdvertisementPacket,
-        admin_port: u16,
-    ) -> Option<Ipv4Addr> {
+        advertisement: AdvertisementPacket,
+        src_addr: SocketAddr,
+    ) -> Vec<Event> {
+        let mut events = vec![];
+
         self.fifo_dead.retain(|ip| *ip != advertisement.wg_ip);
         self.fifo_dead.retain(|ip| *ip != advertisement.wg_ip);
         self.fifo_dead.push(advertisement.wg_ip);
         self.fifo_ping.push(advertisement.wg_ip);
         let lastseen = crate::util::now();
-        if self
-            .peer
-            .insert(
-                advertisement.wg_ip,
-                DynamicPeer {
-                    wg_ip: advertisement.wg_ip,
-                    local_ip_list: advertisement.local_ip_list.clone(),
-                    local_admin_port: advertisement.local_admin_port,
-                    local_wg_port: advertisement.local_wg_port,
-                    public_key: advertisement.public_key.clone(),
-                    name: advertisement.name.to_string(),
-                    endpoint: advertisement.endpoint,
-                    admin_port,
-                    lastseen,
-                },
-            )
-            .is_none()
-        {
-            Some(advertisement.wg_ip)
-        } else {
-            None
-        }
-    }
-    pub fn analyze_advertisement(
-        &mut self,
-        advertisement: &AdvertisementPacket,
-    ) -> Option<Ipv4Addr> {
-        if let Some(peer_route_db) = self.peer_route_db.get(&advertisement.wg_ip) {
-            if peer_route_db.version == advertisement.routedb_version {
-                return None;
+        let dp = DynamicPeer {
+            wg_ip: advertisement.wg_ip,
+            local_ip_list: advertisement.local_ip_list.clone(),
+            local_admin_port: advertisement.local_admin_port,
+            local_wg_port: advertisement.local_wg_port,
+            public_key: advertisement.public_key.clone(),
+            name: advertisement.name.to_string(),
+            endpoint: advertisement.endpoint,
+            admin_port: src_addr.port(),
+            lastseen,
+        };
+        if let Some(old_peer_info) = self.peer.insert(advertisement.wg_ip, dp) {
+            // Eventually the peer has been restarted, then the priv_key_creation_time must be
+            // greater and the public key in wireguard device needs to be replaced.
+            if old_peer_info.public_key.priv_key_creation_time
+                < advertisement.public_key.priv_key_creation_time
+            {
+                info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
+                events.push(Event::PeerListChange);
+            } else {
+                info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
             }
-            self.peer_route_db.remove(&advertisement.wg_ip);
+        } else {
+            info!(target: "advertisement", "Advertisement from new peer {}", src_addr);
+            events.push(Event::PeerListChange);
+
+            // Answers to advertisments are only sent, if the wireguard ip is not
+            // in the list of dynamic peers and as such is new.
+            // Consequently the reply is sent over the internet and not via
+            // wireguard tunnel, because that tunnel is not yet set up.
+            events.push(Event::SendAdvertisement { to: src_addr });
+
+            self.peers.insert(advertisement.wg_ip);
+            self.recalculate_routes();
+            events.push(Event::UpdateRoutes);
         }
-        Some(advertisement.wg_ip)
+
+        if let Some(peer_route_db) = self.peer_route_db.get(&advertisement.wg_ip) {
+            if peer_route_db.version != advertisement.routedb_version {
+                // need to request new route database via tunnel
+                info!(target: "routing", "Request updated route database from peer {}", src_addr);
+                self.peer_route_db.remove(&advertisement.wg_ip);
+                let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
+                events.push(Event::SendRouteDatabaseRequest { to: destination });
+            }
+        } else {
+            info!(target: "routing", "Request new route database from peer {}", src_addr);
+            let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
+            events.push(Event::SendRouteDatabaseRequest { to: destination });
+        }
+
+        events
     }
     pub fn provide_route_database(&self) -> Vec<UdpPacket> {
         let mut known_routes = vec![];
-        for ri in self.route_db.route_for.values().filter(|ri| ri.issued) {
-            known_routes.push(&ri.ri);
+        for ri in self.route_db.route_for.values() {
+            known_routes.push(ri);
         }
         let p = UdpPacket::make_route_database(
             self.wg_ip,
@@ -225,24 +219,38 @@ impl NetworkManager {
         );
         vec![p]
     }
-    pub fn process_route_database(&mut self, req: RouteDatabasePacket) -> bool {
+    pub fn process_route_database(&mut self, req: RouteDatabasePacket) -> Vec<Event> {
         let mut need_routes_update = false;
-        debug!("RouteDatabase from {}: {:?}", req.sender, req.known_routes);
+        let mut events = vec![];
+        debug!(target: "routing", "RouteDatabase: {:#?}", req.known_routes);
+
+        // After requesting route database, then the old one has been deleted.
+        // The database will be received in one to many udp packages.
+        //
         if let Some(mut peer_route_db) = self.peer_route_db.remove(&req.sender) {
-            if req.nr_entries == peer_route_db.nr_entries {
+            // route database exist and must not be complete
+            //
+            if req.nr_entries != peer_route_db.nr_entries {
                 if req.routedb_version == peer_route_db.version {
+                    // All ok, got more entries for the database
                     for ri in req.known_routes {
                         peer_route_db.route_for.insert(ri.to, ri);
                     }
+
+                    // Check, if the database is complete
                     need_routes_update = req.nr_entries == peer_route_db.route_for.len();
+
+                    // put back the route_db into the peer_route_db
                     self.peer_route_db.insert(req.sender, peer_route_db);
                 } else {
-                    warn!("Mismatch of route db version");
+                    // Received packet with wrong version info
+                    warn!(target: "routing", "Mismatch of route db versioni, so partial db is dropped");
                 }
             } else {
-                warn!("Mismatch of nr_entries");
+                warn!(target: "routing", "Another packet for complete database received, so strange db is dropped");
             }
         } else {
+            // First packet of a new route_db. So just store it
             let routes = req
                 .known_routes
                 .iter()
@@ -253,16 +261,21 @@ impl NetworkManager {
                 nr_entries: req.nr_entries,
                 route_for: routes,
             };
+
+            // Perhaps the database is already complete ?
             need_routes_update = req.nr_entries == peer_route_db.route_for.len();
+
+            // Store the route_db into the peer_route_db
             self.peer_route_db.insert(req.sender, peer_route_db);
         }
         if need_routes_update {
             self.recalculate_routes();
+            events.push(Event::UpdateRoutes);
         }
-        need_routes_update
+        events
     }
     fn recalculate_routes(&mut self) {
-        trace!("RECALC ROUTES");
+        trace!(target: "routing", "Recalculate routes");
         // Use as input:
         //    list of peers (being alive)
         //    peer route_db, if valid
@@ -270,33 +283,44 @@ impl NetworkManager {
 
         // Dynamic peers are ALWAYS reachable without a gateway
         for peer in self.peers.iter() {
+            trace!(target: "routing", "Include to routes: {}", peer);
             new_routes.insert(*peer, None);
         }
         for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
             if peer_route_db.nr_entries == peer_route_db.route_for.len() {
                 // is valid database for peer
-                debug!("VALID {:?}", peer_route_db.route_for);
+                debug!(target: "routing", "valid database of {}: {:#?}", wg_ip, peer_route_db.route_for);
                 for ri in peer_route_db.route_for.values() {
+                    // Ignore routes to myself
                     if ri.to == self.wg_ip {
+                        trace!(target: "routing", "Route to myself => ignore");
                         continue;
                     }
+                    // Ignore routes to my dynamic peers
                     if self.peers.contains(&ri.to) {
+                        trace!(target: "routing", "Route to any of my peers => ignore");
                         continue;
                     }
                     let mut hop_cnt = 1;
                     if let Some(gateway) = ri.gateway.as_ref() {
                         hop_cnt = gateway.hop_cnt + 1;
+
+                        // Ignore routes to myself as gateway
                         if gateway.ip == self.wg_ip {
+                            trace!(target: "routing", "Route to myself as gateway => ignore");
                             continue;
                         }
                         if self.peers.contains(&gateway.ip) {
+                            trace!(target: "routing", "Route using any of my peers as gateway => ignore");
                             continue;
                         }
                         if self.peer_route_db.contains_key(&gateway.ip) {
+                            error!(target: "routing", "Route using any of my peers as gateway => ignore (should not come here)");
                             continue;
                         }
                     }
                     // to-host can be reached via wg_ip
+                    trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
                     let gateway = Gateway {
                         ip: *wg_ip,
                         hop_cnt,
@@ -304,22 +328,23 @@ impl NetworkManager {
                     new_routes.insert(ri.to, Some(gateway));
                 }
             } else {
-                debug!("VALID {:?}", peer_route_db.route_for);
+                warn!(target: "routing", "incomplete database from {} => ignore", wg_ip);
             }
         }
 
         for entry in new_routes.iter() {
-            debug!("{:?}", entry);
+            debug!(target: "routing", "Peer routes' entry: {:?}", entry);
         }
 
-        // new_routes is built. So update route_db
+        // new_routes is built. So update route_db and mark changes
         //
         // first routes to be deleted
-        let mut changed = false;
         for ri in self.route_db.route_for.values_mut() {
-            if !new_routes.contains_key(&ri.ri.to) {
-                ri.to_be_deleted = true;
-                changed = true;
+            if !new_routes.contains_key(&ri.to) {
+                self.pending_route_changes.push(RouteChange::DelRoute {
+                    to: ri.to,
+                    gateway: ri.gw_ip(),
+                });
             }
         }
         // finally routes to be updated / added
@@ -331,34 +356,39 @@ impl NetworkManager {
             match self.route_db.route_for.entry(to) {
                 Entry::Vacant(e) => {
                     // new route
-                    let ri = RouteInfoWithStatus {
-                        ri: RouteInfo { to, gateway },
-                        issued: false,
-                        to_be_deleted: false,
-                    };
+                    self.pending_route_changes.push(RouteChange::AddRoute {
+                        to,
+                        gateway: gateway.as_ref().map(|gw| gw.ip),
+                    });
+                    let ri = RouteInfo { to, gateway };
                     e.insert(ri);
-                    changed = true;
                 }
                 Entry::Occupied(mut e) => {
                     // update route
                     let current = e.get_mut();
-                    let current_hop_cnt =
-                        current.ri.gateway.as_ref().map(|e| e.hop_cnt).unwrap_or(0);
+                    let current_hop_cnt = current.gateway.as_ref().map(|e| e.hop_cnt).unwrap_or(0);
                     let new_hop_cnt = ng.as_ref().map(|e| e.hop_cnt).unwrap_or(0);
                     if current_hop_cnt > new_hop_cnt {
                         // new route is better
-                        let ri = RouteInfoWithStatus {
-                            ri: RouteInfo { to, gateway: ng },
-                            issued: false,
-                            to_be_deleted: false,
-                        };
-                        *current = ri;
-                        changed = true;
+                        //
+                        // so first delete the old route
+                        //
+                        self.pending_route_changes.push(RouteChange::DelRoute {
+                            to: current.to,
+                            gateway: current.gw_ip(),
+                        });
+
+                        // then add the new route
+                        self.pending_route_changes.push(RouteChange::AddRoute {
+                            to,
+                            gateway: ng.as_ref().map(|gw| gw.ip),
+                        });
+                        *current = RouteInfo { to, gateway: ng };
                     }
                 }
             }
         }
-        if changed {
+        if !self.pending_route_changes.is_empty() {
             self.route_db.version += 1;
         }
     }
@@ -366,9 +396,9 @@ impl NetworkManager {
         let mut ips = vec![];
 
         for ri in self.route_db.route_for.values() {
-            if let Some(gateway) = ri.ri.gateway.as_ref() {
+            if let Some(gateway) = ri.gateway.as_ref() {
                 if gateway.ip == peer {
-                    ips.push(ri.ri.to);
+                    ips.push(ri.to);
                 }
             }
         }

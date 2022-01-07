@@ -86,9 +86,7 @@ impl UdpPacket {
     pub fn local_contact_request() -> Self {
         UdpPacket::LocalContactRequest {}
     }
-    pub fn local_contact_from_config(
-        static_config: &StaticConfiguration,
-    ) -> Self {
+    pub fn local_contact_from_config(static_config: &StaticConfiguration) -> Self {
         UdpPacket::LocalContact(LocalContactPacket {
             public_key: static_config.my_public_key.clone(),
             local_ip_list: static_config.ip_list.clone(),

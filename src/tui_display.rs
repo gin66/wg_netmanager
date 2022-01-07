@@ -135,7 +135,10 @@ impl TuiApp {
         Ok(TuiApp {
             terminal: Some(terminal),
             states: vec![],
-            tabs: vec!["1","2","3","4"].into_iter().map(|t| t.into()).collect(),
+            tabs: vec!["1", "2", "3", "4"]
+                .into_iter()
+                .map(|t| t.into())
+                .collect(),
             selected_tab: 0,
         })
     }
@@ -168,13 +171,13 @@ impl TuiApp {
             HideKey => Some(TuiWidgetEvent::HideKey),
             FocusKey => Some(TuiWidgetEvent::FocusKey),
             TabKey => {
-                self.selected_tab = (self.selected_tab+1) % self.tabs.len();
+                self.selected_tab = (self.selected_tab + 1) % self.tabs.len();
                 None
-            },
+            }
             BackTabKey => {
-                self.selected_tab = (self.selected_tab+self.tabs.len()-1) % self.tabs.len();
+                self.selected_tab = (self.selected_tab + self.tabs.len() - 1) % self.tabs.len();
                 None
-            },
+            }
         };
         if let Some(widget_evt) = widget_evt {
             self.states[self.selected_tab].transition(&widget_evt);
@@ -200,13 +203,11 @@ fn draw_frame<B: Backend>(t: &mut Frame<B>, size: Rect, app: &mut TuiApp) {
     let sel = app.selected_tab;
 
     while app.states.len() <= sel {
-        app.states.push(TuiWidgetState::new().set_default_display_level(LevelFilter::Info));
+        app.states
+            .push(TuiWidgetState::new().set_default_display_level(LevelFilter::Info));
     }
 
-    let constraints = vec![
-        Constraint::Length(3),
-        Constraint::Min(3),
-    ];
+    let constraints = vec![Constraint::Length(3), Constraint::Min(3)];
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)

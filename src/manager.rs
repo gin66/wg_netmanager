@@ -121,11 +121,6 @@ impl NetworkManager {
         }
     }
 
-    pub fn add_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
-        // only used from tests
-        self.peers.insert(*peer_ip);
-        self.recalculate_routes();
-    }
     pub fn remove_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
         self.peer.remove(peer_ip);
         self.peers.remove(peer_ip);
@@ -352,10 +347,13 @@ impl NetworkManager {
         // first routes to be deleted
         for ri in self.route_db.route_for.values_mut() {
             if !new_routes.contains_key(&ri.to) {
+                trace!(target: "routing", "add route {:?}", ri);
                 self.pending_route_changes.push(RouteChange::DelRoute {
                     to: ri.to,
                     gateway: ri.gw_ip(),
                 });
+            } else {
+                trace!(target: "routing", "unchanged route {:?}", ri);
             }
         }
         // finally routes to be updated / added
@@ -364,9 +362,11 @@ impl NetworkManager {
                 gw.hop_cnt += 1;
                 gw
             });
+            trace!(target: "routing", "process route {} via {:?}", to, gateway);
             match self.route_db.route_for.entry(to) {
                 Entry::Vacant(e) => {
                     // new route
+                    trace!(target: "routing", "is new route {} via {:?}", to, gateway);
                     self.pending_route_changes.push(RouteChange::AddRoute {
                         to,
                         gateway: gateway.as_ref().map(|gw| gw.ip),
@@ -376,6 +376,7 @@ impl NetworkManager {
                 }
                 Entry::Occupied(mut e) => {
                     // update route
+                    trace!(target: "routing", "is existing route {}", to);
                     let current = e.get_mut();
                     let current_hop_cnt = current.gateway.as_ref().map(|e| e.hop_cnt).unwrap_or(0);
                     let new_hop_cnt = ng.as_ref().map(|e| e.hop_cnt).unwrap_or(0);
@@ -398,8 +399,10 @@ impl NetworkManager {
                     }
                 }
             }
+            trace!(target: "routing", "route changes: {}", self.pending_route_changes.len());
         }
         if !self.pending_route_changes.is_empty() {
+            trace!(target: "routing", "{} route changes", self.pending_route_changes.len());
             self.route_db.version += 1;
         }
     }

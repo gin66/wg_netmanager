@@ -372,7 +372,8 @@ fn main_loop(
                             events = vec![];
                         }
                     },
-                    LocalContact(_) => {
+                    LocalContact(contact) => {
+                        debug!(target: "probing", "Received contact info: {:#?}", contact);
                         events = vec![];
                     }
                 }
@@ -402,10 +403,17 @@ fn main_loop(
                     crypt_socket.send_to(&buf, destination).ok();
                 }
             }
+            Ok(Event::SendLocalContactRequest { to: destination }) => {
+                let request = UdpPacket::local_contact_request();
+                let buf = serde_json::to_vec(&request).unwrap();
+                info!(target: "probing", "Send LocalContactRequest to {}", destination);
+                crypt_socket.send_to(&buf, destination).ok();
+            }
             Ok(Event::SendLocalContact { to: destination }) => {
                 let local_contact = UdpPacket::local_contact_from_config(static_config);
+                trace!(target: "probing", "local contact to {:#?}", local_contact);
                 let buf = serde_json::to_vec(&local_contact).unwrap();
-                info!(target: "routing", "Send local contact to {}", destination);
+                info!(target: "probing", "Send local contact to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
             }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {

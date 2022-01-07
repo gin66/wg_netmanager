@@ -89,7 +89,7 @@ pub struct NetworkManager {
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
 
     pending_route_changes: Vec<RouteChange>,
-
+    new_nodes: Vec<SocketAddrV4>,
     peer: HashMap<Ipv4Addr, DynamicPeer>,
     fifo_dead: Vec<Ipv4Addr>,
     fifo_ping: Vec<Ipv4Addr>,
@@ -103,6 +103,7 @@ impl NetworkManager {
             route_db: RouteDB::default(),
             peer_route_db: HashMap::new(),
             pending_route_changes: vec![],
+            new_nodes: vec![],
             peer: HashMap::new(),
             fifo_dead: vec![],
             fifo_ping: vec![],
@@ -194,6 +195,10 @@ impl NetworkManager {
             info!(target: "routing", "Request new route database from peer {}", src_addr);
             let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
             events.push(Event::SendRouteDatabaseRequest { to: destination });
+        }
+
+        while let Some(sa) = self.new_nodes.pop() {
+            events.push(Event::SendLocalContactRequest{ to: sa });
         }
 
         events
@@ -355,12 +360,17 @@ impl NetworkManager {
             trace!(target: "routing", "process route {} via {:?}", to, ri.gateway);
             match self.route_db.route_for.entry(to) {
                 Entry::Vacant(e) => {
-                    // new route
+                    // new node with route
                     trace!(target: "routing", "is new route {} via {:?}", to, ri.gateway);
                     self.pending_route_changes.push(RouteChange::AddRoute {
                         to,
                         gateway: ri.gateway,
                     });
+                    if ri.gateway.is_some() {
+                        info!(target: "probing", "detected a new host {} via {}", to, ri.gateway.as_ref().unwrap());
+                        let sa = SocketAddrV4::new(to, ri.admin_port);
+                        self.new_nodes.push(sa);
+                    }
                     let ri = RouteInfo {
                         to,
                         admin_port: ri.admin_port,

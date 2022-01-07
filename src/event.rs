@@ -13,6 +13,7 @@ pub enum Event {
     SendPingToAllDynamicPeers,
     SendRouteDatabaseRequest { to: SocketAddrV4 },
     SendRouteDatabase { to: SocketAddrV4 },
+    SendLocalContactRequest { to: SocketAddrV4 },
     SendLocalContact { to: SocketAddrV4 },
     CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,

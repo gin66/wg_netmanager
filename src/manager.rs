@@ -59,6 +59,7 @@ pub struct Gateway {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RouteInfo {
     to: Ipv4Addr,
+    hop_cnt: usize,
     gateway: Option<Gateway>,
 }
 impl RouteInfo {
@@ -280,12 +281,13 @@ impl NetworkManager {
         // Use as input:
         //    list of peers (being alive)
         //    peer route_db, if valid
-        let mut new_routes: HashMap<Ipv4Addr, Option<Gateway>> = HashMap::new();
+        let mut new_routes: HashMap<Ipv4Addr, RouteInfo> = HashMap::new();
 
         // Dynamic peers are ALWAYS reachable without a gateway
         for (peer, _) in self.peer.iter() {
             trace!(target: "routing", "Include to routes: {}", peer);
-            new_routes.insert(*peer, None);
+            let ri = RouteInfo { to: *peer, hop_cnt: 0, gateway: None };
+            new_routes.insert(*peer, ri);
         }
         for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
             if peer_route_db.nr_entries == peer_route_db.route_for.len() {
@@ -326,7 +328,8 @@ impl NetworkManager {
                         ip: *wg_ip,
                         hop_cnt,
                     };
-                    new_routes.insert(ri.to, Some(gateway));
+                    let ri_new = RouteInfo { to: ri.to, hop_cnt, gateway: Some(gateway) };
+                    new_routes.insert(ri.to, ri_new);
                 }
             } else {
                 warn!(target: "routing", "incomplete database from {} => ignore", wg_ip);
@@ -352,21 +355,21 @@ impl NetworkManager {
             }
         }
         // finally routes to be updated / added
-        for (to, gateway) in new_routes.into_iter() {
-            let ng = gateway.clone().map(|mut gw| {
+        for (to, ri) in new_routes.into_iter() {
+            let ng = ri.gateway.clone().map(|mut gw| {
                 gw.hop_cnt += 1;
                 gw
             });
-            trace!(target: "routing", "process route {} via {:?}", to, gateway);
+            trace!(target: "routing", "process route {} via {:?}", to, ri.gateway);
             match self.route_db.route_for.entry(to) {
                 Entry::Vacant(e) => {
                     // new route
-                    trace!(target: "routing", "is new route {} via {:?}", to, gateway);
+                    trace!(target: "routing", "is new route {} via {:?}", to, ri.gateway);
                     self.pending_route_changes.push(RouteChange::AddRoute {
                         to,
-                        gateway: gateway.as_ref().map(|gw| gw.ip),
+                        gateway: ri.gateway.as_ref().map(|gw| gw.ip),
                     });
-                    let ri = RouteInfo { to, gateway };
+                    let ri = RouteInfo { to, hop_cnt: ri.gateway.as_ref().map(|gw| gw.hop_cnt).unwrap_or(0),  gateway: ri.gateway };
                     e.insert(ri);
                 }
                 Entry::Occupied(mut e) => {
@@ -390,7 +393,7 @@ impl NetworkManager {
                             to,
                             gateway: ng.as_ref().map(|gw| gw.ip),
                         });
-                        *current = RouteInfo { to, gateway: ng };
+                        *current = RouteInfo { to, hop_cnt: new_hop_cnt, gateway: ng };
                     }
                 }
             }

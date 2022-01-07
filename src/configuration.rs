@@ -152,7 +152,7 @@ impl StaticConfiguration {
         lines.push(format!("ListenPort = {}", port));
         lines.push("".to_string());
 
-        for peer in manager.peer.values() {
+        for peer in manager.peer_iter() {
             lines.push("[Peer]".to_string());
             lines.push(format!("PublicKey = {}", &peer.public_key.key));
             lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));

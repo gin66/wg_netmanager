@@ -102,9 +102,9 @@ pub struct NetworkManager {
 
     pending_route_changes: Vec<RouteChange>,
 
-    pub peer: HashMap<Ipv4Addr, DynamicPeer>,
-    pub fifo_dead: Vec<Ipv4Addr>,
-    pub fifo_ping: Vec<Ipv4Addr>,
+    peer: HashMap<Ipv4Addr, DynamicPeer>,
+    fifo_dead: Vec<Ipv4Addr>,
+    fifo_ping: Vec<Ipv4Addr>,
 }
 
 impl NetworkManager {
@@ -140,6 +140,16 @@ impl NetworkManager {
     }
     pub fn db_version(&self) -> usize {
         self.route_db.version
+    }
+    pub fn stats(&self) {
+        trace!(
+            "Manager: {} peers, {} in network",
+            self.peer.len(),
+            self.route_db.route_for.len()
+        );
+    }
+    pub fn peer_iter(&self) -> std::collections::hash_map::Values<Ipv4Addr, DynamicPeer> {
+        self.peer.values()
     }
     pub fn analyze_advertisement(
         &mut self,

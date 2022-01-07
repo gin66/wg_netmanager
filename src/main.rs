@@ -332,7 +332,7 @@ fn main_loop(
 
     let mut tick_cnt = 0;
     loop {
-        trace!("Main loop: {} peers", network_manager.peer.len());
+        trace!("Main loop");
         let evt = rx.recv();
         trace!("{:?}", evt);
         match evt {
@@ -356,7 +356,7 @@ fn main_loop(
                 }
                 if tick_cnt % 30 == 2 {
                     // every 30s
-                    info!("Main loop: {} peers", network_manager.peer.len());
+                    network_manager.stats();
                 }
                 if tick_cnt % 60 == 3 {
                     // every 60s

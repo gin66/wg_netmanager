@@ -51,21 +51,10 @@ pub enum RouteChange {
 //}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct Gateway {
-    hop_cnt: usize,
-    ip: Ipv4Addr,
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RouteInfo {
     to: Ipv4Addr,
     hop_cnt: usize,
-    gateway: Option<Gateway>,
-}
-impl RouteInfo {
-    pub fn gw_ip(&self) -> Option<Ipv4Addr> {
-        self.gateway.as_ref().map(|gw| gw.ip)
-    }
+    gateway: Option<Ipv4Addr>,
 }
 
 #[derive(Default)]
@@ -306,29 +295,25 @@ impl NetworkManager {
                     }
                     let mut hop_cnt = 1;
                     if let Some(gateway) = ri.gateway.as_ref() {
-                        hop_cnt = gateway.hop_cnt + 1;
+                        hop_cnt = ri.hop_cnt + 1;
 
                         // Ignore routes to myself as gateway
-                        if gateway.ip == self.wg_ip {
+                        if *gateway == self.wg_ip {
                             trace!(target: "routing", "Route to myself as gateway => ignore");
                             continue;
                         }
-                        if self.peer.contains_key(&gateway.ip) {
+                        if self.peer.contains_key(gateway) {
                             trace!(target: "routing", "Route using any of my peers as gateway => ignore");
                             continue;
                         }
-                        if self.peer_route_db.contains_key(&gateway.ip) {
+                        if self.peer_route_db.contains_key(gateway) {
                             error!(target: "routing", "Route using any of my peers as gateway => ignore (should not come here)");
                             continue;
                         }
                     }
                     // to-host can be reached via wg_ip
                     trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
-                    let gateway = Gateway {
-                        ip: *wg_ip,
-                        hop_cnt,
-                    };
-                    let ri_new = RouteInfo { to: ri.to, hop_cnt, gateway: Some(gateway) };
+                    let ri_new = RouteInfo { to: ri.to, hop_cnt, gateway: Some(*wg_ip) };
                     new_routes.insert(ri.to, ri_new);
                 }
             } else {
@@ -348,7 +333,7 @@ impl NetworkManager {
                 trace!(target: "routing", "add route {:?}", ri);
                 self.pending_route_changes.push(RouteChange::DelRoute {
                     to: ri.to,
-                    gateway: ri.gw_ip(),
+                    gateway: ri.gateway,
                 });
             } else {
                 trace!(target: "routing", "unchanged route {:?}", ri);
@@ -356,10 +341,6 @@ impl NetworkManager {
         }
         // finally routes to be updated / added
         for (to, ri) in new_routes.into_iter() {
-            let ng = ri.gateway.clone().map(|mut gw| {
-                gw.hop_cnt += 1;
-                gw
-            });
             trace!(target: "routing", "process route {} via {:?}", to, ri.gateway);
             match self.route_db.route_for.entry(to) {
                 Entry::Vacant(e) => {
@@ -367,33 +348,31 @@ impl NetworkManager {
                     trace!(target: "routing", "is new route {} via {:?}", to, ri.gateway);
                     self.pending_route_changes.push(RouteChange::AddRoute {
                         to,
-                        gateway: ri.gateway.as_ref().map(|gw| gw.ip),
+                        gateway: ri.gateway,
                     });
-                    let ri = RouteInfo { to, hop_cnt: ri.gateway.as_ref().map(|gw| gw.hop_cnt).unwrap_or(0),  gateway: ri.gateway };
+                    let ri = RouteInfo { to, hop_cnt: ri.hop_cnt+1,  gateway: ri.gateway };
                     e.insert(ri);
                 }
                 Entry::Occupied(mut e) => {
                     // update route
                     trace!(target: "routing", "is existing route {}", to);
                     let current = e.get_mut();
-                    let current_hop_cnt = current.gateway.as_ref().map(|e| e.hop_cnt).unwrap_or(0);
-                    let new_hop_cnt = ng.as_ref().map(|e| e.hop_cnt).unwrap_or(0);
-                    if current_hop_cnt > new_hop_cnt {
+                    if current.hop_cnt > ri.hop_cnt {
                         // new route is better
                         //
                         // so first delete the old route
                         //
                         self.pending_route_changes.push(RouteChange::DelRoute {
                             to: current.to,
-                            gateway: current.gw_ip(),
+                            gateway: current.gateway,
                         });
 
                         // then add the new route
                         self.pending_route_changes.push(RouteChange::AddRoute {
                             to,
-                            gateway: ng.as_ref().map(|gw| gw.ip),
+                            gateway: ri.gateway,
                         });
-                        *current = RouteInfo { to, hop_cnt: new_hop_cnt, gateway: ng };
+                        *current = RouteInfo { to, hop_cnt: ri.hop_cnt, gateway: ri.gateway };
                     }
                 }
             }
@@ -408,10 +387,8 @@ impl NetworkManager {
         let mut ips = vec![];
 
         for ri in self.route_db.route_for.values() {
-            if let Some(gateway) = ri.gateway.as_ref() {
-                if gateway.ip == peer {
-                    ips.push(ri.to);
-                }
+            if ri.gateway == Some(peer) {
+                ips.push(ri.to);
             }
         }
 

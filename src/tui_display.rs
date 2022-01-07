@@ -46,6 +46,7 @@ pub enum TuiAppEvent {
     HideKey,
     FocusKey,
     TabKey,
+    BackTabKey,
 }
 
 impl TuiApp {
@@ -119,6 +120,12 @@ impl TuiApp {
                         KeyCode::Char('f') => {
                             tx.send(TuiApp(FocusKey)).unwrap();
                         }
+                        KeyCode::Tab => {
+                            tx.send(TuiApp(TabKey)).unwrap();
+                        }
+                        KeyCode::BackTab => {
+                            tx.send(TuiApp(BackTabKey)).unwrap();
+                        }
                         _ => {}
                     }
                 }
@@ -128,7 +135,7 @@ impl TuiApp {
         Ok(TuiApp {
             terminal: Some(terminal),
             states: vec![],
-            tabs: vec!["1","2","3","4","5","6","7","8","9"].into_iter().map(|t| t.into()).collect(),
+            tabs: vec!["1","2","3","4"].into_iter().map(|t| t.into()).collect(),
             selected_tab: 0,
         })
     }
@@ -164,6 +171,10 @@ impl TuiApp {
                 self.selected_tab = (self.selected_tab+1) % self.tabs.len();
                 None
             },
+            BackTabKey => {
+                self.selected_tab = (self.selected_tab+self.tabs.len()-1) % self.tabs.len();
+                None
+            },
         };
         if let Some(widget_evt) = widget_evt {
             self.states[self.selected_tab].transition(&widget_evt);
@@ -188,7 +199,7 @@ fn draw_frame<B: Backend>(t: &mut Frame<B>, size: Rect, app: &mut TuiApp) {
         .collect();
     let sel = app.selected_tab;
 
-    if app.states.len() <= sel {
+    while app.states.len() <= sel {
         app.states.push(TuiWidgetState::new().set_default_display_level(LevelFilter::Info));
     }
 

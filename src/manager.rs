@@ -24,7 +24,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use log::*;
 use serde::{Deserialize, Serialize};
@@ -83,7 +83,6 @@ pub struct PeerRouteDB {
 #[derive(Debug)]
 pub struct DynamicPeer {
     pub public_key: PublicKeyWithTime,
-    pub local_ip_list: Vec<IpAddr>,
     pub local_wg_port: u16,
     pub local_admin_port: u16,
     pub wg_ip: Ipv4Addr,
@@ -165,7 +164,6 @@ impl NetworkManager {
         let lastseen = crate::util::now();
         let dp = DynamicPeer {
             wg_ip: advertisement.wg_ip,
-            local_ip_list: advertisement.local_ip_list.clone(),
             local_admin_port: advertisement.local_admin_port,
             local_wg_port: advertisement.local_wg_port,
             public_key: advertisement.public_key.clone(),

@@ -31,6 +31,8 @@ mod tests {
                 RouteDatabase(req) => {
                     println!("{} {:?}", req.sender, req.known_routes);
                 }
+                LocalContactRequest => {}
+                LocalContact(_) => {}
             }
         }
 

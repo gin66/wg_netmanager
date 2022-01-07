@@ -15,7 +15,6 @@ use crate::manager::*;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AdvertisementPacket {
     pub public_key: PublicKeyWithTime,
-    pub local_ip_list: Vec<IpAddr>,
     pub local_wg_port: u16,
     pub local_admin_port: u16,
     pub wg_ip: Ipv4Addr,
@@ -30,11 +29,22 @@ pub struct RouteDatabasePacket {
     pub nr_entries: usize,
     pub known_routes: Vec<RouteInfo>,
 }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LocalContactPacket {
+    pub public_key: PublicKeyWithTime,
+    pub local_ip_list: Vec<IpAddr>,
+    pub local_wg_port: u16,
+    pub local_admin_port: u16,
+    pub wg_ip: Ipv4Addr,
+    pub name: String,
+}
 #[derive(Serialize, Deserialize)]
 pub enum UdpPacket {
     Advertisement(AdvertisementPacket),
     RouteDatabaseRequest,
     RouteDatabase(RouteDatabasePacket),
+    LocalContactRequest,
+    LocalContact(LocalContactPacket),
 }
 impl UdpPacket {
     pub fn advertisement_from_config(
@@ -49,7 +59,6 @@ impl UdpPacket {
         };
         UdpPacket::Advertisement(AdvertisementPacket {
             public_key: static_config.my_public_key.clone(),
-            local_ip_list: static_config.ip_list.clone(),
             local_wg_port: static_config.wg_port,
             local_admin_port: static_config.admin_port,
             wg_ip: static_config.wg_ip,
@@ -74,6 +83,21 @@ impl UdpPacket {
             known_routes: known_routes.into_iter().cloned().collect(),
         })
     }
+    pub fn local_contact_request() -> Self {
+        UdpPacket::LocalContactRequest {}
+    }
+    pub fn local_contact_from_config(
+        static_config: &StaticConfiguration,
+    ) -> Self {
+        UdpPacket::LocalContact(LocalContactPacket {
+            public_key: static_config.my_public_key.clone(),
+            local_ip_list: static_config.ip_list.clone(),
+            local_wg_port: static_config.wg_port,
+            local_admin_port: static_config.admin_port,
+            wg_ip: static_config.wg_ip,
+            name: static_config.name.clone(),
+        })
+    }
 }
 impl fmt::Debug for UdpPacket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -81,6 +105,8 @@ impl fmt::Debug for UdpPacket {
             UdpPacket::Advertisement(ad) => ad.fmt(f),
             UdpPacket::RouteDatabaseRequest => f.debug_struct("RouteDatabaseRequest").finish(),
             UdpPacket::RouteDatabase(_) => f.debug_struct("RouteDatabase").finish(),
+            UdpPacket::LocalContactRequest => f.debug_struct("LocalContactRequest").finish(),
+            UdpPacket::LocalContact(_) => f.debug_struct("LocalContact").finish(),
         }
     }
 }

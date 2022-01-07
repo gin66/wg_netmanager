@@ -410,6 +410,19 @@ fn main_loop(
                         info!(target: "routing", "RouteDatabase from {}", src_addr);
                         events = network_manager.process_route_database(req);
                     }
+                    LocalContactRequest => match src_addr {
+                        SocketAddr::V4(destination) => {
+                            info!(target: "routing", "LocalContactRequest from {:?}", src_addr);
+                            events = vec![Event::SendLocalContact { to: destination }];
+                        }
+                        SocketAddr::V6(..) => {
+                            error!(target: "routing", "Expected IPV4 and not IPV6 address");
+                            events = vec![];
+                        }
+                    },
+                    LocalContact(_) => {
+                            events = vec![];
+                    }
                 }
                 for evt in events {
                     tx.send(evt).unwrap();
@@ -436,6 +449,13 @@ fn main_loop(
                     info!(target: "routing", "Send RouteDatabase to {}", destination);
                     crypt_socket.send_to(&buf, destination).ok();
                 }
+            }
+            Ok(Event::SendLocalContact { to: destination }) => {
+                let local_contact =
+                    UdpPacket::local_contact_from_config(static_config);
+                let buf = serde_json::to_vec(&local_contact).unwrap();
+                info!(target: "advertisement", "Send local contact to {}", destination);
+                crypt_socket.send_to(&buf, destination).ok();
             }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
                 network_manager.output();

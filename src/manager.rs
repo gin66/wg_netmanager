@@ -276,7 +276,12 @@ impl NetworkManager {
         // Dynamic peers are ALWAYS reachable without a gateway
         for dp in self.peer.values() {
             trace!(target: "routing", "Include to routes: {}", dp.wg_ip);
-            let ri = RouteInfo { to: dp.wg_ip, admin_port: dp.admin_port, hop_cnt: 0, gateway: None };
+            let ri = RouteInfo {
+                to: dp.wg_ip,
+                admin_port: dp.admin_port,
+                hop_cnt: 0,
+                gateway: None,
+            };
             new_routes.insert(dp.wg_ip, ri);
         }
         for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
@@ -314,7 +319,12 @@ impl NetworkManager {
                     }
                     // to-host can be reached via wg_ip
                     trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
-                    let ri_new = RouteInfo { to: ri.to, admin_port: ri.admin_port, hop_cnt, gateway: Some(*wg_ip) };
+                    let ri_new = RouteInfo {
+                        to: ri.to,
+                        admin_port: ri.admin_port,
+                        hop_cnt,
+                        gateway: Some(*wg_ip),
+                    };
                     new_routes.insert(ri.to, ri_new);
                 }
             } else {
@@ -351,7 +361,12 @@ impl NetworkManager {
                         to,
                         gateway: ri.gateway,
                     });
-                    let ri = RouteInfo { to, admin_port: ri.admin_port, hop_cnt: ri.hop_cnt+1,  gateway: ri.gateway };
+                    let ri = RouteInfo {
+                        to,
+                        admin_port: ri.admin_port,
+                        hop_cnt: ri.hop_cnt + 1,
+                        gateway: ri.gateway,
+                    };
                     e.insert(ri);
                 }
                 Entry::Occupied(mut e) => {
@@ -373,7 +388,12 @@ impl NetworkManager {
                             to,
                             gateway: ri.gateway,
                         });
-                        *current = RouteInfo { to, admin_port: ri.admin_port, hop_cnt: ri.hop_cnt, gateway: ri.gateway };
+                        *current = RouteInfo {
+                            to,
+                            admin_port: ri.admin_port,
+                            hop_cnt: ri.hop_cnt,
+                            gateway: ri.gateway,
+                        };
                     }
                 }
             }

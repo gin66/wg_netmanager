@@ -192,10 +192,6 @@ fn draw_frame<B: Backend>(t: &mut Frame<B>, size: Rect, app: &mut TuiApp) {
         app.states.push(TuiWidgetState::new().set_default_display_level(LevelFilter::Info));
     }
 
-    let block = Block::default().borders(Borders::ALL);
-    let inner_area = block.inner(size);
-    t.render_widget(block, size);
-
     let mut constraints = vec![
         Constraint::Length(3),
         Constraint::Percentage(50),
@@ -207,7 +203,7 @@ fn draw_frame<B: Backend>(t: &mut Frame<B>, size: Rect, app: &mut TuiApp) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
-        .split(inner_area);
+        .split(size);
 
     let tabs = Tabs::new(tabs)
         .block(Block::default().borders(Borders::ALL))

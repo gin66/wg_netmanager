@@ -9,16 +9,15 @@ Todos:
 * find a solution for sudo
 * Retrieve endpoint from clients out of wg parsed output
 * rename publicIp to e.g. visibleHost or reachableHost
-* more endpoints per peer
 * try local endpoints
 * add dns
-* tui: remove outter frame
 * restarting wg_manager on one machine will not cause other machines to replace new public key
 * provide a REST interface, so by ssh'ing in any machine it is possibly to retrieve a ascii qrcode and use this as log in for pure wireguard client
 * allow the possibility to read config from stdin.
   This would allow to ssh in a machine and start wg_manager without storing the shared key on the filesystem
 
 DONE:
+* tui: remove outter frame
 * lastseen is a weird timestamp. looks like uptime
 * add option to use an existing wireguard interface
 * put udp comm port/socketaddr info into advertisement
@@ -36,6 +35,7 @@ DONE:
 
 NO PRIORITY:
 * eliminate the need to specify two listen ports (one could be sufficient with appropriate scheme)
+* more endpoints per peer
 
 OBSOLETE:
 * udp: validate sender to be a valid one

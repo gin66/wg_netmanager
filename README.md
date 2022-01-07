@@ -47,6 +47,43 @@ CHARLIE'S BOX> wg_netmanager -c net.yaml wg0 10.1.1.21 charlie
 ```
 with alice being reachable on 192.168.1.70
 
+# Status
+
+OS-Support
+- [X] Linux
+- [ ] MacOS
+- [ ] Windows
+- [ ] iOS/iPadOS
+- [ ] Android
+- [ ] FreeBSD
+- [ ] OpenBSD
+
+Wireguard-Interface
+- [X] Kernel-driver + Command ip/wg
+- [X] wiregard-go + Command ip/wg
+- [X] boringtun + Command ip/wg
+- [ ] boringtun (embedded) + ip
+
+Network
+- [X] Connection established between two static servers (fixed address)
+- [X] Connection established between dynamic node and static server
+- [X] Connection established between two dynamic nodes in same subnet
+- [ ] Connection established between two dynamic nodes using their visible outside connections
+
+Routing
+- [X] Sets up routes to reach all network participants
+- [ ] Gateway feature of nodes
+
+System integration
+- [ ] systemd
+- [X] rc-based system
+
+Admin
+- [X] TUI interface
+- [ ] REST API
+- [ ] Web UI frontend
+
+
 # Testing
 
 Using namespaces several boxes can be simulated on one linux machine.

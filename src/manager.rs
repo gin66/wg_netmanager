@@ -149,12 +149,12 @@ impl NetworkManager {
         let endpoint = match src_addr.ip() {
             IpAddr::V4(ip) => {
                 if ip == advertisement.wg_ip {
-                    Some(src_addr)
-                } else {
                     advertisement.endpoint
+                } else {
+                    Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port))
                 }
             }
-            IpAddr::V6(_) => Some(src_addr),
+            IpAddr::V6(_) => Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port)),
         };
 
         let dp = DynamicPeer {

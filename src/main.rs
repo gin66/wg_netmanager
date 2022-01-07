@@ -42,7 +42,7 @@ fn main() -> BoxResult<()> {
                 .short("w")
                 .long("wireguard-port")
                 .value_name("PORT")
-                .default_value("55555")
+                .default_value("50001")
                 .help("Wireguard udp port aka Listen port, if not defined in config file")
                 .takes_value(true),
         )
@@ -51,7 +51,7 @@ fn main() -> BoxResult<()> {
                 .short("u")
                 .long("admin-port")
                 .value_name("PORT")
-                .default_value("50000")
+                .default_value("55551")
                 .help("udp port for encrypted communication, if not defined in config file")
                 .takes_value(true),
         )

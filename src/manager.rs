@@ -146,7 +146,7 @@ impl NetworkManager {
         self.fifo_ping.push(advertisement.wg_ip);
         let lastseen = crate::util::now();
 
-        let endpoint = match src_addr.ip() {
+        let endpoint = advertisement.endpoint.or_else(|| match src_addr.ip() {
             IpAddr::V4(ip) => {
                 if ip == advertisement.wg_ip {
                     advertisement.endpoint
@@ -155,7 +155,7 @@ impl NetworkManager {
                 }
             }
             IpAddr::V6(_) => Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port)),
-        };
+        });
 
         let dp = DynamicPeer {
             wg_ip: advertisement.wg_ip,

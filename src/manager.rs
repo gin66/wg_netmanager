@@ -172,6 +172,9 @@ impl NetworkManager {
             {
                 info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
                 events.push(Event::PeerListChange);
+
+                // As this peer is new, send an advertisement
+                events.push(Event::SendAdvertisement { to: src_addr });
             } else {
                 info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
             }

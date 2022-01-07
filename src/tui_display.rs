@@ -4,7 +4,8 @@ use std::thread;
 
 use log::*;
 
-use crossterm::event::{read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode};
+use crossterm::event::{read, Event, KeyCode};
+//use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use crossterm::execute;
 use crossterm::terminal::disable_raw_mode;
 use crossterm::terminal::enable_raw_mode;
@@ -61,7 +62,11 @@ impl TuiApp {
     pub fn init(tx: mpsc::Sender<event::Event>) -> BoxResult<Self> {
         enable_raw_mode()?;
         let mut stdout = io::stdout();
-        execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
+        execute!(
+            stdout,
+            EnterAlternateScreen,
+            //EnableMouseCapture
+        )?;
         let backend = CrosstermBackend::new(stdout);
         let mut terminal = Terminal::new(backend)?;
 
@@ -137,7 +142,7 @@ impl TuiApp {
             execute!(
                 terminal.backend_mut(),
                 LeaveAlternateScreen,
-                DisableMouseCapture
+                //DisableMouseCapture
             )?;
             terminal.show_cursor()?;
         }

@@ -393,28 +393,28 @@ fn main_loop(
                 let request = UdpPacket::route_database_request();
                 let buf = serde_json::to_vec(&request).unwrap();
                 info!(target: "routing", "Send RouteDatabaseRequest to {}", destination);
-                crypt_socket.send_to(&buf, destination).ok();
+                crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendRouteDatabase { to: destination }) => {
                 let packages = network_manager.provide_route_database();
                 for p in packages {
                     let buf = serde_json::to_vec(&p).unwrap();
                     info!(target: "routing", "Send RouteDatabase to {}", destination);
-                    crypt_socket.send_to(&buf, destination).ok();
+                    crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
                 }
             }
             Ok(Event::SendLocalContactRequest { to: destination }) => {
                 let request = UdpPacket::local_contact_request();
                 let buf = serde_json::to_vec(&request).unwrap();
                 info!(target: "probing", "Send LocalContactRequest to {}", destination);
-                crypt_socket.send_to(&buf, destination).ok();
+                crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendLocalContact { to: destination }) => {
                 let local_contact = UdpPacket::local_contact_from_config(static_config);
                 trace!(target: "probing", "local contact to {:#?}", local_contact);
                 let buf = serde_json::to_vec(&local_contact).unwrap();
                 info!(target: "probing", "Send local contact to {}", destination);
-                crypt_socket.send_to(&buf, destination).ok();
+                crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
                 network_manager.output();

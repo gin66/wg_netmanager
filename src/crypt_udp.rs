@@ -1,6 +1,6 @@
 use std::fmt;
 use std::net::{IpAddr, Ipv4Addr};
-use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
+use std::net::{SocketAddr, UdpSocket};
 
 use chacha20poly1305::aead::{Aead, NewAead};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
@@ -147,7 +147,7 @@ impl CryptUdp {
             key: self.key,
         })
     }
-    pub fn send_to<T: ToSocketAddrs>(&self, payload: &[u8], addr: T) -> BoxResult<usize> {
+    pub fn send_to(&self, payload: &[u8], addr: SocketAddr) -> BoxResult<usize> {
         if let Some(raw_key) = self.key.as_ref() {
             let p = payload.len();
             let padded = ((p + 2 + 7) / 8) * 8; // +2 for 2 Byte length
@@ -174,6 +174,7 @@ impl CryptUdp {
                 .encrypt(nonce, &buf[..])
                 .map_err(|e| format!("{:?}", e))?;
             encrypted.append(&mut nonce_raw.to_vec());
+            debug!(target: "udp", "send {} Bytes to {:?}", encrypted.len(), addr);
             Ok(self.socket.send_to(&encrypted, addr)?)
         } else {
             strerror("No encryption key")?
@@ -183,6 +184,7 @@ impl CryptUdp {
         if let Some(raw_key) = self.key.as_ref() {
             let mut enc_buf: Vec<u8> = vec![0; 1500];
             let (length, src_addr) = self.socket.recv_from(&mut enc_buf)?;
+            debug!(target: "udp", "received {} Bytes from {}", length, src_addr);
 
             if length <= 24 {
                 error!(target:"udp", "received buffer too short");
@@ -196,7 +198,7 @@ impl CryptUdp {
             let cipher = XChaCha20Poly1305::new(key);
             let decrypted = cipher
                 .decrypt(nonce, &enc_buf[..new_length])
-                .map_err(|e| format!("{:?}", e))?;
+                .map_err(|e| format!("Decryption error {:?}", e))?;
 
             if decrypted.len() % 8 != 0 {
                 error!(target:"udp","decrypted buffer is not octet-aligned");

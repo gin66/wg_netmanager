@@ -94,8 +94,6 @@ pub struct DynamicPeer {
 
 pub struct NetworkManager {
     wg_ip: Ipv4Addr,
-    //all_nodes: HashMap<Ipv4Addr, NodeInfo>,
-    peers: HashSet<Ipv4Addr>,
     route_db: RouteDB,
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
 
@@ -111,7 +109,6 @@ impl NetworkManager {
         NetworkManager {
             wg_ip,
             //all_nodes: HashMap::new(),
-            peers: HashSet::new(),
             route_db: RouteDB::default(),
             peer_route_db: HashMap::new(),
             pending_route_changes: vec![],
@@ -123,7 +120,6 @@ impl NetworkManager {
 
     pub fn remove_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
         self.peer.remove(peer_ip);
-        self.peers.remove(peer_ip);
         self.recalculate_routes();
     }
 
@@ -191,7 +187,6 @@ impl NetworkManager {
             // wireguard tunnel, because that tunnel is not yet set up.
             events.push(Event::SendAdvertisement { to: src_addr });
 
-            self.peers.insert(advertisement.wg_ip);
             self.recalculate_routes();
             events.push(Event::UpdateRoutes);
         }
@@ -288,7 +283,7 @@ impl NetworkManager {
         let mut new_routes: HashMap<Ipv4Addr, Option<Gateway>> = HashMap::new();
 
         // Dynamic peers are ALWAYS reachable without a gateway
-        for peer in self.peers.iter() {
+        for (peer, _) in self.peer.iter() {
             trace!(target: "routing", "Include to routes: {}", peer);
             new_routes.insert(*peer, None);
         }
@@ -303,7 +298,7 @@ impl NetworkManager {
                         continue;
                     }
                     // Ignore routes to my dynamic peers
-                    if self.peers.contains(&ri.to) {
+                    if self.peer.contains_key(&ri.to) {
                         trace!(target: "routing", "Route to any of my peers => ignore");
                         continue;
                     }
@@ -316,7 +311,7 @@ impl NetworkManager {
                             trace!(target: "routing", "Route to myself as gateway => ignore");
                             continue;
                         }
-                        if self.peers.contains(&gateway.ip) {
+                        if self.peer.contains_key(&gateway.ip) {
                             trace!(target: "routing", "Route using any of my peers as gateway => ignore");
                             continue;
                         }

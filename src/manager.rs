@@ -149,9 +149,9 @@ impl NetworkManager {
         let endpoint = match src_addr.ip() {
             IpAddr::V4(ip) => {
                 if ip == advertisement.wg_ip {
-                    advertisement.endpoint
-                } else {
                     Some(src_addr)
+                } else {
+                    advertisement.endpoint
                 }
             }
             IpAddr::V6(_) => Some(src_addr),

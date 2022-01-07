@@ -24,7 +24,7 @@
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use log::*;
 use serde::{Deserialize, Serialize};
@@ -145,13 +145,25 @@ impl NetworkManager {
         self.fifo_dead.push(advertisement.wg_ip);
         self.fifo_ping.push(advertisement.wg_ip);
         let lastseen = crate::util::now();
+
+        let endpoint = match src_addr.ip() {
+            IpAddr::V4(ip) => {
+                if ip == advertisement.wg_ip {
+                    advertisement.endpoint
+                } else {
+                    Some(src_addr)
+                }
+            }
+            IpAddr::V6(_) => Some(src_addr),
+        };
+
         let dp = DynamicPeer {
             wg_ip: advertisement.wg_ip,
             local_admin_port: advertisement.local_admin_port,
             local_wg_port: advertisement.local_wg_port,
             public_key: advertisement.public_key.clone(),
             name: advertisement.name.to_string(),
-            endpoint: advertisement.endpoint,
+            endpoint,
             admin_port: src_addr.port(),
             lastseen,
         };
@@ -198,7 +210,7 @@ impl NetworkManager {
         }
 
         while let Some(sa) = self.new_nodes.pop() {
-            events.push(Event::SendLocalContactRequest{ to: sa });
+            events.push(Event::SendLocalContactRequest { to: sa });
         }
 
         events
@@ -270,6 +282,19 @@ impl NetworkManager {
             events.push(Event::UpdateRoutes);
         }
         events
+    }
+    pub fn process_local_contact(&self, local: LocalContactPacket) -> Vec<Event> {
+        local
+            .local_ip_list
+            .iter()
+            .filter(|ip| match *ip {
+                IpAddr::V4(ipv4) => *ipv4 != local.wg_ip,
+                IpAddr::V6(_) => true,
+            })
+            .map(|ip| Event::SendAdvertisement {
+                to: SocketAddr::new(*ip, local.local_admin_port),
+            })
+            .collect()
     }
     fn recalculate_routes(&mut self) {
         trace!(target: "routing", "Recalculate routes");
@@ -430,7 +455,7 @@ impl NetworkManager {
     }
     pub fn output(&self) {
         for peer in self.peer.values() {
-            info!("{:?}", peer);
+            debug!(target: "active_peers", "{:?}", peer);
         }
     }
     pub fn check_timeouts(&mut self, limit: u64) -> HashSet<Ipv4Addr> {

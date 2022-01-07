@@ -185,6 +185,7 @@ impl CryptUdp {
             let (length, src_addr) = self.socket.recv_from(&mut enc_buf)?;
 
             if length <= 24 {
+                error!(target:"udp", "received buffer too short");
                 strerror("received buffer too short")?;
             }
             let new_length = length - 24;
@@ -198,9 +199,11 @@ impl CryptUdp {
                 .map_err(|e| format!("{:?}", e))?;
 
             if decrypted.len() % 8 != 0 {
+                error!(target:"udp","decrypted buffer is not octet-aligned");
                 strerror("decrypted buffer is not octet-aligned")?;
             }
             if decrypted.len() < 24 {
+                error!(target:"udp","decrypted buffer is too short");
                 strerror("decrypted buffer is too short")?;
             }
 
@@ -216,6 +219,7 @@ impl CryptUdp {
             let crc_received = u64::from_le_bytes(crc_buf);
 
             if crc_received != crc_result {
+                error!(target:"udp","CRC mismatch");
                 strerror("CRC mismatch")?;
             }
 
@@ -231,6 +235,7 @@ impl CryptUdp {
             };
             debug!("UDP TIMESTAMP {}", dt);
             if dt > 10 {
+                error!(target:"udp","time mismatch");
                 strerror("time mismatch")?;
             }
 
@@ -242,6 +247,7 @@ impl CryptUdp {
 
             Ok((p, src_addr))
         } else {
+            error!(target:"udp","No encryption key");
             strerror("No encryption key")?
         }
     }

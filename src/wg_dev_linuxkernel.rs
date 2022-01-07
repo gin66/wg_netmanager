@@ -42,7 +42,7 @@ impl WireguardDeviceLinux {
 
         let _result = cmd_tee.wait().unwrap();
 
-        debug!("temp file {}", fname);
+        trace!(target: "wireguard", "temp file {}", fname);
         let mut cmd = Command::new("sudo")
             .arg("wg")
             .arg(wg_cmd)
@@ -51,7 +51,7 @@ impl WireguardDeviceLinux {
             .spawn()
             .unwrap();
         let result = cmd.wait().unwrap();
-        debug!("wg {}: {:?}", wg_cmd, result);
+        debug!(target: "wireguard", "wg {}: {:?}", wg_cmd, result);
 
         let _output = Command::new("sudo")
             .arg("rm")

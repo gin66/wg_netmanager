@@ -364,17 +364,17 @@ fn main_loop(
                     }
                     LocalContactRequest => match src_addr {
                         SocketAddr::V4(destination) => {
-                            info!(target: "routing", "LocalContactRequest from {:?}", src_addr);
+                            info!(target: "probing", "LocalContactRequest from {:?}", src_addr);
                             events = vec![Event::SendLocalContact { to: destination }];
                         }
                         SocketAddr::V6(..) => {
-                            error!(target: "routing", "Expected IPV4 and not IPV6 address");
+                            error!(target: "probing", "Expected IPV4 and not IPV6 address");
                             events = vec![];
                         }
                     },
                     LocalContact(contact) => {
                         debug!(target: "probing", "Received contact info: {:#?}", contact);
-                        events = vec![];
+                        events = network_manager.process_local_contact(contact);
                     }
                 }
                 for evt in events {
@@ -434,7 +434,7 @@ fn main_loop(
             Ok(Event::PeerListChange) => {
                 info!("Update peers");
                 let conf = static_config.as_conf_as_peer(&network_manager);
-                info!("Configuration as peer\n{}\n", conf);
+                info!(target: "wireguard", "Configuration as peer\n{}\n", conf);
                 wg_dev.sync_conf(&conf)?;
             }
             Ok(Event::UpdateRoutes) => {

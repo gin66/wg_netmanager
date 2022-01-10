@@ -6,7 +6,7 @@ use crate::tui_display::TuiAppEvent;
 #[derive(Debug)]
 pub enum Event {
     Udp(UdpPacket, SocketAddr),
-    PeerListChange,
+    UpdateWireguardConfiguration,
     CtrlC,
     SendAdvertisement { to: SocketAddr },
     SendAdvertisementToPublicPeers,

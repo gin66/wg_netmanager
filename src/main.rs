@@ -279,7 +279,7 @@ fn main_loop(
     let mut network_manager = NetworkManager::new(static_config.wg_ip);
 
     // set up initial wireguard configuration without peers
-    tx.send(Event::PeerListChange).unwrap();
+    tx.send(Event::UpdateWireguardConfiguration).unwrap();
     tx.send(Event::SendAdvertisementToPublicPeers).unwrap();
 
     let mut tick_cnt = 0;
@@ -427,15 +427,19 @@ fn main_loop(
                         debug!(target: "dead_peer", "Found dead peer {}", wg_ip);
                         network_manager.remove_dynamic_peer(&wg_ip);
                     }
-                    tx.send(Event::PeerListChange).unwrap();
+                    tx.send(Event::UpdateWireguardConfiguration).unwrap();
                     tx.send(Event::UpdateRoutes).unwrap();
                 }
             }
-            Ok(Event::PeerListChange) => {
+            Ok(Event::UpdateWireguardConfiguration) => {
                 info!("Update peers");
                 let conf = static_config.as_conf_as_peer(&network_manager);
                 info!(target: "wireguard", "Configuration as peer\n{}\n", conf);
                 wg_dev.sync_conf(&conf)?;
+            }
+            Ok(Event::ReadWireguardConfiguration) => {
+                let pubkey_to_endpoint = wg_dev.retrieve_conf()?;
+                network_manager.current_wireguard_configuration(pubkey_to_endpoint);
             }
             Ok(Event::UpdateRoutes) => {
                 let changes = network_manager.get_route_changes();
@@ -463,15 +467,11 @@ fn main_loop(
                         }
                     }
                 }
-                tx.send(Event::PeerListChange).unwrap();
+                tx.send(Event::UpdateWireguardConfiguration).unwrap();
             }
             Ok(Event::TuiApp(evt)) => {
                 tui_app.process_event(evt);
                 tui_app.draw()?;
-            }
-            Ok(Event::ReadWireguardConfiguration) => {
-                let pubkey_to_endpoint = wg_dev.retrieve_conf()?;
-                network_manager.current_wireguard_configuration(pubkey_to_endpoint);
             }
         }
     }

@@ -1,5 +1,5 @@
-use std::net::{SocketAddr, Ipv4Addr};
 use std::collections::HashMap;
+use std::net::{Ipv4Addr, SocketAddr};
 
 use crate::error::*;
 pub use crate::wg_dev_linuxkernel::*;

@@ -173,9 +173,10 @@ impl NetworkManager {
                 // greater and the public key in wireguard device needs to be replaced.
                 if entry.get().public_key.priv_key_creation_time
                     < advertisement.public_key.priv_key_creation_time
+                    || entry.get().public_key.key != advertisement.public_key.key
                 {
                     info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
-                    events.push(Event::PeerListChange);
+                    events.push(Event::UpdateWireguardConfiguration);
 
                     // As this peer is new, send an advertisement
                     events.push(Event::SendAdvertisement { to: src_addr });
@@ -198,7 +199,7 @@ impl NetworkManager {
                 entry.insert(dp);
 
                 info!(target: "advertisement", "Advertisement from new peer {}", src_addr);
-                events.push(Event::PeerListChange);
+                events.push(Event::UpdateWireguardConfiguration);
 
                 // Answers to advertisments are only sent, if the wireguard ip is not
                 // in the list of dynamic peers and as such is new.
@@ -508,7 +509,10 @@ impl NetworkManager {
         }
         ping_peers
     }
-    pub fn current_wireguard_configuration(&mut self, mut pubkey_to_endpoint: HashMap<String, SocketAddr>) {
+    pub fn current_wireguard_configuration(
+        &mut self,
+        mut pubkey_to_endpoint: HashMap<String, SocketAddr>,
+    ) {
         for dynamic_peer in self.peer.values_mut() {
             if dynamic_peer.endpoint.is_none() {
                 if let Some(endpoint) = pubkey_to_endpoint.remove(&dynamic_peer.public_key.key) {

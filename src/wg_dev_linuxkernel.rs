@@ -1,7 +1,7 @@
-use std::io::Write;
-use std::net::{SocketAddr, Ipv4Addr};
-use std::process::{Command, Stdio};
 use std::collections::HashMap;
+use std::io::Write;
+use std::net::{Ipv4Addr, SocketAddr};
+use std::process::{Command, Stdio};
 
 use log::*;
 

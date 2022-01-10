@@ -47,7 +47,24 @@ CHARLIE'S BOX> wg_netmanager -c net.yaml wg0 10.1.1.21 charlie
 ```
 with alice being reachable on 192.168.1.70
 
+# Definitions/Nomenclatura
+
+- Node: Participant in the network
+- Peer: Node reachable directly via wireguard interface
+- Dynamic peer: synonym for peer
+- Static server: Fixed address/port either in internet or in intranet
+- Dynamic server: Any node (24/7) behind a firewall
+- Roaming client: Any node, which is switching IP-address
+- Mobile client: Roaming client with data volume limitation
+
 # Status
+
+Node support:
+- [X] Static server in config file
+- [ ] Static server per command line parameter
+- [X] Dynamic server
+- [X] Roaming client
+- [ ] Mobile client
 
 OS-Support
 - [X] Linux

@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::manager::*;
 
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct PublicKeyWithTime {
     pub key: String, // base64 encoded
     pub priv_key_creation_time: u64,

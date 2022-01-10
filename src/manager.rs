@@ -169,17 +169,20 @@ impl NetworkManager {
         };
         match self.peer.entry(advertisement.wg_ip) {
             Entry::Occupied(mut entry) => {
-                // Eventually the peer has been restarted, then the priv_key_creation_time must be
-                // greater and the public key in wireguard device needs to be replaced.
-                if entry.get().public_key.priv_key_creation_time
-                    < advertisement.public_key.priv_key_creation_time
-                    || entry.get().public_key.key != advertisement.public_key.key
-                {
-                    info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
-                    events.push(Event::UpdateWireguardConfiguration);
+                // Check if public_key including creation time is same
+                if entry.get().public_key != advertisement.public_key {
+                    // Different public_key. Accept the one from advertisement only, if not older
+                    if entry.get().public_key.priv_key_creation_time
+                        < advertisement.public_key.priv_key_creation_time
+                    {
+                        info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
+                        events.push(Event::UpdateWireguardConfiguration);
 
-                    // As this peer is new, send an advertisement
-                    events.push(Event::SendAdvertisement { to: src_addr });
+                        // As this peer is new, send an advertisement
+                        events.push(Event::SendAdvertisement { to: src_addr });
+                    } else {
+                        warn!(target: "advertisement", "Received advertisement with old publy key => Reject");
+                    }
                 } else {
                     info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
 

@@ -142,7 +142,7 @@ impl WireguardDevice for WireguardDeviceLinux {
             .arg("ip")
             .arg("addr")
             .arg("add")
-            .arg(ip.to_string())
+            .arg(format!("{}/24",ip.to_string()))
             .arg("dev")
             .arg(&self.device_name)
             .spawn()

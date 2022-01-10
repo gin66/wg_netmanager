@@ -235,7 +235,9 @@ impl CryptUdp {
             } else {
                 timestamp - ts_received
             };
-            debug!("UDP TIMESTAMP {}", dt);
+            if dt != 0 {
+                debug!("UDP TIMESTAMP {}", dt);
+            }
             if dt > 10 {
                 error!(target:"udp","time mismatch");
                 strerror("time mismatch")?;

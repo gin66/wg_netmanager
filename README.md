@@ -124,3 +124,7 @@ ATTACKER'S BOX> wg_netmanager -c net.yaml wg0 8.8.8.8  alice
 And ALL network participants will start to route any DNS request addressed to 8.8.8.8 to the ATTACKER's box.
 
 This is actually a very cool feature and on the other hand quite frightening.
+
+Update: `ip route add` wants to find an interface with the corresponding subnet. As current hotfix the IP-address is set with /24.
+This may have implication on the "8.8.8.8" scenario.
+=> Need time to figure this out.

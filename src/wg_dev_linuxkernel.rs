@@ -154,6 +154,24 @@ impl WireguardDevice for WireguardDeviceLinux {
             debug!("Interface {} set ip", self.device_name);
         } else {
         }
+
+        debug!("Remove default route {}/24", ip);
+        let mut cmd = Command::new("sudo")
+            .arg("ip")
+            .arg("route")
+            .arg("del")
+            .arg(format!("{}/24",ip.to_string()))
+            .arg("dev")
+            .arg(&self.device_name)
+            .spawn()
+            .unwrap();
+
+        let result = cmd.wait().unwrap();
+
+        if result.success() {
+            debug!("Interface {} set ip", self.device_name);
+        } else {
+        }
         Ok(())
     }
     fn add_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {

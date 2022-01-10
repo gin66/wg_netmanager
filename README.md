@@ -1,7 +1,7 @@
 Wireguard network manager
 =========================
 
-# STATUS: Currently broken
+# Statua: STABILITY ISSUES STILL
 
 # Motivation / Problem
 
@@ -131,5 +131,11 @@ Update: `ip route add` wants to find an interface with the corresponding subnet.
 As current hotfix the IP-address is set with /24, but this adds a static route.
 This static route to prevents routing to use a peer as gateway.
 => Need time to figure this out.
+=> Apparently deleting the default route is a viable solution.
+   so:
+```
+  ip addr add 10.1.1.1/24 dev wg0
+  ip route del 10.1.1.1/24 dev wg0
+```
 
 This may have implication on the "8.8.8.8" scenario.

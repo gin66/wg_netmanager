@@ -19,4 +19,5 @@ pub enum Event {
     UpdateRoutes,
     TimerTick1s,
     TuiApp(TuiAppEvent),
+    ReadWireguardConfiguration,
 }

@@ -157,7 +157,7 @@ impl NetworkManager {
             IpAddr::V6(_) => Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port)),
         });
 
-        let dp = DynamicPeer {
+        let mut dp = DynamicPeer {
             wg_ip: advertisement.wg_ip,
             local_admin_port: advertisement.local_admin_port,
             local_wg_port: advertisement.local_wg_port,
@@ -167,32 +167,51 @@ impl NetworkManager {
             admin_port: src_addr.port(),
             lastseen,
         };
-        if let Some(old_peer_info) = self.peer.insert(advertisement.wg_ip, dp) {
-            // Eventually the peer has been restarted, then the priv_key_creation_time must be
-            // greater and the public key in wireguard device needs to be replaced.
-            if old_peer_info.public_key.priv_key_creation_time
-                < advertisement.public_key.priv_key_creation_time
-            {
-                info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
+        match self.peer.entry(advertisement.wg_ip) {
+            Entry::Occupied(mut entry) => {
+                // Eventually the peer has been restarted, then the priv_key_creation_time must be
+                // greater and the public key in wireguard device needs to be replaced.
+                if entry.get().public_key.priv_key_creation_time
+                    < advertisement.public_key.priv_key_creation_time
+                {
+                    info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
+                    events.push(Event::PeerListChange);
+
+                    // As this peer is new, send an advertisement
+                    events.push(Event::SendAdvertisement { to: src_addr });
+                } else {
+                    info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
+
+                    if dp.endpoint.is_none() {
+                        // Get endpoint from old entry
+                        dp.endpoint = entry.get_mut().endpoint.take();
+
+                        // if still now known, then ask wireguard
+                        if dp.endpoint.is_none() {
+                            events.push(Event::ReadWireguardConfiguration);
+                        }
+                    }
+                    entry.insert(dp);
+                }
+            }
+            Entry::Vacant(entry) => {
+                entry.insert(dp);
+
+                info!(target: "advertisement", "Advertisement from new peer {}", src_addr);
                 events.push(Event::PeerListChange);
 
-                // As this peer is new, send an advertisement
+                // Answers to advertisments are only sent, if the wireguard ip is not
+                // in the list of dynamic peers and as such is new.
+                // Consequently the reply is sent over the internet and not via
+                // wireguard tunnel, because that tunnel is not yet set up.
                 events.push(Event::SendAdvertisement { to: src_addr });
-            } else {
-                info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
+
+                self.recalculate_routes();
+                events.push(Event::UpdateRoutes);
+
+                // indirectly inform about route database update
+                events.push(Event::SendPingToAllDynamicPeers);
             }
-        } else {
-            info!(target: "advertisement", "Advertisement from new peer {}", src_addr);
-            events.push(Event::PeerListChange);
-
-            // Answers to advertisments are only sent, if the wireguard ip is not
-            // in the list of dynamic peers and as such is new.
-            // Consequently the reply is sent over the internet and not via
-            // wireguard tunnel, because that tunnel is not yet set up.
-            events.push(Event::SendAdvertisement { to: src_addr });
-
-            self.recalculate_routes();
-            events.push(Event::UpdateRoutes);
         }
 
         if let Some(peer_route_db) = self.peer_route_db.get(&advertisement.wg_ip) {
@@ -488,5 +507,14 @@ impl NetworkManager {
             self.fifo_ping.remove(0);
         }
         ping_peers
+    }
+    pub fn current_wireguard_configuration(&mut self, mut pubkey_to_endpoint: HashMap<String, SocketAddr>) {
+        for dynamic_peer in self.peer.values_mut() {
+            if dynamic_peer.endpoint.is_none() {
+                if let Some(endpoint) = pubkey_to_endpoint.remove(&dynamic_peer.public_key.key) {
+                    dynamic_peer.endpoint = Some(endpoint);
+                }
+            }
+        }
     }
 }

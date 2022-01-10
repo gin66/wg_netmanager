@@ -1,6 +1,7 @@
 use std::io::Write;
-use std::net::Ipv4Addr;
+use std::net::{SocketAddr, Ipv4Addr};
 use std::process::{Command, Stdio};
+use std::collections::HashMap;
 
 use log::*;
 
@@ -245,5 +246,28 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn sync_conf(&self, conf: &str) -> BoxResult<()> {
         self.update_conf(conf, false)
+    }
+    fn retrieve_conf(&self) -> BoxResult<HashMap<String, SocketAddr>> {
+        let mut pubkey_to_endpoint = HashMap::new();
+        let output = Command::new("sudo")
+            .arg("wg")
+            .arg("showconf")
+            .arg(&self.device_name)
+            .stdout(Stdio::piped())
+            .output()?
+            .stdout;
+        let wg_config = String::from_utf8_lossy(&output);
+        trace!("{}", wg_config);
+        let ini = ini::Ini::load_from_str(&wg_config).unwrap();
+        for peer_ini in ini.section_all(Some("Peer")) {
+            if let Some(endpoint) = peer_ini.get("Endpoint") {
+                if let Some(pub_key) = peer_ini.get("PublicKey") {
+                    let sock_addr: SocketAddr = endpoint.parse().unwrap();
+                    trace!("{} is endpoint of {}", sock_addr, pub_key);
+                    pubkey_to_endpoint.insert(pub_key.to_string(), sock_addr);
+                }
+            }
+        }
+        Ok(pubkey_to_endpoint)
     }
 }

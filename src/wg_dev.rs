@@ -1,4 +1,5 @@
-use std::net::Ipv4Addr;
+use std::net::{SocketAddr, Ipv4Addr};
+use std::collections::HashMap;
 
 use crate::error::*;
 pub use crate::wg_dev_linuxkernel::*;
@@ -13,4 +14,5 @@ pub trait WireguardDevice {
     fn set_conf(&self, conf: &str) -> BoxResult<()>;
     fn sync_conf(&self, conf: &str) -> BoxResult<()>;
     fn flush_all(&self) -> BoxResult<()>;
+    fn retrieve_conf(&self) -> BoxResult<HashMap<String, SocketAddr>>;
 }

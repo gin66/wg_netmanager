@@ -8,10 +8,15 @@ Todos:
 * find a solution for sudo
 * rename publicIp to e.g. visibleHost or reachableHost
 * share info about visible endpoint/admin udp port
-	+ Retrieve endpoint from clients out of wg parsed output
+	+ Retrieve endpoint from clients out of wg showconf parsed output
 * add dns
+* make video with watch wg showconf per vps
+* Support https://github.com/FlyveHest/wg-friendly-peer-names
+* Add mobile client type: is connection initiator. not reachable from outside
 
 DONE:
+* send update advertisement to all direct peers on route change
+	=> faster distribution of info
 * try local endpoints
 * restarting wg_manager on one machine will not cause other machines to replace new public key
 * tui: remove outter frame

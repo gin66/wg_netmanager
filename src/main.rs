@@ -469,6 +469,10 @@ fn main_loop(
                 tui_app.process_event(evt);
                 tui_app.draw()?;
             }
+            Ok(Event::ReadWireguardConfiguration) => {
+                let pubkey_to_endpoint = wg_dev.retrieve_conf()?;
+                network_manager.current_wireguard_configuration(pubkey_to_endpoint);
+            }
         }
     }
     Ok(())

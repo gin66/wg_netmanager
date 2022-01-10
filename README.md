@@ -1,6 +1,8 @@
 Wireguard network manager
 =========================
 
+# STATUS: Currently broken
+
 # Motivation / Problem
 
 Situation is a couple of vps, some IoT devices in the home network and couple of roaming laptops/iPads/smartphones.  Till now a quite complex setup involving wireguard, openvpn, ssh'ing from box to box was in use.
@@ -125,6 +127,9 @@ And ALL network participants will start to route any DNS request addressed to 8.
 
 This is actually a very cool feature and on the other hand quite frightening.
 
-Update: `ip route add` wants to find an interface with the corresponding subnet. As current hotfix the IP-address is set with /24.
-This may have implication on the "8.8.8.8" scenario.
+Update: `ip route add` wants to find an interface with the corresponding subnet. Or throws a "no such process error".
+As current hotfix the IP-address is set with /24, but this adds a static route.
+This static route to prevents routing to use a peer as gateway.
 => Need time to figure this out.
+
+This may have implication on the "8.8.8.8" scenario.

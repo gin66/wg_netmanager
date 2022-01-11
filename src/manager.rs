@@ -489,8 +489,7 @@ impl NetworkManager {
                             hop_cnt: ri.hop_cnt,
                             gateway: ri.gateway,
                         };
-                    }
-                    else {
+                    } else {
                         trace!(target: "routing", "is not better than existing route {}", to);
                     }
                 }

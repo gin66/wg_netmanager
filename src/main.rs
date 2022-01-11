@@ -142,6 +142,7 @@ fn main() -> BoxResult<()> {
 
     let network = &conf[0]["network"];
     let shared_key = base64::decode(&network["sharedKey"].as_str().unwrap()).unwrap();
+    let subnet: ipnet::Ipv4Net = &network["subnet"].as_str().unwrap().parse().unwrap();
 
     let mut peers: HashMap<Ipv4Addr, PublicPeer> = HashMap::new();
     for p in conf[0]["peers"].as_vec().unwrap() {
@@ -193,6 +194,7 @@ fn main() -> BoxResult<()> {
         .wg_name(interface)
         .wg_port(wg_port)
         .admin_port(admin_port)
+        .subnet(subnet)
         .shared_key(shared_key)
         .my_public_key(my_public_key_with_time)
         .my_private_key(my_private_key)
@@ -266,7 +268,7 @@ fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
         wg_dev.flush_all()?;
     }
 
-    wg_dev.set_ip(&static_config.wg_ip)?;
+    wg_dev.set_ip(&static_config.wg_ip, &static_config.subnet)?;
 
     let mut tui_app = if static_config.use_tui {
         TuiApp::init(tx.clone())?

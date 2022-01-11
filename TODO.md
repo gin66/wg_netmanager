@@ -13,6 +13,7 @@ Todos:
 * make video with watch wg showconf per vps
 * Support https://github.com/FlyveHest/wg-friendly-peer-names
 * Add mobile client type: is connection initiator. not reachable from outside
+* Validate commandline ip against subnet
 * Add option to set a static route to loopback to prevent leakage of packets to default gateway 
 * Route delete does not work as expected. in one case temp. direct link was down, but the route for it wasn't
 * wg_netmanager has started after a while, sending advertisement to public endpoint

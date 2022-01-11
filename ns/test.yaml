@@ -5,7 +5,7 @@
 #
 network:
   sharedKey: YDUBM6FhERePZ4gPlxzAbCN7K61BPjy7HApWYL+P128=
-  subnet: 10.1.1.0/8
+  subnet: 10.1.1.0/12
 
 peers:
   - endPoint: 10.128.1.1:50000

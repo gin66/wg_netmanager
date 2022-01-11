@@ -3,6 +3,7 @@ use std::io::Write;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::process::{Command, Stdio};
 
+use ipnet::Ipv4Net;
 use log::*;
 
 use crate::error::*;
@@ -110,10 +111,10 @@ impl WireguardDevice for WireguardDeviceLinux {
         debug!("Interface {} destroyed", self.device_name);
         Ok(())
     }
-    fn set_ip(&mut self, ip: &Ipv4Addr) -> BoxResult<()> {
+    fn set_ip(&mut self, ip: &Ipv4Addr, subnet: &Ipv4Net) -> BoxResult<()> {
         debug!("Set IP {}", ip);
         self.ip = *ip;
-        let ip_extend = format!("{}/24", ip);
+        let ip_extend = format!("{}/{}", ip, subnet.prefix_len());
         let _ = self.execute_command(
             vec![
                 "ip",

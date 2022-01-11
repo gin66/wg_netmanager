@@ -27,6 +27,7 @@ pub struct StaticConfigurationBuilder {
     wg_name: Option<String>,
     wg_port: Option<u16>,
     admin_port: Option<u16>,
+    subnet: Option<ipnet::Ipv4Net>,
     shared_key: Option<Vec<u8>>,
     my_private_key: Option<String>,
     my_public_key: Option<PublicKeyWithTime>,
@@ -62,6 +63,10 @@ impl StaticConfigurationBuilder {
         self.admin_port = Some(port);
         self
     }
+    pub fn subnet(mut self, subnet: ipnet::Ipv4Net) -> Self {
+        self.subnet = Some(subnet);
+        self
+    }
     pub fn shared_key(mut self, shared_key: Vec<u8>) -> Self {
         self.shared_key = Some(shared_key);
         self
@@ -95,6 +100,7 @@ impl StaticConfigurationBuilder {
             wg_name: self.wg_name.unwrap(),
             wg_port: self.wg_port.unwrap(),
             admin_port: self.admin_port.unwrap(),
+            subnet: self.subnet.unwrap(),
             shared_key: self.shared_key.unwrap(),
             my_private_key: self.my_private_key.unwrap(),
             my_public_key: self.my_public_key.unwrap(),
@@ -113,6 +119,7 @@ pub struct StaticConfiguration {
     pub wg_name: String,
     pub wg_port: u16,
     pub admin_port: u16,
+    pub subnet: ipnet::Ipv4Net,
     pub shared_key: Vec<u8>,
     pub my_private_key: String,
     pub my_public_key: PublicKeyWithTime,

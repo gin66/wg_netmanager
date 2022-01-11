@@ -1,3 +1,4 @@
 target/
+ns/*.log
 *.yaml
 *.sh

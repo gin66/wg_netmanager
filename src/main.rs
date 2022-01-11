@@ -146,14 +146,16 @@ fn main() -> BoxResult<()> {
     let mut peers: HashMap<Ipv4Addr, PublicPeer> = HashMap::new();
     for p in conf[0]["peers"].as_vec().unwrap() {
         info!("STATIC PEER: {:#?}", p);
-        let wg_port = p["wgPort"].as_i64().unwrap() as u16;
         let endpoint = p["endPoint"].as_str().unwrap().to_string();
+        let mut flds = endpoint.split(':').collect::<Vec<_>>();
+        let port_str = flds.pop().unwrap();
+        let wg_port = (*port_str).parse::<u16>().unwrap();
         let admin_port = p["adminPort"].as_i64().unwrap() as u16;
         let wg_ip: Ipv4Addr = p["wgIp"].as_str().unwrap().parse().unwrap();
         let pp = PublicPeer {
             endpoint,
-            wg_port,
             admin_port,
+            wg_port,
             wg_ip,
         };
         peers.insert(wg_ip, pp);

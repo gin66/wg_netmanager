@@ -24,14 +24,13 @@ Instead of manually creating keys (which is still the case in gui versions) the 
 ```yaml
 network:
   sharedKey: YDUBM6FhERePZ4gPlxzAbCN7K61BPjy7HApWYL+P128=
+  subnet: 10.1.1.0/8
 
 peers:
-  - publicIp: 192.168.1.70
-    wgPort: 50000
+  - endPoint: 192.168.1.70:50000
     adminPort: 55555
     wgIp: 10.1.1.1
-  - publicIp: 192.168.1.212
-    wgPort: 50000
+  - endPoint: 192.168.1.212:50000
     adminPort: 55555
     wgIp: 10.1.1.2
 ```
@@ -128,15 +127,14 @@ And ALL network participants will start to route any DNS request addressed to 8.
 
 This is actually a very cool feature and on the other hand quite frightening.
 
-Update: `ip route add` wants to find an interface with the corresponding subnet. Or throws a "no such process error".
-As current hotfix the IP-address is set with /24, but this adds a static route.
-This static route to prevents routing to use a peer as gateway.
-=> Need time to figure this out.
-=> Apparently deleting the default route is a viable solution.
-   so:
+
+## Update
+
+Depending on the linux version, `ip route add` wants to find an interface with the corresponding subnet. If not successful, then it will throw a "no such process error".
+
+Remedy is, that the wireguard interface is associated with IP and resp. netmask. without adding a route:
 ```
-  ip addr add 10.1.1.1/24 dev wg0
-  ip route del 10.1.1.1/24 dev wg0
+  ip addr add 10.1.1.1/24 dev wg0 noprefixroute
 ```
 
-This may have implication on the "8.8.8.8" scenario.
+Consequently, in the config-file the subnet has to specified. If the subnet does not include 8.8.8.8, then other nodes will not accept it - unless the defined subnet includes 8.8.8.8

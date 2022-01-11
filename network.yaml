@@ -13,13 +13,12 @@
 #
 network:
   sharedKey: YDUBM6FhERePZ4gPlxzAbCN7K61BPjy7HApWYL+P128=
+  subnet: 10.1.1.0/8
 
 peers:
   - endPoint: 192.168.1.70:50000
-    wgPort: 50000
     adminPort: 55555
     wgIp: 10.1.1.1
   - endPoint: 192.168.1.212:50000
-    wgPort: 50000
     adminPort: 55555
     wgIp: 10.1.1.2

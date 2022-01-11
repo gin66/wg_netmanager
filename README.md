@@ -1,7 +1,7 @@
 Wireguard network manager
 =========================
 
-# Statua: STABILITY ISSUES STILL
+# Status: TESTING
 
 # Motivation / Problem
 
@@ -87,7 +87,7 @@ Network
 - [X] Connection established between two static servers (fixed address)
 - [X] Connection established between dynamic node and static server
 - [X] Connection established between two dynamic nodes in same subnet
-- [ ] Connection established between two dynamic nodes using their visible outside connections
+- [ ] Connection established between two dynamic nodes using their visible outside connections aka NAT traversal
 
 Routing
 - [X] Sets up routes to reach all network participants

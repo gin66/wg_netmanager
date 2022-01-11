@@ -13,13 +13,15 @@ Todos:
 * make video with watch wg showconf per vps
 * Support https://github.com/FlyveHest/wg-friendly-peer-names
 * Add mobile client type: is connection initiator. not reachable from outside
+* Add legacy mode for traditional wireguard clients
 * Validate commandline ip against subnet
+* Replace lots of unwrap() with friendly error code
 * Add option to set a static route to loopback to prevent leakage of packets to default gateway 
+
+DONE:
 * Route delete does not work as expected. in one case temp. direct link was down, but the route for it wasn't
 * wg_netmanager has started after a while, sending advertisement to public endpoint
 	=> route was missing
-
-DONE:
 * send update advertisement to all direct peers on route change
 	=> faster distribution of info
 * try local endpoints

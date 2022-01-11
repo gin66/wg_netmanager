@@ -38,7 +38,7 @@ mod tests {
 
     #[test]
     fn test_bring_up_device_with_ip() {
-        let wg_dev = WireguardDeviceLinux::init("wgtest2");
+        let mut wg_dev = WireguardDeviceLinux::init("wgtest2");
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn test_bring_up_device_with_ip_and_key() {
-        let wg_dev = WireguardDeviceLinux::init("wgtest3");
+        let mut wg_dev = WireguardDeviceLinux::init("wgtest3");
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);

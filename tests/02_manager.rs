@@ -25,15 +25,16 @@ mod tests {
         let mut mgr = NetworkManager::new(ip);
 
         let ad = AdvertisementPacket {
-            wg_ip: peer_ip,
-            local_admin_port: 0,
-            local_wg_port: 0,
-            name: "test".to_string(),
             public_key: PublicKeyWithTime {
                 key: "".to_string(),
                 priv_key_creation_time: 0,
             },
-            endpoint: Some("192.168.1.1:1".parse().unwrap()),
+            local_wg_port: 0,
+            local_admin_port: 0,
+            wg_ip: peer_ip,
+            name: "test".to_string(),
+            your_visible_admin_endpoint: Some("192.168.1.1:1".parse().unwrap()),
+            your_visible_wg_endpoint: Some("192.168.1.1:1".parse().unwrap()),
             routedb_version: 0,
         };
         let events = mgr.analyze_advertisement(ad, "192.168.1.1:2".parse().unwrap());

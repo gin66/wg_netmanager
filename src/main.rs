@@ -62,6 +62,11 @@ fn main() -> BoxResult<()> {
                 .help("Use text user interface"),
         )
         .arg(
+            Arg::with_name("logfile")
+                .short("l")
+                .help("log to file <name>.log"),
+        )
+        .arg(
             Arg::with_name("v")
                 .short("v")
                 .multiple(true)
@@ -89,12 +94,21 @@ fn main() -> BoxResult<()> {
 
     let use_tui = matches.is_present("tui");
     let use_existing_interface = matches.is_present("existing_interface");
+    let computer_name = matches.value_of("name").unwrap();
 
     // Select logger based on command line flag
     //
+    let opt_fname = if matches.is_present("logfile") {
+        Some(format!("{}.log", computer_name))
+    } else {
+        None
+    };
     if use_tui {
         tui_logger::init_logger(log::LevelFilter::Trace).unwrap();
         tui_logger::set_default_level(log::LevelFilter::Trace);
+        if let Some(fname) = opt_fname {
+            tui_logger::set_log_file(&fname)?;
+        }
     } else {
         let log_filter = match matches.occurrences_of("v") {
             0 => log::LevelFilter::Error,
@@ -103,14 +117,14 @@ fn main() -> BoxResult<()> {
             3 => log::LevelFilter::Debug,
             _ => log::LevelFilter::Trace,
         };
-        set_up_logging(log_filter);
+        set_up_logging(log_filter, opt_fname)?;
     }
 
     let interface = matches.value_of("interface").unwrap();
     let wg_ip: Ipv4Addr = matches.value_of("wg_ip").unwrap().parse().unwrap();
     let wg_port: u16 = matches.value_of("wireguard_port").unwrap().parse().unwrap();
     let admin_port: u16 = matches.value_of("admin_port").unwrap().parse().unwrap();
-    let computer_name = matches.value_of("name").unwrap();
+
     #[cfg(target_os = "linux")]
     let ip_list = wg_netmanager::interfaces::get();
     #[cfg(not(target_os = "linux"))]

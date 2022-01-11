@@ -2,6 +2,15 @@
 SEP="====================="
 FAIL="\n\n$SEP\n FAIL\n$SEP\n"
 
+echo Cleanup first
+rm -f alice.log bob.log charlie.log
+echo === del namespaces
+sudo ip netns del alice
+sudo ip netns del bob
+sudo ip netns del charlie
+sudo ip netns del backbone
+echo === done
+
 echo === add namespaces
 sudo ip netns add backbone
 sudo ip netns add alice
@@ -84,16 +93,39 @@ echo bob is client
 echo charlie is client
 echo expectation is, that after a while the ping succeeds: bob can reach charlie via the tunnel
 
-#FOCUS=ifconfig
-FOCUS=wg
+COLOR_ALICE="bg=#222240"
+COLOR_BOB="bg=#402222"
+COLOR_CHARLIE="bg=#224022"
+
+FOCUS=ifconfig
+#FOCUS=wg
 tmux split-window -h sudo ip netns exec alice watch $FOCUS
+tmux select-pane -P $COLOR_ALICE
+tmux select-layout tiled
 tmux split-window -h sudo ip netns exec bob watch $FOCUS
+tmux select-pane -P $COLOR_BOB
+tmux select-layout tiled
 tmux split-window -h sudo ip netns exec charlie watch $FOCUS
+tmux select-pane -P $COLOR_CHARLIE
+tmux select-layout tiled
+
+tmux split-window -h sudo ip netns exec alice zsh
+tmux select-pane -P $COLOR_ALICE
+tmux select-layout tiled
+tmux split-window -h sudo ip netns exec bob zsh
+tmux select-pane -P $COLOR_BOB
+tmux select-layout tiled
+tmux split-window -h sudo ip netns exec charlie zsh
+tmux select-pane -P $COLOR_CHARLIE
+tmux select-layout tiled
 
 VERBOSITY=-vvvvv
 #tmux split-window -h sh -c "sudo ip netns exec alice ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.1 alice || sleep 10"
-tmux split-window -h -l 75% sudo ip netns exec alice ../target/debug/wg_netmanager $VERBOSITY -c test.yaml  wg0 10.1.1.1 alice
-tmux split-window -h -l 66% sudo ip netns exec bob ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.3 bob
+tmux split-window -h sudo ip netns exec alice ../target/debug/wg_netmanager $VERBOSITY -c test.yaml  wg0 10.1.1.1 alice -l
+tmux select-pane -P $COLOR_ALICE
+tmux select-layout tiled
+tmux split-window -h sudo ip netns exec bob ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.3 bob -l || sleep 30
+tmux select-pane -P $COLOR_BOB
 tmux select-layout tiled
 sleep 20
 
@@ -109,7 +141,8 @@ sudo ip netns exec bob wg
 sudo ip netns exec bob sudo ifconfig wg0
 echo
 
-tmux split-window -h sudo ip netns exec charlie ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.4 charlie
+tmux split-window -h sudo ip netns exec charlie ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.4 charlie -l
+tmux select-pane -P $COLOR_CHARLIE
 tmux select-layout tiled
 
 echo
@@ -149,11 +182,15 @@ sudo ip netns exec charlie sudo ifconfig wg0
 echo
 
 sleep 10
+
 sudo ip netns exec bob ping -c 2 10.1.1.1 || echo -e $FAIL
 sudo ip netns exec charlie ping -c 2 10.1.1.1 || echo -e $FAIL
 sudo ip netns exec alice ping -c 2 10.1.1.3 || echo -e $FAIL
 sudo ip netns exec alice ping -c 2 10.1.1.4 || echo -e $FAIL
 sudo ip netns exec bob ping -c 2 10.1.1.4 || echo -e $FAIL
+
+echo enter ctrl-D
+cat
 
 echo ==== Kill the test subjects
 sudo ip netns exec alice killall sudo

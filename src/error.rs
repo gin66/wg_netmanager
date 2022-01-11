@@ -22,7 +22,7 @@ pub fn strerror<T>(msg: &'static str) -> BoxResult<T> {
 }
 
 // ===================== Logging Set Up =====================
-pub fn set_up_logging(log_filter: log::LevelFilter) {
+pub fn set_up_logging(log_filter: log::LevelFilter, opt_fname: Option<String>) -> BoxResult<()> {
     use fern::colors::*;
     // configure colors for the whole line
     let colors_line = ColoredLevelConfig::new()
@@ -39,16 +39,16 @@ pub fn set_up_logging(log_filter: log::LevelFilter) {
     // just clone `colors_line` and overwrite our changes
     let colors_level = colors_line.info(Color::Green);
     // here we set up our fern Dispatch
-    fern::Dispatch::new()
+    let mut logger = fern::Dispatch::new()
         .format(move |out, message, record| {
             out.finish(format_args!(
-                "{color_line}{date} {level} {color_line}{message}\x1B[0m",
+                "{color_line}{date} {level} {target} {color_line}{message}\x1B[0m",
                 color_line = format_args!(
                     "\x1B[{}m",
                     colors_line.get_color(&record.level()).to_fg_str()
                 ),
                 date = chrono::Local::now().format("%H:%M:%S"),
-                //target = record.target(),
+                target = record.target(),
                 level = colors_level.color(record.level()),
                 message = message,
             ));
@@ -62,9 +62,14 @@ pub fn set_up_logging(log_filter: log::LevelFilter) {
         // `info!(target="special_target", "This log message is about special_target");`
         //.level_for("pretty_colored", log::LevelFilter::Trace)
         // output to stdout
-        .chain(std::io::stdout())
-        .apply()
-        .unwrap();
+        .chain(std::io::stdout());
+
+    if let Some(fname) = opt_fname {
+        logger = logger.chain(fern::log_file(fname)?);
+    }
+
+    logger.apply().unwrap();
 
     debug!("finished setting up logging! yay!");
+    Ok(())
 }

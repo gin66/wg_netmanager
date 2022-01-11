@@ -151,6 +151,21 @@ impl NetworkManager {
         self.fifo_ping.push(advertisement.wg_ip);
         let lastseen = crate::util::now();
 
+        let mut dp_visible_admin_endpoint = Some(src_addr);
+        let mut dp_visible_wg_endpoint =
+            Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
+
+        match src_addr {
+            SocketAddr::V4(sa_v4) => {
+                if *sa_v4.ip() == advertisement.wg_ip {
+                    // received from wg-address
+                    dp_visible_admin_endpoint = None;
+                    dp_visible_wg_endpoint = None;
+                }
+            }
+            SocketAddr::V6(_) => {}
+        }
+
         if advertisement.your_visible_admin_endpoint.is_some() {
             self.my_visible_admin_endpoint = advertisement.your_visible_admin_endpoint;
         }
@@ -164,11 +179,8 @@ impl NetworkManager {
             local_wg_port: advertisement.local_wg_port,
             public_key: advertisement.public_key.clone(),
             name: advertisement.name.to_string(),
-            dp_visible_admin_endpoint: Some(src_addr),
-            dp_visible_wg_endpoint: Some(SocketAddr::new(
-                src_addr.ip(),
-                advertisement.local_wg_port,
-            )),
+            dp_visible_admin_endpoint,
+            dp_visible_wg_endpoint,
             admin_port: src_addr.port(),
             lastseen,
         };
@@ -407,13 +419,16 @@ impl NetworkManager {
         for entry in new_routes.iter() {
             debug!(target: "routing", "Peer routes' entry: {:?}", entry);
         }
+        for ri in self.route_db.route_for.values_mut() {
+            debug!(target: "routing", "Existing route: {:?}", ri);
+        }
 
         // new_routes is built. So update route_db and mark changes
         //
         // first routes to be deleted
         for ri in self.route_db.route_for.values_mut() {
             if !new_routes.contains_key(&ri.to) {
-                trace!(target: "routing", "add route {:?}", ri);
+                trace!(target: "routing", "del route {:?}", ri);
                 self.pending_route_changes.push(RouteChange::DelRoute {
                     to: ri.to,
                     gateway: ri.gateway,

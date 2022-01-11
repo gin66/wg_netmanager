@@ -142,7 +142,7 @@ fn main() -> BoxResult<()> {
 
     let network = &conf[0]["network"];
     let shared_key = base64::decode(&network["sharedKey"].as_str().unwrap()).unwrap();
-    let subnet: ipnet::Ipv4Net = &network["subnet"].as_str().unwrap().parse().unwrap();
+    let subnet: ipnet::Ipv4Net = network["subnet"].as_str().unwrap().parse().unwrap();
 
     let mut peers: HashMap<Ipv4Addr, PublicPeer> = HashMap::new();
     for p in conf[0]["peers"].as_vec().unwrap() {

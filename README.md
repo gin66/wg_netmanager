@@ -1,7 +1,7 @@
 Wireguard network manager
 =========================
 
-# Status: TESTING
+# Status: TESTING - On older linux version, ip command acts different
 
 # Motivation / Problem
 

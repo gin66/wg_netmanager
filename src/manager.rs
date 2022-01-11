@@ -359,7 +359,7 @@ impl NetworkManager {
 
         // Dynamic peers are ALWAYS reachable without a gateway
         for dp in self.peer.values() {
-            trace!(target: "routing", "Include to routes: {}", dp.wg_ip);
+            trace!(target: "routing", "Include direct path to dynamic peer to new routes: {}", dp.wg_ip);
             let ri = RouteInfo {
                 to: dp.wg_ip,
                 local_admin_port: dp.local_admin_port,
@@ -371,7 +371,7 @@ impl NetworkManager {
         for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
             if peer_route_db.nr_entries == peer_route_db.route_for.len() {
                 // is valid database for peer
-                debug!(target: "routing", "valid database of {}: {:#?}", wg_ip, peer_route_db.route_for);
+                trace!(target: "routing", "consider valid database of {}: {:#?}", wg_ip, peer_route_db.route_for);
                 for ri in peer_route_db.route_for.values() {
                     // Ignore routes to myself
                     if ri.to == self.wg_ip {
@@ -417,7 +417,7 @@ impl NetworkManager {
         }
 
         for entry in new_routes.iter() {
-            debug!(target: "routing", "Peer routes' entry: {:?}", entry);
+            debug!(target: "routing", "new routes' entry: {:?}", entry);
         }
         for ri in self.route_db.route_for.values_mut() {
             debug!(target: "routing", "Existing route: {:?}", ri);
@@ -453,19 +453,22 @@ impl NetworkManager {
                         let sa = SocketAddrV4::new(to, ri.local_admin_port);
                         self.new_nodes.push(sa);
                     }
-                    let ri = RouteInfo {
+                    let mut ri_new = RouteInfo {
                         to,
                         local_admin_port: ri.local_admin_port,
-                        hop_cnt: ri.hop_cnt + 1,
+                        hop_cnt: ri.hop_cnt,
                         gateway: ri.gateway,
                     };
-                    e.insert(ri);
+                    if ri.gateway.is_some() {
+                        ri_new.hop_cnt += 1;
+                    }
+                    e.insert(ri_new);
                 }
                 Entry::Occupied(mut e) => {
                     // update route
-                    trace!(target: "routing", "is existing route {}", to);
                     let current = e.get_mut();
                     if current.hop_cnt > ri.hop_cnt {
+                        trace!(target: "routing", "replace existing route {}", to);
                         // new route is better
                         //
                         // so first delete the old route
@@ -486,6 +489,9 @@ impl NetworkManager {
                             hop_cnt: ri.hop_cnt,
                             gateway: ri.gateway,
                         };
+                    }
+                    else {
+                        trace!(target: "routing", "is not better than existing route {}", to);
                     }
                 }
             }

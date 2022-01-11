@@ -84,20 +84,69 @@ echo bob is client
 echo charlie is client
 echo expectation is, that after a while the ping succeeds: bob can reach charlie via the tunnel
 
-VERBOSITY=-vvv
-#tmux split-pane -h sh -c "sudo ip netns exec alice ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.1 alice || sleep 10"
-tmux split-pane -h -l 75% sudo ip netns exec alice ../target/debug/wg_netmanager $VERBOSITY -c test.yaml  wg0 10.1.1.1 alice
-tmux split-pane -h -l 66% sudo ip netns exec bob ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.3 bob
+#FOCUS=ifconfig
+FOCUS=wg
+tmux split-window -h sudo ip netns exec alice watch $FOCUS
+tmux split-window -h sudo ip netns exec bob watch $FOCUS
+tmux split-window -h sudo ip netns exec charlie watch $FOCUS
+
+VERBOSITY=-vvvvv
+#tmux split-window -h sh -c "sudo ip netns exec alice ../target/debug/wg_netmanager -vvvvv -c test.yaml wg0 10.1.1.1 alice || sleep 10"
+tmux split-window -h -l 75% sudo ip netns exec alice ../target/debug/wg_netmanager $VERBOSITY -c test.yaml  wg0 10.1.1.1 alice
+tmux split-window -h -l 66% sudo ip netns exec bob ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.3 bob
+tmux select-layout tiled
 sleep 20
-tmux split-pane -h sudo ip netns exec charlie ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.4 charlie
+
+echo
+echo ALICE   ==============================
+sudo ip netns exec alice ip route 
+sudo ip netns exec alice wg
+sudo ip netns exec alice sudo ifconfig wg0
+echo
+echo BOB     ==============================
+sudo ip netns exec bob ip route
+sudo ip netns exec bob wg
+sudo ip netns exec bob sudo ifconfig wg0
+echo
+
+tmux split-window -h sudo ip netns exec charlie ../target/debug/wg_netmanager $VERBOSITY -c test.yaml wg0 10.1.1.4 charlie
+tmux select-layout tiled
+
+echo
+echo ALICE   ==============================
+sudo ip netns exec alice ip route 
+sudo ip netns exec alice wg
+sudo ip netns exec alice sudo ifconfig wg0
+echo
+echo BOB     ==============================
+sudo ip netns exec bob ip route
+sudo ip netns exec bob wg
+sudo ip netns exec bob sudo ifconfig wg0
+echo
+echo CHARLIE ==============================
+sudo ip netns exec charlie ip route
+sudo ip netns exec charlie wg
+sudo ip netns exec charlie sudo ifconfig wg0
+echo
+
 sleep 50
 
-echo ROUTE ALICE
+echo
+echo ALICE   ==============================
 sudo ip netns exec alice ip route 
-echo ROUTE BOB
+sudo ip netns exec alice wg
+sudo ip netns exec alice sudo ifconfig wg0
+echo
+echo BOB     ==============================
 sudo ip netns exec bob ip route
-echo ROUTE CHARLIE
+sudo ip netns exec bob wg
+sudo ip netns exec bob sudo ifconfig wg0
+echo
+echo CHARLIE ==============================
 sudo ip netns exec charlie ip route
+sudo ip netns exec charlie wg
+sudo ip netns exec charlie sudo ifconfig wg0
+echo
 
 sleep 10
 sudo ip netns exec bob ping -c 2 10.1.1.1 || echo -e $FAIL

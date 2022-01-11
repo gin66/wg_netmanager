@@ -19,7 +19,8 @@ pub struct AdvertisementPacket {
     pub local_admin_port: u16,
     pub wg_ip: Ipv4Addr,
     pub name: String,
-    pub endpoint: Option<SocketAddr>,
+    pub your_visible_admin_endpoint: Option<SocketAddr>,
+    pub your_visible_wg_endpoint: Option<SocketAddr>,
     pub routedb_version: usize,
 }
 #[derive(Serialize, Deserialize)]
@@ -35,6 +36,8 @@ pub struct LocalContactPacket {
     pub local_ip_list: Vec<IpAddr>,
     pub local_wg_port: u16,
     pub local_admin_port: u16,
+    pub my_visible_admin_endpoint: Option<SocketAddr>,
+    pub my_visible_wg_endpoint: Option<SocketAddr>,
     pub wg_ip: Ipv4Addr,
     pub name: String,
 }
@@ -50,20 +53,17 @@ impl UdpPacket {
     pub fn advertisement_from_config(
         static_config: &StaticConfiguration,
         routedb_version: usize,
+        to_dynamic_peer: Option<&DynamicPeer>,
     ) -> Self {
-        let endpoint = if static_config.is_listener() {
-            let peer = &static_config.peers[static_config.myself_as_peer.unwrap()];
-            Some(SocketAddr::new(peer.public_ip, peer.wg_port))
-        } else {
-            None
-        };
         UdpPacket::Advertisement(AdvertisementPacket {
             public_key: static_config.my_public_key.clone(),
             local_wg_port: static_config.wg_port,
             local_admin_port: static_config.admin_port,
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
-            endpoint,
+            your_visible_admin_endpoint: to_dynamic_peer
+                .and_then(|dp| dp.dp_visible_admin_endpoint),
+            your_visible_wg_endpoint: to_dynamic_peer.and_then(|dp| dp.dp_visible_wg_endpoint),
             routedb_version,
         })
     }
@@ -86,12 +86,18 @@ impl UdpPacket {
     pub fn local_contact_request() -> Self {
         UdpPacket::LocalContactRequest {}
     }
-    pub fn local_contact_from_config(static_config: &StaticConfiguration) -> Self {
+    pub fn local_contact_from_config(
+        static_config: &StaticConfiguration,
+        my_visible_admin_endpoint: Option<SocketAddr>,
+        my_visible_wg_endpoint: Option<SocketAddr>,
+    ) -> Self {
         UdpPacket::LocalContact(LocalContactPacket {
             public_key: static_config.my_public_key.clone(),
             local_ip_list: static_config.ip_list.clone(),
             local_wg_port: static_config.wg_port,
             local_admin_port: static_config.admin_port,
+            my_visible_admin_endpoint,
+            my_visible_wg_endpoint,
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
         })
@@ -124,12 +130,17 @@ impl fmt::Debug for UdpPacket {
 pub struct CryptUdp {
     socket: UdpSocket,
     key: Option<[u8; 32]>,
+    udp_send_cnt: usize,
 }
 
 impl CryptUdp {
     pub fn bind(port: u16) -> BoxResult<Self> {
         let socket = UdpSocket::bind(format!("0.0.0.0:{}", port))?;
-        Ok(CryptUdp { socket, key: None })
+        Ok(CryptUdp {
+            socket,
+            key: None,
+            udp_send_cnt: 0,
+        })
     }
     pub fn key(mut self, key: &[u8]) -> BoxResult<Self> {
         if key.len() != 32 {
@@ -145,9 +156,10 @@ impl CryptUdp {
         Ok(CryptUdp {
             socket: self.socket.try_clone()?,
             key: self.key,
+            udp_send_cnt: self.udp_send_cnt,
         })
     }
-    pub fn send_to(&self, payload: &[u8], addr: SocketAddr) -> BoxResult<usize> {
+    pub fn send_to(&mut self, payload: &[u8], addr: SocketAddr) -> BoxResult<usize> {
         if let Some(raw_key) = self.key.as_ref() {
             let p = payload.len();
             let padded = ((p + 2 + 7) / 8) * 8; // +2 for 2 Byte length
@@ -174,7 +186,8 @@ impl CryptUdp {
                 .encrypt(nonce, &buf[..])
                 .map_err(|e| format!("{:?}", e))?;
             encrypted.append(&mut nonce_raw.to_vec());
-            debug!(target: "udp", "send {} Bytes to {:?}", encrypted.len(), addr);
+            self.udp_send_cnt += 1;
+            debug!(target: "udp", "#{}: send {} Bytes to {:?}", self.udp_send_cnt, encrypted.len(), addr);
             Ok(self.socket.send_to(&encrypted, addr)?)
         } else {
             strerror("No encryption key")?

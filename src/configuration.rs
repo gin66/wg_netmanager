@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr};
 
-use log::*;
+//use log::*;
 use serde::{Deserialize, Serialize};
 
 use crate::manager::*;
@@ -12,7 +13,7 @@ pub struct PublicKeyWithTime {
 }
 
 pub struct PublicPeer {
-    pub public_ip: IpAddr,
+    pub endpoint: String,
     pub wg_port: u16,
     pub admin_port: u16,
     pub wg_ip: Ipv4Addr,
@@ -29,7 +30,7 @@ pub struct StaticConfigurationBuilder {
     shared_key: Option<Vec<u8>>,
     my_private_key: Option<String>,
     my_public_key: Option<PublicKeyWithTime>,
-    peers: Vec<PublicPeer>,
+    peers: HashMap<Ipv4Addr, PublicPeer>,
     use_tui: Option<bool>,
     use_existing_interface: Option<bool>,
 }
@@ -73,7 +74,7 @@ impl StaticConfigurationBuilder {
         self.my_public_key = Some(public_key);
         self
     }
-    pub fn peers(mut self, peers: Vec<PublicPeer>) -> Self {
+    pub fn peers(mut self, peers: HashMap<Ipv4Addr, PublicPeer>) -> Self {
         self.peers = peers;
         self
     }
@@ -86,15 +87,6 @@ impl StaticConfigurationBuilder {
         self
     }
     pub fn build(self) -> StaticConfiguration {
-        let mut myself_as_peer: Option<usize> = None;
-        for (i, peer) in self.peers.iter().enumerate() {
-            if &peer.wg_ip == self.wg_ip.as_ref().unwrap() {
-                debug!("FOUND myself as listener");
-                myself_as_peer = Some(i);
-                break;
-            }
-        }
-
         let peer_cnt = self.peers.len();
         StaticConfiguration {
             name: self.name.unwrap(),
@@ -103,7 +95,6 @@ impl StaticConfigurationBuilder {
             wg_name: self.wg_name.unwrap(),
             wg_port: self.wg_port.unwrap(),
             admin_port: self.admin_port.unwrap(),
-            myself_as_peer,
             shared_key: self.shared_key.unwrap(),
             my_private_key: self.my_private_key.unwrap(),
             my_public_key: self.my_public_key.unwrap(),
@@ -122,11 +113,10 @@ pub struct StaticConfiguration {
     pub wg_name: String,
     pub wg_port: u16,
     pub admin_port: u16,
-    pub myself_as_peer: Option<usize>,
     pub shared_key: Vec<u8>,
     pub my_private_key: String,
     pub my_public_key: PublicKeyWithTime,
-    pub peers: Vec<PublicPeer>,
+    pub peers: HashMap<Ipv4Addr, PublicPeer>,
     pub peer_cnt: usize,
     pub use_tui: bool,
     pub use_existing_interface: bool,
@@ -137,14 +127,13 @@ impl StaticConfiguration {
         StaticConfigurationBuilder::new()
     }
     pub fn is_listener(&self) -> bool {
-        self.myself_as_peer.is_some()
+        self.peers.contains_key(&self.wg_ip)
     }
     pub fn as_conf_as_peer(&self, manager: &NetworkManager) -> String {
         let mut lines: Vec<String> = vec![];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.my_private_key));
-        let port = if let Some(myself) = self.myself_as_peer {
-            let peer = &self.peers[myself];
+        let port = if let Some(peer) = self.peers.get(&self.wg_ip) {
             peer.wg_port
         } else {
             self.wg_port
@@ -160,7 +149,9 @@ impl StaticConfiguration {
             for ip in ips {
                 lines.push(format!("AllowedIPs = {}/32", ip));
             }
-            if let Some(endpoint) = peer.endpoint.as_ref() {
+            if let Some(static_peer) = self.peers.get(&peer.wg_ip) {
+                lines.push(format!("EndPoint = {}", static_peer.endpoint));
+            } else if let Some(endpoint) = peer.dp_visible_wg_endpoint.as_ref() {
                 lines.push(format!("EndPoint = {}", endpoint));
             }
             lines.push("".to_string());
@@ -169,11 +160,10 @@ impl StaticConfiguration {
         lines.join("\n")
     }
     pub fn my_admin_port(&self) -> u16 {
-        self.myself_as_peer
-            .map(|i| self.peers[i].admin_port)
-            .unwrap_or(self.admin_port)
-    }
-    pub fn admin_port(&self, peer_index: usize) -> u16 {
-        self.peers[peer_index].admin_port
+        if let Some(peer) = self.peers.get(&self.wg_ip) {
+            peer.admin_port
+        } else {
+            self.admin_port
+        }
     }
 }

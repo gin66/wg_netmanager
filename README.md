@@ -63,6 +63,7 @@ with alice being reachable on 192.168.1.70
 
 Node support:
 - [X] Static server in config file
+- [X] Static server per dynamic dns
 - [ ] Static server per command line parameter
 - [X] Dynamic server
 - [X] Roaming client

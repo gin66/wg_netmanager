@@ -1,4 +1,4 @@
-use std::net::{SocketAddr, SocketAddrV4};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use crate::crypt_udp::UdpPacket;
 use crate::tui_display::TuiAppEvent;
@@ -8,7 +8,7 @@ pub enum Event {
     Udp(UdpPacket, SocketAddr),
     UpdateWireguardConfiguration,
     CtrlC,
-    SendAdvertisement { to: SocketAddr },
+    SendAdvertisement { to: SocketAddr, wg_ip: Ipv4Addr },
     SendAdvertisementToPublicPeers,
     SendPingToAllDynamicPeers,
     SendRouteDatabaseRequest { to: SocketAddrV4 },

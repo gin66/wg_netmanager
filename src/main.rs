@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{Read, Write};
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
@@ -128,20 +129,20 @@ fn main() -> BoxResult<()> {
     let network = &conf[0]["network"];
     let shared_key = base64::decode(&network["sharedKey"].as_str().unwrap()).unwrap();
 
-    let mut peers: Vec<PublicPeer> = vec![];
+    let mut peers: HashMap<Ipv4Addr, PublicPeer> = HashMap::new();
     for p in conf[0]["peers"].as_vec().unwrap() {
         info!("STATIC PEER: {:#?}", p);
-        let public_ip: IpAddr = p["publicIp"].as_str().unwrap().parse().unwrap();
         let wg_port = p["wgPort"].as_i64().unwrap() as u16;
+        let endpoint = p["endPoint"].as_str().unwrap().to_string();
         let admin_port = p["adminPort"].as_i64().unwrap() as u16;
         let wg_ip: Ipv4Addr = p["wgIp"].as_str().unwrap().parse().unwrap();
         let pp = PublicPeer {
-            public_ip,
+            endpoint,
             wg_port,
             admin_port,
             wg_ip,
         };
-        peers.push(pp);
+        peers.insert(wg_ip, pp);
     }
 
     let output = Command::new("wg")
@@ -238,7 +239,7 @@ fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
         }
     });
 
-    let wg_dev = WireguardDeviceLinux::init(&static_config.wg_name);
+    let mut wg_dev = WireguardDeviceLinux::init(&static_config.wg_name);
 
     // in case there are dangling routes
     if !static_config.use_existing_interface {
@@ -271,7 +272,7 @@ fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
 fn main_loop(
     static_config: &StaticConfiguration,
     wg_dev: &dyn WireguardDevice,
-    crypt_socket: CryptUdp,
+    mut crypt_socket: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
     tui_app: &mut TuiApp,
@@ -322,21 +323,32 @@ fn main_loop(
                 let ping_peers = network_manager.check_ping_timeouts(10); // should be < half of dead peer timeout
                 for (wg_ip, admin_port) in ping_peers {
                     let destination = SocketAddr::V4(SocketAddrV4::new(wg_ip, admin_port));
-                    tx.send(Event::SendAdvertisement { to: destination })
-                        .unwrap();
+                    tx.send(Event::SendAdvertisement {
+                        to: destination,
+                        wg_ip,
+                    })
+                    .unwrap();
                 }
             }
             Ok(Event::SendAdvertisementToPublicPeers) => {
                 // These advertisements are sent to the known internet address as defined in the config file.
                 // As all udp packets are encrypted, this should not be an issue.
                 //
-                for peer in static_config.peers.iter() {
+                for peer in static_config.peers.values() {
                     if !network_manager.knows_peer(&peer.wg_ip) {
                         // ensure not to send to myself
                         if peer.wg_ip != static_config.wg_ip {
-                            let destination = SocketAddr::new(peer.public_ip, peer.admin_port);
-                            tx.send(Event::SendAdvertisement { to: destination })
+                            // Resolve here to make it work for dyndns hosts
+                            let endpoints = peer.endpoint.to_socket_addrs()?;
+                            trace!("ENDPOINTS: {:#?}", endpoints);
+                            for sa in endpoints {
+                                let destination = SocketAddr::new(sa.ip(), peer.admin_port);
+                                tx.send(Event::SendAdvertisement {
+                                    to: destination,
+                                    wg_ip: peer.wg_ip,
+                                })
                                 .unwrap();
+                            }
                         }
                     }
                 }
@@ -346,11 +358,13 @@ fn main_loop(
                 let events: Vec<Event>;
                 match udp_packet {
                     Advertisement(ad) => {
+                        debug!(target: &ad.wg_ip.to_string(), "Received advertisement");
                         events = network_manager.analyze_advertisement(ad, src_addr);
                     }
                     RouteDatabaseRequest => match src_addr {
                         SocketAddr::V4(destination) => {
                             info!(target: "routing", "RouteDatabaseRequest from {:?}", src_addr);
+                            debug!(target: &destination.ip().to_string(), "Received database request");
                             events = vec![Event::SendRouteDatabase { to: destination }];
                         }
                         SocketAddr::V6(..) => {
@@ -358,13 +372,15 @@ fn main_loop(
                             events = vec![];
                         }
                     },
-                    RouteDatabase(req) => {
+                    RouteDatabase(db) => {
                         info!(target: "routing", "RouteDatabase from {}", src_addr);
-                        events = network_manager.process_route_database(req);
+                        debug!(target: &src_addr.ip().to_string(), "Received route database, version = {}", db.routedb_version);
+                        events = network_manager.process_route_database(db);
                     }
                     LocalContactRequest => match src_addr {
                         SocketAddr::V4(destination) => {
                             info!(target: "probing", "LocalContactRequest from {:?}", src_addr);
+                            debug!(target: &destination.ip().to_string(), "Received local contact request");
                             events = vec![Event::SendLocalContact { to: destination }];
                         }
                         SocketAddr::V6(..) => {
@@ -374,6 +390,7 @@ fn main_loop(
                     },
                     LocalContact(contact) => {
                         debug!(target: "probing", "Received contact info: {:#?}", contact);
+                        debug!(target: &contact.wg_ip.to_string(), "Received local contacts");
                         events = network_manager.process_local_contact(contact);
                     }
                 }
@@ -381,21 +398,28 @@ fn main_loop(
                     tx.send(evt).unwrap();
                 }
             }
-            Ok(Event::SendAdvertisement { to: destination }) => {
+            Ok(Event::SendAdvertisement {
+                to: destination,
+                wg_ip,
+            }) => {
+                debug!(target: &wg_ip.to_string(),"Send advertisement");
                 let routedb_version = network_manager.db_version();
+                let opt_dp: Option<&DynamicPeer> = network_manager.dynamic_peer_for(&wg_ip);
                 let advertisement =
-                    UdpPacket::advertisement_from_config(static_config, routedb_version);
+                    UdpPacket::advertisement_from_config(static_config, routedb_version, opt_dp);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 info!(target: "advertisement", "Send advertisement to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
             }
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
+                debug!(target: &destination.ip().to_string(), "Send route database request");
                 let request = UdpPacket::route_database_request();
                 let buf = serde_json::to_vec(&request).unwrap();
                 info!(target: "routing", "Send RouteDatabaseRequest to {}", destination);
                 crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendRouteDatabase { to: destination }) => {
+                debug!(target: &destination.ip().to_string(), "Send route database");
                 let packages = network_manager.provide_route_database();
                 for p in packages {
                     let buf = serde_json::to_vec(&p).unwrap();
@@ -404,13 +428,19 @@ fn main_loop(
                 }
             }
             Ok(Event::SendLocalContactRequest { to: destination }) => {
+                debug!(target: &destination.ip().to_string(), "Send local contact request");
                 let request = UdpPacket::local_contact_request();
                 let buf = serde_json::to_vec(&request).unwrap();
                 info!(target: "probing", "Send LocalContactRequest to {}", destination);
                 crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendLocalContact { to: destination }) => {
-                let local_contact = UdpPacket::local_contact_from_config(static_config);
+                debug!(target: &destination.ip().to_string(), "Send local contacts");
+                let local_contact = UdpPacket::local_contact_from_config(
+                    static_config,
+                    network_manager.my_visible_admin_endpoint,
+                    network_manager.my_visible_wg_endpoint,
+                );
                 trace!(target: "probing", "local contact to {:#?}", local_contact);
                 let buf = serde_json::to_vec(&local_contact).unwrap();
                 info!(target: "probing", "Send local contact to {}", destination);
@@ -424,6 +454,7 @@ fn main_loop(
                 }
                 if !dead_peers.is_empty() {
                     for wg_ip in dead_peers {
+                        debug!(target: &wg_ip.to_string(), "is dead => remove");
                         debug!(target: "dead_peer", "Found dead peer {}", wg_ip);
                         network_manager.remove_dynamic_peer(&wg_ip);
                     }
@@ -451,18 +482,22 @@ fn main_loop(
                             to,
                             gateway: Some(gateway),
                         } => {
+                            debug!(target: &to.to_string(), "add route with gateway {:?}", gateway);
                             wg_dev.add_route(&format!("{}/32", to), Some(gateway))?;
                         }
                         AddRoute { to, gateway: None } => {
+                            debug!(target: &to.to_string(), "add route");
                             wg_dev.add_route(&format!("{}/32", to), None)?;
                         }
                         DelRoute {
                             to,
                             gateway: Some(gateway),
                         } => {
+                            debug!(target: &to.to_string(), "del route with gateway {:?}", gateway);
                             wg_dev.del_route(&format!("{}/32", to), Some(gateway))?;
                         }
                         DelRoute { to, gateway: None } => {
+                            debug!(target: &to.to_string(), "del route");
                             wg_dev.del_route(&format!("{}/32", to), None)?;
                         }
                     }

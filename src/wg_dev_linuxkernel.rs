@@ -10,11 +10,13 @@ use crate::wg_dev::WireguardDevice;
 
 pub struct WireguardDeviceLinux {
     device_name: String,
+    ip: Ipv4Addr,
 }
 impl WireguardDeviceLinux {
     pub fn init<T: Into<String>>(wg_name: T) -> Self {
         WireguardDeviceLinux {
             device_name: wg_name.into(),
+            ip: "0.0.0.0".parse().unwrap(),
         }
     }
     fn internal_execute_command(
@@ -108,8 +110,9 @@ impl WireguardDevice for WireguardDeviceLinux {
         debug!("Interface {} destroyed", self.device_name);
         Ok(())
     }
-    fn set_ip(&self, ip: &Ipv4Addr) -> BoxResult<()> {
+    fn set_ip(&mut self, ip: &Ipv4Addr) -> BoxResult<()> {
         debug!("Set IP {}", ip);
+        self.ip = *ip;
         let ip_extend = format!("{}/24", ip);
         let _ = self.execute_command(
             vec![
@@ -145,7 +148,16 @@ impl WireguardDevice for WireguardDeviceLinux {
             );
         } else {
             let _ = self.execute_command(
-                vec!["ip", "route", "add", route, "dev", &self.device_name],
+                vec![
+                    "ip",
+                    "route",
+                    "add",
+                    route,
+                    "dev",
+                    &self.device_name,
+                    //    "src",
+                    //    &format!("{}", self.ip),
+                ],
                 None,
             );
         }

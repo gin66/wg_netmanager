@@ -15,6 +15,8 @@ Todos:
 * Add mobile client type: is connection initiator. not reachable from outside
 * Add option to set a static route to loopback to prevent leakage of packets to default gateway 
 * Route delete does not work as expected. in one case temp. direct link was down, but the route for it wasn't
+* wg_netmanager has started after a while, sending advertisement to public endpoint
+	=> route was missing
 
 DONE:
 * send update advertisement to all direct peers on route change

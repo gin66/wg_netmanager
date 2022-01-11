@@ -78,13 +78,16 @@ pub struct DynamicPeer {
     pub local_admin_port: u16,
     pub wg_ip: Ipv4Addr,
     pub name: String,
-    pub endpoint: Option<SocketAddr>,
+    pub dp_visible_wg_endpoint: Option<SocketAddr>,
+    pub dp_visible_admin_endpoint: Option<SocketAddr>,
     pub admin_port: u16,
     pub lastseen: u64,
 }
 
 pub struct NetworkManager {
     wg_ip: Ipv4Addr,
+    pub my_visible_admin_endpoint: Option<SocketAddr>,
+    pub my_visible_wg_endpoint: Option<SocketAddr>,
     route_db: RouteDB,
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
 
@@ -100,6 +103,8 @@ impl NetworkManager {
         NetworkManager {
             wg_ip,
             //all_nodes: HashMap::new(),
+            my_visible_admin_endpoint: None,
+            my_visible_wg_endpoint: None,
             route_db: RouteDB::default(),
             peer_route_db: HashMap::new(),
             pending_route_changes: vec![],
@@ -146,16 +151,12 @@ impl NetworkManager {
         self.fifo_ping.push(advertisement.wg_ip);
         let lastseen = crate::util::now();
 
-        let endpoint = advertisement.endpoint.or_else(|| match src_addr.ip() {
-            IpAddr::V4(ip) => {
-                if ip == advertisement.wg_ip {
-                    advertisement.endpoint
-                } else {
-                    Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port))
-                }
-            }
-            IpAddr::V6(_) => Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port)),
-        });
+        if advertisement.your_visible_admin_endpoint.is_some() {
+            self.my_visible_admin_endpoint = advertisement.your_visible_admin_endpoint;
+        }
+        if advertisement.your_visible_wg_endpoint.is_some() {
+            self.my_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+        }
 
         let mut dp = DynamicPeer {
             wg_ip: advertisement.wg_ip,
@@ -163,7 +164,11 @@ impl NetworkManager {
             local_wg_port: advertisement.local_wg_port,
             public_key: advertisement.public_key.clone(),
             name: advertisement.name.to_string(),
-            endpoint,
+            dp_visible_admin_endpoint: Some(src_addr),
+            dp_visible_wg_endpoint: Some(SocketAddr::new(
+                src_addr.ip(),
+                advertisement.local_wg_port,
+            )),
             admin_port: src_addr.port(),
             lastseen,
         };
@@ -179,28 +184,35 @@ impl NetworkManager {
                         events.push(Event::UpdateWireguardConfiguration);
 
                         // As this peer is new, send an advertisement
-                        events.push(Event::SendAdvertisement { to: src_addr });
+                        events.push(Event::SendAdvertisement {
+                            to: src_addr,
+                            wg_ip: dp.wg_ip,
+                        });
                     } else {
                         warn!(target: "advertisement", "Received advertisement with old publy key => Reject");
                     }
                 } else {
                     info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
 
-                    if dp.endpoint.is_none() {
+                    if dp.dp_visible_wg_endpoint.is_none() {
                         // Get endpoint from old entry
-                        dp.endpoint = entry.get_mut().endpoint.take();
+                        dp.dp_visible_wg_endpoint = entry.get_mut().dp_visible_wg_endpoint.take();
 
-                        // if still now known, then ask wireguard
-                        if dp.endpoint.is_none() {
+                        // if still not known, then ask wireguard
+                        if dp.dp_visible_wg_endpoint.is_none() {
                             events.push(Event::ReadWireguardConfiguration);
                         }
+                    }
+
+                    if dp.dp_visible_admin_endpoint.is_none() {
+                        // Get endpoint from old entry
+                        dp.dp_visible_admin_endpoint =
+                            entry.get_mut().dp_visible_admin_endpoint.take();
                     }
                     entry.insert(dp);
                 }
             }
             Entry::Vacant(entry) => {
-                entry.insert(dp);
-
                 info!(target: "advertisement", "Advertisement from new peer {}", src_addr);
                 events.push(Event::UpdateWireguardConfiguration);
 
@@ -208,7 +220,13 @@ impl NetworkManager {
                 // in the list of dynamic peers and as such is new.
                 // Consequently the reply is sent over the internet and not via
                 // wireguard tunnel, because that tunnel is not yet set up.
-                events.push(Event::SendAdvertisement { to: src_addr });
+                events.push(Event::SendAdvertisement {
+                    to: src_addr,
+                    wg_ip: dp.wg_ip,
+                });
+
+                // store the dynamic peer
+                entry.insert(dp);
 
                 self.recalculate_routes();
                 events.push(Event::UpdateRoutes);
@@ -316,6 +334,7 @@ impl NetworkManager {
             })
             .map(|ip| Event::SendAdvertisement {
                 to: SocketAddr::new(*ip, local.local_admin_port),
+                wg_ip: local.wg_ip,
             })
             .collect()
     }
@@ -473,6 +492,9 @@ impl NetworkManager {
 
         ips
     }
+    pub fn dynamic_peer_for(&mut self, wg_ip: &Ipv4Addr) -> Option<&DynamicPeer> {
+        self.peer.get(wg_ip)
+    }
     pub fn knows_peer(&mut self, wg_ip: &Ipv4Addr) -> bool {
         self.peer.contains_key(wg_ip)
     }
@@ -517,10 +539,9 @@ impl NetworkManager {
         mut pubkey_to_endpoint: HashMap<String, SocketAddr>,
     ) {
         for dynamic_peer in self.peer.values_mut() {
-            if dynamic_peer.endpoint.is_none() {
-                if let Some(endpoint) = pubkey_to_endpoint.remove(&dynamic_peer.public_key.key) {
-                    dynamic_peer.endpoint = Some(endpoint);
-                }
+            if let Some(endpoint) = pubkey_to_endpoint.remove(&dynamic_peer.public_key.key) {
+                dynamic_peer.dp_visible_wg_endpoint = Some(endpoint);
+                // The dp_visible_admin port may be different, so do not derive it
             }
         }
     }

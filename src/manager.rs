@@ -204,7 +204,7 @@ impl NetworkManager {
                 if entry.get().public_key != advertisement.public_key {
                     // Different public_key. Accept the one from advertisement only, if not older
                     if entry.get().public_key.priv_key_creation_time
-                        < advertisement.public_key.priv_key_creation_time
+                        <= advertisement.public_key.priv_key_creation_time
                     {
                         info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
                         events.push(Event::UpdateWireguardConfiguration);
@@ -245,8 +245,8 @@ impl NetworkManager {
                         dp.local_reachable_admin_endpoint = entry.get_mut().local_reachable_admin_endpoint.take();
                     }
 
-                    entry.insert(dp);
                 }
+                entry.insert(dp);
             }
             Entry::Vacant(entry) => {
                 use AddressedTo::*;

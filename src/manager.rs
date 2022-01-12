@@ -241,7 +241,7 @@ impl NetworkManager {
                             entry.get_mut().dp_visible_admin_endpoint.take();
                     }
 
-                    if let Some(endpoint) = dp.local_reachable_wg_endpoint.as_ref() {
+                    if dp.local_reachable_wg_endpoint.is_some() {
                         if entry.get().local_reachable_wg_endpoint.is_none() {
                             need_wg_conf_update = true;
                         }

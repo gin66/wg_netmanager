@@ -315,7 +315,7 @@ impl NetworkManager {
         let mut events = vec![];
         warn!("process_new_nodes");
         while let Some(sa) = self.new_nodes.pop() {
-            events.push(Event::SendLocalContactRequest { to: *sa });
+            events.push(Event::SendLocalContactRequest { to: sa });
         }
         events
     }

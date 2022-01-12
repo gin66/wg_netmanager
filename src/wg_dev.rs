@@ -22,7 +22,9 @@ pub trait WireguardDevice {
 }
 
 #[cfg(target_os = "linux")]
-pub fn get_wireguard_device_linux<T: Into<String>>(wg_name: T) -> BoxResult<Box<dyn WireguardDevice>> {
+pub fn get_wireguard_device_linux<T: Into<String>>(
+    wg_name: T,
+) -> BoxResult<Box<dyn WireguardDevice>> {
     // here is the place to detect capabilities of the environment
 
     Ok(Box::new(WireguardDeviceLinux::init(wg_name)))

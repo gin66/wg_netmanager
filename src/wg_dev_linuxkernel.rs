@@ -201,7 +201,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn del_route(&self, route: &str, _gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route {}", route);
-        let _ = self.execute_command( vec!["ip", "route", "del", route, ], None,);
+        let _ = self.execute_command(vec!["ip", "route", "del", route], None);
         debug!("Interface {} deleted route", self.device_name);
         Ok(())
     }

@@ -8,13 +8,25 @@ pub enum Event {
     Udp(UdpPacket, SocketAddr),
     UpdateWireguardConfiguration,
     CtrlC,
-    SendAdvertisement { addressed_to: AddressedTo, to: SocketAddr, wg_ip: Ipv4Addr },
+    SendAdvertisement {
+        addressed_to: AddressedTo,
+        to: SocketAddr,
+        wg_ip: Ipv4Addr,
+    },
     SendAdvertisementToPublicPeers,
     SendPingToAllDynamicPeers,
-    SendRouteDatabaseRequest { to: SocketAddrV4 },
-    SendRouteDatabase { to: SocketAddrV4 },
-    SendLocalContactRequest { to: SocketAddrV4 },
-    SendLocalContact { to: SocketAddrV4 },
+    SendRouteDatabaseRequest {
+        to: SocketAddrV4,
+    },
+    SendRouteDatabase {
+        to: SocketAddrV4,
+    },
+    SendLocalContactRequest {
+        to: SocketAddrV4,
+    },
+    SendLocalContact {
+        to: SocketAddrV4,
+    },
     CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,
     TimerTick1s,

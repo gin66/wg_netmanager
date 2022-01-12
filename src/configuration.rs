@@ -157,18 +157,16 @@ impl StaticConfiguration {
                 lines.push(format!("AllowedIPs = {}/32", ip));
             }
             if let Some(static_peer) = self.peers.get(&peer.wg_ip) {
-                debug!(target: "configuration", "peer {} uses static endpoint {}", peer.wg_ip, static_peer.endpoint); 
-                debug!(target: &peer.wg_ip.to_string(), "use static endpoint {}", static_peer.endpoint); 
+                debug!(target: "configuration", "peer {} uses static endpoint {}", peer.wg_ip, static_peer.endpoint);
+                debug!(target: &peer.wg_ip.to_string(), "use static endpoint {}", static_peer.endpoint);
                 lines.push(format!("EndPoint = {}", static_peer.endpoint));
-            }
-            else if let Some(endpoint) = peer.local_reachable_wg_endpoint.as_ref() {
-                debug!(target: "configuration", "peer {} uses local endpoint {}", peer.wg_ip, endpoint); 
-                debug!(target: &peer.wg_ip.to_string(), "use local endpoint {}", endpoint); 
+            } else if let Some(endpoint) = peer.local_reachable_wg_endpoint.as_ref() {
+                debug!(target: "configuration", "peer {} uses local endpoint {}", peer.wg_ip, endpoint);
+                debug!(target: &peer.wg_ip.to_string(), "use local endpoint {}", endpoint);
                 lines.push(format!("EndPoint = {}", endpoint));
-            }
-            else if let Some(endpoint) = peer.dp_visible_wg_endpoint.as_ref() {
-                debug!(target: "configuration", "peer {} uses visible (NAT) endpoint {}", peer.wg_ip, endpoint); 
-                debug!(target: &peer.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint); 
+            } else if let Some(endpoint) = peer.dp_visible_wg_endpoint.as_ref() {
+                debug!(target: "configuration", "peer {} uses visible (NAT) endpoint {}", peer.wg_ip, endpoint);
+                debug!(target: &peer.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
                 lines.push(format!("EndPoint = {}", endpoint));
             }
             lines.push("".to_string());

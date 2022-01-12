@@ -50,7 +50,9 @@ mod tests {
         assert!(dev_present_after);
 
         let subnet: ipnet::Ipv4Net = "10.1.0.0/16".parse().unwrap();
-        wg_dev.set_ip(&"10.1.1.1".parse().unwrap(), &subnet).unwrap();
+        wg_dev
+            .set_ip(&"10.1.1.1".parse().unwrap(), &subnet)
+            .unwrap();
 
         wg_dev.take_down_device().unwrap();
 
@@ -71,7 +73,9 @@ mod tests {
         assert!(dev_present_after);
 
         let subnet: ipnet::Ipv4Net = "10.1.0.0/16".parse().unwrap();
-        wg_dev.set_ip(&"10.1.1.1".parse().unwrap(), &subnet).unwrap();
+        wg_dev
+            .set_ip(&"10.1.1.1".parse().unwrap(), &subnet)
+            .unwrap();
 
         wg_dev
             .set_conf(

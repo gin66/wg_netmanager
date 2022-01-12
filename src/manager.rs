@@ -167,7 +167,8 @@ impl NetworkManager {
                 dp_visible_admin_endpoint = Some(src_addr);
             }
             LocalAddress | ReplyFromLocalAddress => {
-                local_reachable_wg_endpoint = Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
+                local_reachable_wg_endpoint =
+                    Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
                 local_reachable_admin_endpoint = Some(src_addr);
             }
             ReplyFromStaticAddress | ReplyFromVisibleAddress => {
@@ -223,15 +224,15 @@ impl NetworkManager {
 
                     let mut need_wg_conf_update = false;
 
-                    if dp.dp_visible_wg_endpoint.is_none() { // TODO: is a no-op currently
+                    if dp.dp_visible_wg_endpoint.is_none() {
+                        // TODO: is a no-op currently
                         // Get endpoint from old entry
                         dp.dp_visible_wg_endpoint = entry.get_mut().dp_visible_wg_endpoint.take();
 
                         // if still not known, then ask wireguard
                         if dp.dp_visible_wg_endpoint.is_none() {
                             events.push(Event::ReadWireguardConfiguration);
-                        }
-                        else {
+                        } else {
                             need_wg_conf_update = true;
                         }
                     }
@@ -241,16 +242,18 @@ impl NetworkManager {
                         dp.dp_visible_admin_endpoint =
                             entry.get_mut().dp_visible_admin_endpoint.take();
                     }
-                    
+
                     if dp.local_reachable_wg_endpoint.is_none() {
-                        dp.local_reachable_wg_endpoint = entry.get_mut().local_reachable_wg_endpoint.take();
+                        dp.local_reachable_wg_endpoint =
+                            entry.get_mut().local_reachable_wg_endpoint.take();
                         if dp.local_reachable_wg_endpoint.is_some() {
                             need_wg_conf_update = true;
                         }
                     }
 
                     if dp.local_reachable_admin_endpoint.is_none() {
-                        dp.local_reachable_admin_endpoint = entry.get_mut().local_reachable_admin_endpoint.take();
+                        dp.local_reachable_admin_endpoint =
+                            entry.get_mut().local_reachable_admin_endpoint.take();
                     }
 
                     if need_wg_conf_update {
@@ -270,10 +273,10 @@ impl NetworkManager {
                 // Consequently the reply is sent over the internet and not via
                 // wireguard tunnel, because that tunnel is not yet set up.
                 let addressed_to = match advertisement.addressed_to {
-                    StaticAddress => { ReplyFromStaticAddress }
-                    VisibleAddress => { ReplyFromVisibleAddress }
-                    LocalAddress => { ReplyFromLocalAddress }
-                    WireguardAddress => { ReplyFromLocalAddress }
+                    StaticAddress => ReplyFromStaticAddress,
+                    VisibleAddress => ReplyFromVisibleAddress,
+                    LocalAddress => ReplyFromLocalAddress,
+                    WireguardAddress => ReplyFromLocalAddress,
 
                     replies => replies,
                 };
@@ -307,11 +310,14 @@ impl NetworkManager {
             let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
             events.push(Event::SendRouteDatabaseRequest { to: destination });
         }
+        events
+    }
+    pub fn process_new_nodes(&mut self) -> Vec<Event> {
+        let mut events = vec![];
 
         while let Some(sa) = self.new_nodes.pop() {
             events.push(Event::SendLocalContactRequest { to: sa });
         }
-
         events
     }
     pub fn provide_route_database(&self) -> Vec<UdpPacket> {
@@ -401,7 +407,7 @@ impl NetworkManager {
         // Send advertisement to a possible visible endpoint
         if local.my_visible_wg_endpoint.is_some() {
             if let Some(admin_endpoint) = local.my_visible_admin_endpoint {
-                events.push( Event::SendAdvertisement {
+                events.push(Event::SendAdvertisement {
                     addressed_to: AddressedTo::VisibleAddress,
                     to: admin_endpoint,
                     wg_ip: local.wg_ip,
@@ -479,7 +485,7 @@ impl NetworkManager {
                             if current.hop_cnt > ri_new.hop_cnt {
                                 // new route is better, so replace
                                 *current = ri_new;
-                            } 
+                            }
                         }
                     }
                 }

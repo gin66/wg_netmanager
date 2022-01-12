@@ -10,8 +10,8 @@ use log::*;
 use yaml_rust::YamlLoader;
 
 use wg_netmanager::configuration::*;
-use wg_netmanager::crypt_udp::CryptUdp;
 use wg_netmanager::crypt_udp::AddressedTo;
+use wg_netmanager::crypt_udp::CryptUdp;
 use wg_netmanager::crypt_udp::UdpPacket;
 use wg_netmanager::error::*;
 use wg_netmanager::event::Event;
@@ -413,8 +413,12 @@ fn main_loop(
                 debug!(target: &wg_ip.to_string(),"Send advertisement");
                 let routedb_version = network_manager.db_version();
                 let opt_dp: Option<&DynamicPeer> = network_manager.dynamic_peer_for(&wg_ip);
-                let advertisement =
-                    UdpPacket::advertisement_from_config(static_config, routedb_version, addressed_to, opt_dp);
+                let advertisement = UdpPacket::advertisement_from_config(
+                    static_config,
+                    routedb_version,
+                    addressed_to,
+                    opt_dp,
+                );
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 info!(target: "advertisement", "Send advertisement to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
@@ -486,30 +490,27 @@ fn main_loop(
                     use RouteChange::*;
                     debug!("{:?}", rc);
                     match rc {
-                        AddRoute {
-                            to,
-                            gateway,
-                        } => {
+                        AddRoute { to, gateway } => {
                             debug!(target: &to.to_string(), "add route with gateway {:?}", gateway);
                             wg_dev.add_route(&format!("{}/32", to), gateway)?;
                         }
-                        ReplaceRoute {
-                            to,
-                            gateway,
-                        } => {
+                        ReplaceRoute { to, gateway } => {
                             debug!(target: &to.to_string(), "replace route with gateway {:?}", gateway);
                             wg_dev.replace_route(&format!("{}/32", to), gateway)?;
                         }
-                        DelRoute {
-                            to,
-                            gateway,
-                        } => {
+                        DelRoute { to, gateway } => {
                             debug!(target: &to.to_string(), "del route with gateway {:?}", gateway);
                             wg_dev.del_route(&format!("{}/32", to), gateway)?;
                         }
                     }
                 }
                 tx.send(Event::UpdateWireguardConfiguration).unwrap();
+
+                // all routes have been updated. So process new nodes (not ideal solution here)
+                let events = network_manager.process_new_nodes();
+                for evt in events {
+                    tx.send(evt).unwrap();
+                }
             }
             Ok(Event::TuiApp(evt)) => {
                 tui_app.process_event(evt);

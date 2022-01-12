@@ -305,8 +305,8 @@ impl NetworkManager {
                 events.push(Event::SendRouteDatabaseRequest { to: destination });
             }
         } else {
-            info!(target: "routing", "Request new route database from peer {}", src_addr);
             let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
+            info!(target: "routing", "Request new route database from peer {}", destination);
             events.push(Event::SendRouteDatabaseRequest { to: destination });
         }
         events
@@ -410,7 +410,7 @@ impl NetworkManager {
         if local.my_visible_wg_endpoint.is_some() {
             if let Some(admin_endpoint) = local.my_visible_admin_endpoint {
                 if let Some(my_visible_admin_endpoint) = self.my_visible_admin_endpoint.as_ref() {
-                    for _ in 1..10 {
+                    for _ in 1..30 {
                         let timed = vec![
                             Event::SendAdvertisement {
                                 addressed_to: AddressedTo::VisibleAddress,

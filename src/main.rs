@@ -465,14 +465,14 @@ fn main_loop(
                 crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
-                debug!(target: &destination.ip().to_string(), "Send route database request");
+                debug!(target: &destination.ip().to_string(), "Send route database request to {:?}", destination);
                 let request = UdpPacket::route_database_request();
                 let buf = serde_json::to_vec(&request).unwrap();
                 info!(target: "routing", "Send RouteDatabaseRequest to {}", destination);
                 crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendRouteDatabase { to: destination }) => {
-                debug!(target: &destination.ip().to_string(), "Send route database");
+                debug!(target: &destination.ip().to_string(), "Send route database to {:?}", destination);
                 let packages = network_manager.provide_route_database();
                 for p in packages {
                     let buf = serde_json::to_vec(&p).unwrap();
@@ -481,14 +481,14 @@ fn main_loop(
                 }
             }
             Ok(Event::SendLocalContactRequest { to: destination }) => {
-                debug!(target: &destination.ip().to_string(), "Send local contact request");
+                debug!(target: &destination.ip().to_string(), "Send local contact request to {:?}", destination);
                 let request = UdpPacket::local_contact_request();
                 let buf = serde_json::to_vec(&request).unwrap();
                 info!(target: "probing", "Send LocalContactRequest to {}", destination);
                 crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendLocalContact { to: destination }) => {
-                debug!(target: &destination.ip().to_string(), "Send local contacts");
+                debug!(target: &destination.ip().to_string(), "Send local contacts to {:?}", destination);
                 let local_contact = UdpPacket::local_contact_from_config(
                     static_config,
                     network_manager.my_visible_admin_endpoint,

@@ -232,8 +232,6 @@ impl NetworkManager {
                         // if still not known, then ask wireguard
                         if dp.dp_visible_wg_endpoint.is_none() {
                             events.push(Event::ReadWireguardConfiguration);
-                        } else {
-                            need_wg_conf_update = true;
                         }
                     }
 
@@ -243,12 +241,14 @@ impl NetworkManager {
                             entry.get_mut().dp_visible_admin_endpoint.take();
                     }
 
-                    if dp.local_reachable_wg_endpoint.is_none() {
-                        dp.local_reachable_wg_endpoint =
-                            entry.get_mut().local_reachable_wg_endpoint.take();
-                        if dp.local_reachable_wg_endpoint.is_some() {
+                    if let Some(endpoint) = dp.local_reachable_wg_endpoint.as_ref() {
+                        if entry.get().local_reachable_wg_endpoint.is_none() {
                             need_wg_conf_update = true;
                         }
+                    }
+                    else {
+                        dp.local_reachable_wg_endpoint =
+                            entry.get_mut().local_reachable_wg_endpoint.take();
                     }
 
                     if dp.local_reachable_admin_endpoint.is_none() {

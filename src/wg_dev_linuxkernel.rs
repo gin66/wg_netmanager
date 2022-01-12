@@ -63,9 +63,9 @@ impl WireguardDeviceLinux {
         args: Vec<&str>,
         input: Option<&str>,
     ) -> BoxResult<std::process::Output> {
-        trace!(target: "wireguard", "{:?}", args);
+        trace!(target: "shell", "{:?}", args);
         self.internal_execute_command(args, input).map_err(|e| {
-            error!(target: "wireguard", "{:?}",e);
+            error!(target: "shell", "{:?}",e);
             e
         })
     }
@@ -113,20 +113,15 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn set_ip(&mut self, ip: &Ipv4Addr, subnet: &Ipv4Net) -> BoxResult<()> {
         debug!("Set IP {}", ip);
+        // The option noprefixroute of ip addr add would be ideal, but is not supported on older linux/ip
         self.ip = *ip;
         let ip_extend = format!("{}/{}", ip, subnet.prefix_len());
         let _ = self.execute_command(
-            vec![
-                "ip",
-                "addr",
-                "add",
-                &ip_extend,
-                "dev",
-                &self.device_name,
-                "noprefixroute",
-            ],
+            vec!["ip", "addr", "add", &ip_extend, "dev", &self.device_name],
             None,
         );
+
+        let _ = self.execute_command(vec!["ip", "route", "del", &format!("{:?}", subnet)], None);
 
         debug!("Interface {} set ip", self.device_name);
         Ok(())

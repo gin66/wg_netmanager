@@ -58,6 +58,7 @@ pub struct LocalContactPacket {
 #[derive(Serialize, Deserialize)]
 pub enum UdpPacket {
     Advertisement(AdvertisementPacket),
+    RequestAdvertisement(SocketAddr, Ipv4Addr),
     RouteDatabaseRequest,
     RouteDatabase(RouteDatabasePacket),
     LocalContactRequest,
@@ -123,6 +124,9 @@ impl fmt::Debug for UdpPacket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UdpPacket::Advertisement(ad) => ad.fmt(f),
+            UdpPacket::RequestAdvertisement(_, _) => {
+                f.debug_struct("RequestAdvertisement").finish()
+            }
             UdpPacket::RouteDatabaseRequest => f.debug_struct("RouteDatabaseRequest").finish(),
             UdpPacket::RouteDatabase(_) => f.debug_struct("RouteDatabase").finish(),
             UdpPacket::LocalContactRequest => f.debug_struct("LocalContactRequest").finish(),

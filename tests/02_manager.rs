@@ -50,6 +50,7 @@ mod tests {
             use UdpPacket::*;
             match udp {
                 Advertisement(_) => {}
+                RequestAdvertisement(_, _) => {}
                 RouteDatabaseRequest => {}
                 RouteDatabase(req) => {
                     println!("{} {:?}", req.sender, req.known_routes);

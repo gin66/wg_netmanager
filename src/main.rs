@@ -288,6 +288,8 @@ fn main_loop(
     tx.send(Event::UpdateWireguardConfiguration).unwrap();
     tx.send(Event::SendAdvertisementToPublicPeers).unwrap();
 
+    let mut timed_events: Vec<Vec<Event>> = vec![];
+
     let mut tick_cnt = 0;
     loop {
         trace!(target: "loop", "Main loop");
@@ -320,6 +322,14 @@ fn main_loop(
                     // every 60s
                     tx.send(Event::SendAdvertisementToPublicPeers).unwrap();
                 }
+
+                if !timed_events.is_empty() {
+                    let events = timed_events.remove(0);
+                    for evt in events.into_iter() {
+                        tx.send(evt).unwrap();
+                    }
+                }
+
                 tick_cnt += 1;
             }
             Ok(Event::SendPingToAllDynamicPeers) => {
@@ -368,6 +378,15 @@ fn main_loop(
                         debug!(target: &ad.wg_ip.to_string(), "Received advertisement");
                         events = network_manager.analyze_advertisement(ad, src_addr);
                     }
+                    RequestAdvertisement(send_to, wg_ip) => {
+                        debug!(target: "advertisement", "Received request from {:?} to send advertisement to {:?}", wg_ip, send_to);
+                        debug!(target: &wg_ip.to_string(), "Received request from {:?} to send advertisement to {:?}", wg_ip, send_to);
+                        events = vec![Event::SendAdvertisement {
+                            addressed_to: AddressedTo::VisibleAddress,
+                            to: send_to,
+                            wg_ip,
+                        }];
+                    }
                     RouteDatabaseRequest => match src_addr {
                         SocketAddr::V4(destination) => {
                             info!(target: "routing", "RouteDatabaseRequest from {:?}", src_addr);
@@ -398,7 +417,18 @@ fn main_loop(
                     LocalContact(contact) => {
                         debug!(target: "probing", "Received contact info: {:#?}", contact);
                         debug!(target: &contact.wg_ip.to_string(), "Received local contacts");
-                        events = network_manager.process_local_contact(contact);
+                        let mut new_timed_events = network_manager.process_local_contact(contact);
+                        if !new_timed_events.is_empty() {
+                            events = new_timed_events.remove(0);
+                            while timed_events.len() < new_timed_events.len() {
+                                timed_events.push(vec![]);
+                            }
+                            for (i, mut evt) in new_timed_events.into_iter().enumerate() {
+                                timed_events[i].append(&mut evt);
+                            }
+                        } else {
+                            events = vec![];
+                        }
                     }
                 }
                 for evt in events {
@@ -410,7 +440,7 @@ fn main_loop(
                 to: destination,
                 wg_ip,
             }) => {
-                debug!(target: &wg_ip.to_string(),"Send advertisement");
+                debug!(target: &wg_ip.to_string(),"Send advertisement to {:?}", destination);
                 let routedb_version = network_manager.db_version();
                 let opt_dp: Option<&DynamicPeer> = network_manager.dynamic_peer_for(&wg_ip);
                 let advertisement = UdpPacket::advertisement_from_config(
@@ -422,6 +452,17 @@ fn main_loop(
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 info!(target: "advertisement", "Send advertisement to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
+            }
+            Ok(Event::RequestAdvertisement {
+                to: destination,
+                wg_ip,
+                send_to,
+            }) => {
+                debug!(target: &wg_ip.to_string(),"Send advertisement to {:?}", destination);
+                let req = UdpPacket::RequestAdvertisement(send_to, wg_ip);
+                let buf = serde_json::to_vec(&req).unwrap();
+                info!(target: "advertisement", "request advertisement from {} to send to {:?}", destination, send_to);
+                crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
                 debug!(target: &destination.ip().to_string(), "Send route database request");

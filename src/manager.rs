@@ -245,8 +245,7 @@ impl NetworkManager {
                         if entry.get().local_reachable_wg_endpoint.is_none() {
                             need_wg_conf_update = true;
                         }
-                    }
-                    else {
+                    } else {
                         dp.local_reachable_wg_endpoint =
                             entry.get_mut().local_reachable_wg_endpoint.take();
                     }
@@ -314,9 +313,10 @@ impl NetworkManager {
     }
     pub fn process_new_nodes(&mut self) -> Vec<Event> {
         let mut events = vec![];
-
-        while let Some(sa) = self.new_nodes.pop() {
-            events.push(Event::SendLocalContactRequest { to: sa });
+        warn!("process_new_nodes");
+        //while let Some(sa) = self.new_nodes.pop() {
+        for sa in self.new_nodes.iter() {
+            events.push(Event::SendLocalContactRequest { to: *sa });
         }
         events
     }
@@ -388,9 +388,10 @@ impl NetworkManager {
         }
         events
     }
-    pub fn process_local_contact(&self, local: LocalContactPacket) -> Vec<Event> {
+    pub fn process_local_contact(&self, local: LocalContactPacket) -> Vec<Vec<Event>> {
         // Send advertisement to all local addresses
-        let mut events: Vec<Event> = local
+        debug!(target: &local.wg_ip.to_string(), "LocalContact: {:#?}", local);
+        let events: Vec<Event> = local
             .local_ip_list
             .iter()
             .filter(|ip| match *ip {
@@ -404,18 +405,33 @@ impl NetworkManager {
             })
             .collect();
 
+        let mut timed_events = vec![events];
+
         // Send advertisement to a possible visible endpoint
         if local.my_visible_wg_endpoint.is_some() {
             if let Some(admin_endpoint) = local.my_visible_admin_endpoint {
-                events.push(Event::SendAdvertisement {
-                    addressed_to: AddressedTo::VisibleAddress,
-                    to: admin_endpoint,
-                    wg_ip: local.wg_ip,
-                });
+                if let Some(my_visible_admin_endpoint) = self.my_visible_admin_endpoint.as_ref() {
+                    for _ in 1..5 {
+                        let timed = vec![
+                            Event::SendAdvertisement {
+                                addressed_to: AddressedTo::VisibleAddress,
+                                to: admin_endpoint,
+                                wg_ip: local.wg_ip,
+                            },
+                            Event::RequestAdvertisement {
+                                to: SocketAddrV4::new(local.wg_ip, local.local_admin_port),
+                                wg_ip: local.wg_ip,
+                                send_to: *my_visible_admin_endpoint,
+                            },
+                        ];
+                        warn!("process_local_contact: need send request");
+                        timed_events.push(timed);
+                    }
+                }
             }
         }
 
-        events
+        timed_events
     }
     fn recalculate_routes(&mut self) {
         trace!(target: "routing", "Recalculate routes");

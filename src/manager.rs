@@ -459,7 +459,18 @@ impl NetworkManager {
                         hop_cnt,
                         gateway: Some(*wg_ip),
                     };
-                    new_routes.insert(ri.to, ri_new);
+                    match new_routes.entry(ri.to) {
+                        Entry::Vacant(e) => {
+                            e.insert(ri_new);
+                        }
+                        Entry::Occupied(mut e) => {
+                            let current = e.get_mut();
+                            if current.hop_cnt > ri_new.hop_cnt {
+                                // new route is better, so replace
+                                *current = ri_new;
+                            } 
+                        }
+                    }
                 }
             } else {
                 warn!(target: "routing", "incomplete database from {} => ignore", wg_ip);
@@ -516,23 +527,18 @@ impl NetworkManager {
                 }
                 Entry::Occupied(mut e) => {
                     // update route
-                    let current = e.get_mut();
-                    if current.hop_cnt > ri.hop_cnt {
-                        trace!(target: "routing", "replace existing route {}", to);
-                        // new route is better, so replace old route
-                        self.pending_route_changes.push(RouteChange::ReplaceRoute {
-                            to,
-                            gateway: ri.gateway,
-                        });
-                        *current = RouteInfo {
-                            to,
-                            local_admin_port: ri.local_admin_port,
-                            hop_cnt: ri.hop_cnt,
-                            gateway: ri.gateway,
-                        };
-                    } else {
-                        trace!(target: "routing", "is not better than existing route {}", to);
-                    }
+                    trace!(target: "routing", "replace existing route {}", to);
+                    // new route is better, so replace old route
+                    self.pending_route_changes.push(RouteChange::ReplaceRoute {
+                        to,
+                        gateway: ri.gateway,
+                    });
+                    *e.get_mut() = RouteInfo {
+                        to,
+                        local_admin_port: ri.local_admin_port,
+                        hop_cnt: ri.hop_cnt,
+                        gateway: ri.gateway,
+                    };
                 }
             }
             trace!(target: "routing", "route changes: {}", self.pending_route_changes.len());

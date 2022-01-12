@@ -221,6 +221,8 @@ impl NetworkManager {
                 } else {
                     info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
 
+                    let mut need_wg_conf_update = false;
+
                     if dp.dp_visible_wg_endpoint.is_none() { // TODO: is a no-op currently
                         // Get endpoint from old entry
                         dp.dp_visible_wg_endpoint = entry.get_mut().dp_visible_wg_endpoint.take();
@@ -228,6 +230,9 @@ impl NetworkManager {
                         // if still not known, then ask wireguard
                         if dp.dp_visible_wg_endpoint.is_none() {
                             events.push(Event::ReadWireguardConfiguration);
+                        }
+                        else {
+                            need_wg_conf_update = true;
                         }
                     }
 
@@ -239,12 +244,18 @@ impl NetworkManager {
                     
                     if dp.local_reachable_wg_endpoint.is_none() {
                         dp.local_reachable_wg_endpoint = entry.get_mut().local_reachable_wg_endpoint.take();
+                        if dp.local_reachable_wg_endpoint.is_some() {
+                            need_wg_conf_update = true;
+                        }
                     }
 
                     if dp.local_reachable_admin_endpoint.is_none() {
                         dp.local_reachable_admin_endpoint = entry.get_mut().local_reachable_admin_endpoint.take();
                     }
 
+                    if need_wg_conf_update {
+                        events.push(Event::UpdateWireguardConfiguration);
+                    }
                 }
                 entry.insert(dp);
             }
@@ -527,7 +538,7 @@ impl NetworkManager {
                 }
                 Entry::Occupied(mut e) => {
                     // update route
-                    if e.get().to != to {
+                    if e.get().to != ri.to || e.get().gateway != ri.gateway {
                         trace!(target: "routing", "replace existing route {}", to);
                         self.pending_route_changes.push(RouteChange::ReplaceRoute {
                             to,

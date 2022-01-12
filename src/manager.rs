@@ -299,7 +299,7 @@ impl NetworkManager {
         if let Some(peer_route_db) = self.peer_route_db.get(&advertisement.wg_ip) {
             if peer_route_db.version != advertisement.routedb_version {
                 // need to request new route database via tunnel
-                info!(target: "routing", "Request updated route database from peer {}", src_addr);
+                info!(target: "routing", "Request updated route database from peer {}", advertisement.wg_ip);
                 self.peer_route_db.remove(&advertisement.wg_ip);
                 let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
                 events.push(Event::SendRouteDatabaseRequest { to: destination });
@@ -410,7 +410,7 @@ impl NetworkManager {
         if local.my_visible_wg_endpoint.is_some() {
             if let Some(admin_endpoint) = local.my_visible_admin_endpoint {
                 if let Some(my_visible_admin_endpoint) = self.my_visible_admin_endpoint.as_ref() {
-                    for _ in 1..5 {
+                    for _ in 1..10 {
                         let timed = vec![
                             Event::SendAdvertisement {
                                 addressed_to: AddressedTo::VisibleAddress,

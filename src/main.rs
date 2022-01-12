@@ -375,7 +375,7 @@ fn main_loop(
                 let events: Vec<Event>;
                 match udp_packet {
                     Advertisement(ad) => {
-                        debug!(target: &ad.wg_ip.to_string(), "Received advertisement");
+                        debug!(target: &ad.wg_ip.to_string(), "Received advertisement from {:?}", src_addr);
                         events = network_manager.analyze_advertisement(ad, src_addr);
                     }
                     RequestAdvertisement(send_to, wg_ip) => {
@@ -458,10 +458,10 @@ fn main_loop(
                 wg_ip,
                 send_to,
             }) => {
-                debug!(target: &wg_ip.to_string(),"Send advertisement to {:?}", destination);
+                debug!(target: &wg_ip.to_string(),"Send advertisement request to {:?} for {:?}", destination, send_to);
+                info!(target: "advertisement", "Send advertisement request to {:?} for {:?}", destination, send_to);
                 let req = UdpPacket::RequestAdvertisement(send_to, wg_ip);
                 let buf = serde_json::to_vec(&req).unwrap();
-                info!(target: "advertisement", "request advertisement from {} to send to {:?}", destination, send_to);
                 crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {

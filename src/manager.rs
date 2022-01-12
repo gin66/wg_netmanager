@@ -314,8 +314,7 @@ impl NetworkManager {
     pub fn process_new_nodes(&mut self) -> Vec<Event> {
         let mut events = vec![];
         warn!("process_new_nodes");
-        //while let Some(sa) = self.new_nodes.pop() {
-        for sa in self.new_nodes.iter() {
+        while let Some(sa) = self.new_nodes.pop() {
             events.push(Event::SendLocalContactRequest { to: *sa });
         }
         events

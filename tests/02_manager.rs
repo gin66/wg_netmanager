@@ -25,6 +25,7 @@ mod tests {
         let mut mgr = NetworkManager::new(ip);
 
         let ad = AdvertisementPacket {
+            addressed_to: AddressedTo::StaticAddress,
             public_key: PublicKeyWithTime {
                 key: "".to_string(),
                 priv_key_creation_time: 0,

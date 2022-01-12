@@ -39,6 +39,10 @@ pub enum RouteChange {
         to: Ipv4Addr,
         gateway: Option<Ipv4Addr>,
     },
+    ReplaceRoute {
+        to: Ipv4Addr,
+        gateway: Option<Ipv4Addr>,
+    },
     DelRoute {
         to: Ipv4Addr,
         gateway: Option<Ipv4Addr>,
@@ -78,6 +82,8 @@ pub struct DynamicPeer {
     pub local_admin_port: u16,
     pub wg_ip: Ipv4Addr,
     pub name: String,
+    pub local_reachable_wg_endpoint: Option<SocketAddr>,
+    pub local_reachable_admin_endpoint: Option<SocketAddr>,
     pub dp_visible_wg_endpoint: Option<SocketAddr>,
     pub dp_visible_admin_endpoint: Option<SocketAddr>,
     pub admin_port: u16,
@@ -151,26 +157,32 @@ impl NetworkManager {
         self.fifo_ping.push(advertisement.wg_ip);
         let lastseen = crate::util::now();
 
-        let mut dp_visible_admin_endpoint = Some(src_addr);
-        let mut dp_visible_wg_endpoint =
-            Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
+        let mut dp_visible_admin_endpoint = None;
+        let mut local_reachable_admin_endpoint = None;
+        let mut local_reachable_wg_endpoint = None;
 
-        match src_addr {
-            SocketAddr::V4(sa_v4) => {
-                if *sa_v4.ip() == advertisement.wg_ip {
-                    // received from wg-address
-                    dp_visible_admin_endpoint = None;
-                    dp_visible_wg_endpoint = None;
+        use AddressedTo::*;
+        match &advertisement.addressed_to {
+            StaticAddress | VisibleAddress => {
+                dp_visible_admin_endpoint = Some(src_addr);
+            }
+            LocalAddress | ReplyFromLocalAddress => {
+                local_reachable_wg_endpoint = Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
+                local_reachable_admin_endpoint = Some(src_addr);
+            }
+            ReplyFromStaticAddress | ReplyFromVisibleAddress => {
+                if advertisement.your_visible_admin_endpoint.is_some() {
+                    self.my_visible_admin_endpoint = advertisement.your_visible_admin_endpoint;
                 }
             }
-            SocketAddr::V6(_) => {}
-        }
-
-        if advertisement.your_visible_admin_endpoint.is_some() {
-            self.my_visible_admin_endpoint = advertisement.your_visible_admin_endpoint;
-        }
-        if advertisement.your_visible_wg_endpoint.is_some() {
-            self.my_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+            WireguardAddress | ReplyFromWireguardAddress => {
+                if advertisement.your_visible_admin_endpoint.is_some() {
+                    self.my_visible_admin_endpoint = advertisement.your_visible_admin_endpoint;
+                }
+                if advertisement.your_visible_wg_endpoint.is_some() {
+                    self.my_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                }
+            }
         }
 
         let mut dp = DynamicPeer {
@@ -179,8 +191,10 @@ impl NetworkManager {
             local_wg_port: advertisement.local_wg_port,
             public_key: advertisement.public_key.clone(),
             name: advertisement.name.to_string(),
+            local_reachable_admin_endpoint,
+            local_reachable_wg_endpoint,
             dp_visible_admin_endpoint,
-            dp_visible_wg_endpoint,
+            dp_visible_wg_endpoint: None,
             admin_port: src_addr.port(),
             lastseen,
         };
@@ -197,6 +211,7 @@ impl NetworkManager {
 
                         // As this peer is new, send an advertisement
                         events.push(Event::SendAdvertisement {
+                            addressed_to: AddressedTo::WireguardAddress,
                             to: src_addr,
                             wg_ip: dp.wg_ip,
                         });
@@ -206,7 +221,7 @@ impl NetworkManager {
                 } else {
                     info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
 
-                    if dp.dp_visible_wg_endpoint.is_none() {
+                    if dp.dp_visible_wg_endpoint.is_none() { // TODO: is a no-op currently
                         // Get endpoint from old entry
                         dp.dp_visible_wg_endpoint = entry.get_mut().dp_visible_wg_endpoint.take();
 
@@ -221,10 +236,21 @@ impl NetworkManager {
                         dp.dp_visible_admin_endpoint =
                             entry.get_mut().dp_visible_admin_endpoint.take();
                     }
+                    
+                    if dp.local_reachable_wg_endpoint.is_none() {
+                        dp.local_reachable_wg_endpoint = entry.get_mut().local_reachable_wg_endpoint.take();
+                    }
+
+                    if dp.local_reachable_admin_endpoint.is_none() {
+                        dp.local_reachable_admin_endpoint = entry.get_mut().local_reachable_admin_endpoint.take();
+                    }
+
                     entry.insert(dp);
                 }
             }
             Entry::Vacant(entry) => {
+                use AddressedTo::*;
+
                 info!(target: "advertisement", "Advertisement from new peer {}", src_addr);
                 events.push(Event::UpdateWireguardConfiguration);
 
@@ -232,7 +258,16 @@ impl NetworkManager {
                 // in the list of dynamic peers and as such is new.
                 // Consequently the reply is sent over the internet and not via
                 // wireguard tunnel, because that tunnel is not yet set up.
+                let addressed_to = match advertisement.addressed_to {
+                    StaticAddress => { ReplyFromStaticAddress }
+                    VisibleAddress => { ReplyFromVisibleAddress }
+                    LocalAddress => { ReplyFromLocalAddress }
+                    WireguardAddress => { ReplyFromLocalAddress }
+
+                    replies => replies,
+                };
                 events.push(Event::SendAdvertisement {
+                    addressed_to,
                     to: src_addr,
                     wg_ip: dp.wg_ip,
                 });
@@ -337,7 +372,8 @@ impl NetworkManager {
         events
     }
     pub fn process_local_contact(&self, local: LocalContactPacket) -> Vec<Event> {
-        local
+        // Send advertisement to all local addresses
+        let mut events: Vec<Event> = local
             .local_ip_list
             .iter()
             .filter(|ip| match *ip {
@@ -345,10 +381,24 @@ impl NetworkManager {
                 IpAddr::V6(_) => true,
             })
             .map(|ip| Event::SendAdvertisement {
+                addressed_to: AddressedTo::LocalAddress,
                 to: SocketAddr::new(*ip, local.local_admin_port),
                 wg_ip: local.wg_ip,
             })
-            .collect()
+            .collect();
+
+        // Send advertisement to a possible visible endpoint
+        if local.my_visible_wg_endpoint.is_some() {
+            if let Some(admin_endpoint) = local.my_visible_admin_endpoint {
+                events.push( Event::SendAdvertisement {
+                    addressed_to: AddressedTo::VisibleAddress,
+                    to: admin_endpoint,
+                    wg_ip: local.wg_ip,
+                });
+            }
+        }
+
+        events
     }
     fn recalculate_routes(&mut self) {
         trace!(target: "routing", "Recalculate routes");
@@ -469,17 +519,8 @@ impl NetworkManager {
                     let current = e.get_mut();
                     if current.hop_cnt > ri.hop_cnt {
                         trace!(target: "routing", "replace existing route {}", to);
-                        // new route is better
-                        //
-                        // so first delete the old route
-                        //
-                        self.pending_route_changes.push(RouteChange::DelRoute {
-                            to: current.to,
-                            gateway: current.gateway,
-                        });
-
-                        // then add the new route
-                        self.pending_route_changes.push(RouteChange::AddRoute {
+                        // new route is better, so replace old route
+                        self.pending_route_changes.push(RouteChange::ReplaceRoute {
                             to,
                             gateway: ri.gateway,
                         });

@@ -93,9 +93,9 @@ echo bob is client
 echo charlie is client
 echo expectation is, that after a while the ping succeeds: bob can reach charlie via the tunnel
 
-COLOR_ALICE="bg=#222240"
-COLOR_BOB="bg=#402222"
-COLOR_CHARLIE="bg=#224022"
+COLOR_ALICE=bg=#222240
+COLOR_BOB=bg=#402222
+COLOR_CHARLIE=bg=#224022
 
 FOCUS=ifconfig
 #FOCUS=wg

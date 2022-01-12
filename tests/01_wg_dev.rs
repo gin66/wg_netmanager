@@ -2,6 +2,7 @@
 mod tests {
     use wg_netmanager::configuration::*;
     use wg_netmanager::wg_dev::*;
+    use wg_netmanager::wg_dev_linuxkernel::*;
 
     #[allow(dead_code)]
     fn demo_config() -> StaticConfigurationBuilder {
@@ -48,7 +49,8 @@ mod tests {
         let dev_present_after = wg_dev.check_device().unwrap();
         assert!(dev_present_after);
 
-        wg_dev.set_ip(&"10.1.1.1".parse().unwrap()).unwrap();
+        let subnet: ipnet::Ipv4Net = "10.1.0.0/16".parse().unwrap();
+        wg_dev.set_ip(&"10.1.1.1".parse().unwrap(), &subnet).unwrap();
 
         wg_dev.take_down_device().unwrap();
 
@@ -68,7 +70,8 @@ mod tests {
         let dev_present_after = wg_dev.check_device().unwrap();
         assert!(dev_present_after);
 
-        wg_dev.set_ip(&"10.1.1.1".parse().unwrap()).unwrap();
+        let subnet: ipnet::Ipv4Net = "10.1.0.0/16".parse().unwrap();
+        wg_dev.set_ip(&"10.1.1.1".parse().unwrap(), &subnet).unwrap();
 
         wg_dev
             .set_conf(

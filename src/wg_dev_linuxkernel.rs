@@ -165,14 +165,14 @@ impl WireguardDevice for WireguardDeviceLinux {
         debug!("Interface {} set route", self.device_name);
         Ok(())
     }
-    fn del_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
+    fn replace_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route {}", route);
         if let Some(gateway) = gateway {
             let _ = self.execute_command(
                 vec![
                     "ip",
                     "route",
-                    "del",
+                    "replace",
                     route,
                     "via",
                     &gateway.to_string(),
@@ -183,10 +183,25 @@ impl WireguardDevice for WireguardDeviceLinux {
             );
         } else {
             let _ = self.execute_command(
-                vec!["ip", "route", "del", route, "dev", &self.device_name],
+                vec![
+                    "ip",
+                    "route",
+                    "replace",
+                    route,
+                    "dev",
+                    &self.device_name,
+                    //    "src",
+                    //    &format!("{}", self.ip),
+                ],
                 None,
             );
         }
+        debug!("Interface {} set route", self.device_name);
+        Ok(())
+    }
+    fn del_route(&self, route: &str, _gateway: Option<Ipv4Addr>) -> BoxResult<()> {
+        debug!("Set route {}", route);
+        let _ = self.execute_command( vec!["ip", "route", "del", route, ], None,);
         debug!("Interface {} deleted route", self.device_name);
         Ok(())
     }
@@ -220,5 +235,16 @@ impl WireguardDevice for WireguardDeviceLinux {
             }
         }
         Ok(pubkey_to_endpoint)
+    }
+    fn create_key_pair(&self) -> BoxResult<(String, String)> {
+        let result_priv_key = self.execute_command(vec!["wg", "genkey"], None)?;
+        let raw_priv_key = String::from_utf8_lossy(&result_priv_key.stdout);
+        let priv_key = raw_priv_key.trim();
+
+        let result_pub_key = self.execute_command(vec!["wg", "pubkey"], Some(priv_key))?;
+        let raw_pub_key = String::from_utf8_lossy(&result_pub_key.stdout);
+        let pub_key = raw_pub_key.trim();
+
+        Ok((priv_key.to_string(), pub_key.to_string()))
     }
 }

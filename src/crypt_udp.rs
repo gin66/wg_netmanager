@@ -13,7 +13,21 @@ use crate::error::*;
 use crate::manager::*;
 
 #[derive(Serialize, Deserialize, Debug)]
+pub enum AddressedTo {
+    StaticAddress,
+    VisibleAddress,
+    LocalAddress,
+    WireguardAddress,
+
+    ReplyFromStaticAddress,
+    ReplyFromVisibleAddress,
+    ReplyFromLocalAddress,
+    ReplyFromWireguardAddress,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AdvertisementPacket {
+    pub addressed_to: AddressedTo,
     pub public_key: PublicKeyWithTime,
     pub local_wg_port: u16,
     pub local_admin_port: u16,
@@ -53,9 +67,11 @@ impl UdpPacket {
     pub fn advertisement_from_config(
         static_config: &StaticConfiguration,
         routedb_version: usize,
+        addressed_to: AddressedTo,
         to_dynamic_peer: Option<&DynamicPeer>,
     ) -> Self {
         UdpPacket::Advertisement(AdvertisementPacket {
+            addressed_to,
             public_key: static_config.my_public_key.clone(),
             local_wg_port: static_config.wg_port,
             local_admin_port: static_config.admin_port,

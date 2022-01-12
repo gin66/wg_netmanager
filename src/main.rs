@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
-use std::process::{Command, Stdio};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
 
@@ -12,6 +11,7 @@ use yaml_rust::YamlLoader;
 
 use wg_netmanager::configuration::*;
 use wg_netmanager::crypt_udp::CryptUdp;
+use wg_netmanager::crypt_udp::AddressedTo;
 use wg_netmanager::crypt_udp::UdpPacket;
 use wg_netmanager::error::*;
 use wg_netmanager::event::Event;
@@ -144,6 +144,10 @@ fn main() -> BoxResult<()> {
     let shared_key = base64::decode(&network["sharedKey"].as_str().unwrap()).unwrap();
     let subnet: ipnet::Ipv4Net = network["subnet"].as_str().unwrap().parse().unwrap();
 
+    if !subnet.contains(&wg_ip) {
+        return Err(format!("{} is outside of {}", wg_ip, subnet).into());
+    }
+
     let mut peers: HashMap<Ipv4Addr, PublicPeer> = HashMap::new();
     for p in conf[0]["peers"].as_vec().unwrap() {
         info!("STATIC PEER: {:#?}", p);
@@ -162,30 +166,15 @@ fn main() -> BoxResult<()> {
         peers.insert(wg_ip, pp);
     }
 
-    let output = Command::new("wg")
-        .arg("genkey")
-        .stdout(Stdio::piped())
-        .output()?
-        .stdout;
-    let raw_private_key = String::from_utf8_lossy(&output);
-    let my_private_key = raw_private_key.trim();
+    let wg_dev = get_wireguard_device(interface)?;
+    let (my_private_key, my_public_key) = wg_dev.create_key_pair()?;
     trace!("My private key: {}", my_private_key);
-    let mut cmd = Command::new("wg")
-        .arg("pubkey")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()?;
-    write!(cmd.stdin.as_ref().unwrap(), "{}", my_private_key)?;
-    cmd.wait()?;
-    let mut public_key = String::new();
-    cmd.stdout.unwrap().read_to_string(&mut public_key)?;
-    let my_public_key = public_key.trim();
+    trace!("My public key: {}", my_public_key);
     let timestamp = wg_netmanager::util::now();
     let my_public_key_with_time = PublicKeyWithTime {
-        key: my_public_key.to_string(),
+        key: my_public_key,
         priv_key_creation_time: timestamp,
     };
-    trace!("My public key: {}", my_public_key);
 
     let static_config = StaticConfiguration::builder()
         .name(computer_name)
@@ -203,10 +192,10 @@ fn main() -> BoxResult<()> {
         .use_existing_interface(use_existing_interface)
         .build();
 
-    run(&static_config)
+    run(&static_config, wg_dev)
 }
 
-fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
+fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDevice>) -> BoxResult<()> {
     let (tx, rx) = channel();
 
     let tx_handler = tx.clone();
@@ -257,8 +246,6 @@ fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
         }
     });
 
-    let mut wg_dev = WireguardDeviceLinux::init(&static_config.wg_name);
-
     // in case there are dangling routes
     if !static_config.use_existing_interface {
         wg_dev.take_down_device().ok();
@@ -276,7 +263,7 @@ fn run(static_config: &StaticConfiguration) -> BoxResult<()> {
         TuiApp::off()
     };
 
-    let rc = main_loop(static_config, &wg_dev, crypt_socket, tx, rx, &mut tui_app);
+    let rc = main_loop(static_config, &*wg_dev, crypt_socket, tx, rx, &mut tui_app);
 
     if !static_config.use_existing_interface {
         wg_dev.take_down_device().ok();
@@ -342,6 +329,7 @@ fn main_loop(
                 for (wg_ip, admin_port) in ping_peers {
                     let destination = SocketAddr::V4(SocketAddrV4::new(wg_ip, admin_port));
                     tx.send(Event::SendAdvertisement {
+                        addressed_to: AddressedTo::WireguardAddress,
                         to: destination,
                         wg_ip,
                     })
@@ -362,6 +350,7 @@ fn main_loop(
                             for sa in endpoints {
                                 let destination = SocketAddr::new(sa.ip(), peer.admin_port);
                                 tx.send(Event::SendAdvertisement {
+                                    addressed_to: AddressedTo::StaticAddress,
                                     to: destination,
                                     wg_ip: peer.wg_ip,
                                 })
@@ -417,6 +406,7 @@ fn main_loop(
                 }
             }
             Ok(Event::SendAdvertisement {
+                addressed_to,
                 to: destination,
                 wg_ip,
             }) => {
@@ -424,7 +414,7 @@ fn main_loop(
                 let routedb_version = network_manager.db_version();
                 let opt_dp: Option<&DynamicPeer> = network_manager.dynamic_peer_for(&wg_ip);
                 let advertisement =
-                    UdpPacket::advertisement_from_config(static_config, routedb_version, opt_dp);
+                    UdpPacket::advertisement_from_config(static_config, routedb_version, addressed_to, opt_dp);
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 info!(target: "advertisement", "Send advertisement to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
@@ -498,25 +488,24 @@ fn main_loop(
                     match rc {
                         AddRoute {
                             to,
-                            gateway: Some(gateway),
+                            gateway,
                         } => {
                             debug!(target: &to.to_string(), "add route with gateway {:?}", gateway);
-                            wg_dev.add_route(&format!("{}/32", to), Some(gateway))?;
+                            wg_dev.add_route(&format!("{}/32", to), gateway)?;
                         }
-                        AddRoute { to, gateway: None } => {
-                            debug!(target: &to.to_string(), "add route");
-                            wg_dev.add_route(&format!("{}/32", to), None)?;
+                        ReplaceRoute {
+                            to,
+                            gateway,
+                        } => {
+                            debug!(target: &to.to_string(), "replace route with gateway {:?}", gateway);
+                            wg_dev.replace_route(&format!("{}/32", to), gateway)?;
                         }
                         DelRoute {
                             to,
-                            gateway: Some(gateway),
+                            gateway,
                         } => {
                             debug!(target: &to.to_string(), "del route with gateway {:?}", gateway);
-                            wg_dev.del_route(&format!("{}/32", to), Some(gateway))?;
-                        }
-                        DelRoute { to, gateway: None } => {
-                            debug!(target: &to.to_string(), "del route");
-                            wg_dev.del_route(&format!("{}/32", to), None)?;
+                            wg_dev.del_route(&format!("{}/32", to), gateway)?;
                         }
                     }
                 }

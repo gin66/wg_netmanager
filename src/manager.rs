@@ -527,18 +527,19 @@ impl NetworkManager {
                 }
                 Entry::Occupied(mut e) => {
                     // update route
-                    trace!(target: "routing", "replace existing route {}", to);
-                    // new route is better, so replace old route
-                    self.pending_route_changes.push(RouteChange::ReplaceRoute {
-                        to,
-                        gateway: ri.gateway,
-                    });
-                    *e.get_mut() = RouteInfo {
-                        to,
-                        local_admin_port: ri.local_admin_port,
-                        hop_cnt: ri.hop_cnt,
-                        gateway: ri.gateway,
-                    };
+                    if e.get().to != to {
+                        trace!(target: "routing", "replace existing route {}", to);
+                        self.pending_route_changes.push(RouteChange::ReplaceRoute {
+                            to,
+                            gateway: ri.gateway,
+                        });
+                        *e.get_mut() = RouteInfo {
+                            to,
+                            local_admin_port: ri.local_admin_port,
+                            hop_cnt: ri.hop_cnt,
+                            gateway: ri.gateway,
+                        };
+                    }
                 }
             }
             trace!(target: "routing", "route changes: {}", self.pending_route_changes.len());

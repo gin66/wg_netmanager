@@ -113,7 +113,7 @@ impl Node {
         else {
             ""
         };
-        trace!(target: "nodes", "Alive node: {:?} for {} s {}", self.admin_port, self.known_in_s, pk_available);
+        trace!(target: "nodes", "Alive node: {:?} for {} s {}", self.wg_ip, self.known_in_s, pk_available);
         self.known_in_s += 1;
 
         if self.is_static_peer.is_none() {

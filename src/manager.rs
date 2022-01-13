@@ -95,6 +95,7 @@ pub struct Node {
     known_in_s: usize,
     local_ip_list: Option<Vec<IpAddr>>,
     local_admin_port: Option<u16>,
+    send_count: usize,
 }
 impl Node {
     pub fn from(ri: &RouteInfo) -> Self {
@@ -108,6 +109,7 @@ impl Node {
             known_in_s: 0,
             local_ip_list: None,
             local_admin_port: None,
+            send_count: 0,
         }
     }
     pub fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
@@ -133,15 +135,18 @@ impl Node {
             return events;
         }
 
-        if self.known_in_s < 10 && self.local_ip_list.is_none() {
-            // Send request for local contact
-            let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
-            events.push(Event::SendLocalContactRequest { to: destination });
+        if self.local_ip_list.is_none() {
+            if self.known_in_s % 60 == 0 || self.known_in_s < 5 {
+                // Send request for local contact
+                let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
+                events.push(Event::SendLocalContactRequest { to: destination });
+            }
         }
 
-        if self.known_in_s < 15 {
+        if self.send_count < 10 {
             if let Some(ip_list) = self.local_ip_list.as_ref() {
                 if let Some(admin_port) = self.local_admin_port.as_ref() {
+                    self.send_count += 1;
                     for ip in ip_list.iter() {
                         if let IpAddr::V4(ipv4) = ip {
                             if *ipv4 == self.wg_ip {
@@ -335,6 +340,9 @@ impl NetworkManager {
                     to: src_addr,
                     wg_ip: dp.wg_ip,
                 });
+
+                // remove from known_nodes, if present
+                self.known_nodes.remove(&dp.wg_ip);
 
                 // store the dynamic peer
                 entry.insert(dp);

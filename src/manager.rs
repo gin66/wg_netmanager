@@ -515,6 +515,7 @@ impl NetworkManager {
         // new_routes is built. So update route_db and mark changes
         //
         // first routes to be deleted
+        let mut to_be_deleted = vec![];
         for ri in self.route_db.route_for.values_mut() {
             if !new_routes.contains_key(&ri.to) {
                 trace!(target: "routing", "del route {:?}", ri);
@@ -523,11 +524,16 @@ impl NetworkManager {
                     gateway: ri.gateway,
                 });
 
+                to_be_deleted.push(ri.to);
+
                 // and delete from the known_nodes.
                 self.known_nodes.remove(&ri.to);
             } else {
                 trace!(target: "routing", "unchanged route {:?}", ri);
             }
+        }
+        for wg_ip in to_be_deleted.into_iter() {
+            self.route_db.route_for.remove(&wg_ip);
         }
         // finally routes to be updated / added
         for (to, ri) in new_routes.into_iter() {

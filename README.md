@@ -1,7 +1,7 @@
 Wireguard network manager
 =========================
 
-# Status: TESTING - On older linux version, ip command acts different
+# Status: TESTING
 
 - iproute2-ss190107 OK
 - iproute2-ss131122 NOT OK (actually my static server...)
@@ -99,13 +99,41 @@ Routing
 
 System integration
 - [ ] systemd
-- [X] rc-based system
+- [ ] rc-based system
 
 Admin
 - [X] TUI interface
 - [ ] REST API
 - [ ] Web UI frontend
 
+# Installation
+
+With rust installed, just issue
+```
+	cargo install wg_netmanager
+```
+
+# Usage
+
+Generally, a shared key need to be created and stored under sharedKey in your local copy of network.yaml. This can be done by:
+```
+	wg genkey
+```
+and copy the result in the network.yaml
+
+Then modify the peers list to accommodate your setup. At least one peer with a static address is needed. For dyndns-reachable servers, use the hostname instead of an ip.
+
+If the subnet 10.1.1.0/8 does not suit your needs, then change it. All wireguard IPs need to be included in the chosen subnet.
+
+Then copy the final yaml file to all your nodes and start the wg_netmanager with:
+```
+	wg_netmanager -c network.yaml <wireguard-interface> <wireguard-ip> <name>
+```
+
+
+For vps, which do not support wireguard as network interface, either boringtun or wireguard-go can be used. Then inform wg_netmanager about the pre-configured wireguard interface with the `-e` commandline switch.
+
+For a list of commandline options, just use `--help` as usual.
 
 # Testing
 

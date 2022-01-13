@@ -3,10 +3,6 @@ Wireguard network manager
 
 # Status: TESTING
 
-- iproute2-ss190107 OK
-- iproute2-ss131122 NOT OK (actually my static server...)
-- iproute2-5.14.0   OK
-
 # Motivation / Problem
 
 Situation is a couple of vps, some IoT devices in the home network and couple of roaming laptops/iPads/smartphones.  Till now a quite complex setup involving wireguard, openvpn, ssh'ing from box to box was in use.

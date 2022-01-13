@@ -10,6 +10,7 @@ Todos:
 * share info about visible endpoint/admin udp port
 	+ Retrieve endpoint from clients out of wg showconf parsed output
 * add dns
+* avoid syncconf with identical configuration (can happen if several nodes are added at once)
 * make video with watch wg showconf per vps
 * Support https://github.com/FlyveHest/wg-friendly-peer-names
 * Add mobile client type: is connection initiator. not reachable from outside

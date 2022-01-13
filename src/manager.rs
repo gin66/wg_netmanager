@@ -88,7 +88,7 @@ pub struct DynamicPeer {
 pub struct Node {
     is_static_peer: Option<bool>,
     wg_ip: Ipv4Addr,
-    admin_port : u16,
+    admin_port: u16,
     hop_cnt: usize,
     gateway: Option<Ipv4Addr>,
     public_key: Option<PublicKeyWithTime>,
@@ -109,8 +109,7 @@ impl Node {
     pub fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
         let pk_available = if self.public_key.is_some() {
             ", public key available"
-        }
-        else {
+        } else {
             ""
         };
         trace!(target: "nodes", "Alive node: {:?} for {} s {}", self.wg_ip, self.known_in_s, pk_available);
@@ -128,9 +127,6 @@ impl Node {
             return vec![];
         }
 
-        
-
-
         vec![]
     }
 }
@@ -142,7 +138,7 @@ pub struct NetworkManager {
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
 
     pending_route_changes: Vec<RouteChange>,
-    known_nodes: HashMap<Ipv4Addr,Node>,
+    known_nodes: HashMap<Ipv4Addr, Node>,
     peer: HashMap<Ipv4Addr, DynamicPeer>,
     fifo_dead: Vec<Ipv4Addr>,
     fifo_ping: Vec<Ipv4Addr>,
@@ -205,8 +201,7 @@ impl NetworkManager {
 
         use AddressedTo::*;
         match &advertisement.addressed_to {
-            StaticAddress | ReplyFromStaticAddress => {
-            }
+            StaticAddress | ReplyFromStaticAddress => {}
             LocalAddress | ReplyFromLocalAddress => {
                 local_reachable_wg_endpoint =
                     Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
@@ -331,7 +326,10 @@ impl NetworkManager {
         }
         events
     }
-    pub fn process_new_nodes_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
+    pub fn process_new_nodes_every_second(
+        &mut self,
+        static_config: &StaticConfiguration,
+    ) -> Vec<Event> {
         let mut events = vec![];
         warn!("process_new_nodes");
         for node in self.known_nodes.values_mut() {
@@ -574,6 +572,9 @@ impl NetworkManager {
         }
         if !self.pending_route_changes.is_empty() {
             trace!(target: "routing", "{} route changes", self.pending_route_changes.len());
+            for change in self.pending_route_changes.iter() {
+                trace!(target: "routing", "route changes {:?}", change);
+            }
             self.route_db.version += 1;
         }
     }

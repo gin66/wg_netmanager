@@ -162,6 +162,7 @@ impl NetworkManager {
 
     pub fn remove_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
         self.peer.remove(peer_ip);
+        self.peer_route_db.remove(peer_ip);
         self.recalculate_routes();
     }
 

@@ -413,7 +413,8 @@ fn main_loop(
                     LocalContact(contact) => {
                         debug!(target: "probing", "Received contact info: {:#?}", contact);
                         debug!(target: &contact.wg_ip.to_string(), "Received local contacts");
-                        events = network_manager.process_local_contact(contact);
+                        network_manager.process_local_contact(contact);
+                        events = vec![];
                     }
                 }
                 for evt in events {

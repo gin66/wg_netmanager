@@ -93,6 +93,8 @@ pub struct Node {
     gateway: Option<Ipv4Addr>,
     public_key: Option<PublicKeyWithTime>,
     known_in_s: usize,
+    local_ip_list: Option<Vec<IpAddr>>,
+    local_admin_port: Option<u16>,
 }
 impl Node {
     pub fn from(ri: &RouteInfo) -> Self {
@@ -104,9 +106,13 @@ impl Node {
             gateway: ri.gateway,
             public_key: None,
             known_in_s: 0,
+            local_ip_list: None,
+            local_admin_port: None,
         }
     }
     pub fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
+        let mut events = vec![];
+
         let pk_available = if self.public_key.is_some() {
             ", public key available"
         } else {
@@ -124,10 +130,39 @@ impl Node {
             //
             // static peers will be polled regularly until direct connection has been successfully
             // established.
-            return vec![];
+            return events;
         }
 
-        vec![]
+        if self.known_in_s < 10 && self.local_ip_list.is_none() {
+            // Send request for local contact
+            let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
+            events.push(Event::SendLocalContactRequest { to: destination });
+        }
+
+        if self.known_in_s < 15 {
+            if let Some(ip_list) = self.local_ip_list.as_ref() {
+                if let Some(admin_port) = self.local_admin_port.as_ref() {
+                    for ip in ip_list.iter() {
+                        if let IpAddr::V4(ipv4) = ip {
+                            if *ipv4 == self.wg_ip {
+                                continue;
+                            }
+                            events.push(Event::SendAdvertisement {
+                                addressed_to: AddressedTo::LocalAddress,
+                                to: SocketAddr::new(*ip, *admin_port),
+                                wg_ip: self.wg_ip,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        events
+    }
+    pub fn process_local_contact(&mut self, local: LocalContactPacket) {
+        self.local_ip_list = Some(local.local_ip_list);
+        self.local_admin_port = Some(local.local_admin_port);
     }
 }
 
@@ -406,22 +441,13 @@ impl NetworkManager {
         }
         events
     }
-    pub fn process_local_contact(&self, local: LocalContactPacket) -> Vec<Event> {
+    pub fn process_local_contact(&mut self, local: LocalContactPacket) {
         // Send advertisement to all local addresses
         debug!(target: &local.wg_ip.to_string(), "LocalContact: {:#?}", local);
-        local
-            .local_ip_list
-            .iter()
-            .filter(|ip| match *ip {
-                IpAddr::V4(ipv4) => *ipv4 != local.wg_ip,
-                IpAddr::V6(_) => true,
-            })
-            .map(|ip| Event::SendAdvertisement {
-                addressed_to: AddressedTo::LocalAddress,
-                to: SocketAddr::new(*ip, local.local_admin_port),
-                wg_ip: local.wg_ip,
-            })
-            .collect()
+        let wg_ip = local.wg_ip;
+        if let Some(node) = self.known_nodes.get_mut(&wg_ip) {
+            node.process_local_contact(local);
+        }
     }
     fn recalculate_routes(&mut self) {
         trace!(target: "routing", "Recalculate routes");

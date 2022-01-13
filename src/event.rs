@@ -13,11 +13,6 @@ pub enum Event {
         to: SocketAddr,
         wg_ip: Ipv4Addr,
     },
-    RequestAdvertisement {
-        to: SocketAddrV4,
-        wg_ip: Ipv4Addr,
-        send_to: SocketAddr,
-    },
     SendAdvertisementToPublicPeers,
     SendPingToAllDynamicPeers,
     SendRouteDatabaseRequest {

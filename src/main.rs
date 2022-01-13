@@ -288,7 +288,7 @@ fn main_loop(
     tx.send(Event::UpdateWireguardConfiguration).unwrap();
     tx.send(Event::SendAdvertisementToPublicPeers).unwrap();
 
-    let mut timed_events: Vec<Vec<Event>> = vec![];
+    //let mut timed_events: Vec<Vec<Event>> = vec![];
 
     let mut tick_cnt = 0;
     loop {
@@ -323,12 +323,12 @@ fn main_loop(
                     tx.send(Event::SendAdvertisementToPublicPeers).unwrap();
                 }
 
-                if !timed_events.is_empty() {
-                    let events = timed_events.remove(0);
-                    for evt in events.into_iter() {
-                        tx.send(evt).unwrap();
-                    }
-                }
+                //if !timed_events.is_empty() {
+                //    let events = timed_events.remove(0);
+                //    for evt in events.into_iter() {
+                //        tx.send(evt).unwrap();
+                //    }
+                //}
 
                 tick_cnt += 1;
             }
@@ -378,15 +378,6 @@ fn main_loop(
                         debug!(target: &ad.wg_ip.to_string(), "Received advertisement from {:?}", src_addr);
                         events = network_manager.analyze_advertisement(ad, src_addr);
                     }
-                    RequestAdvertisement(send_to, wg_ip) => {
-                        debug!(target: "advertisement", "Received request from {:?} to send advertisement to {:?}", wg_ip, send_to);
-                        debug!(target: &wg_ip.to_string(), "Received request from {:?} to send advertisement to {:?}", wg_ip, send_to);
-                        events = vec![Event::SendAdvertisement {
-                            addressed_to: AddressedTo::VisibleAddress,
-                            to: send_to,
-                            wg_ip,
-                        }];
-                    }
                     RouteDatabaseRequest => match src_addr {
                         SocketAddr::V4(destination) => {
                             info!(target: "routing", "RouteDatabaseRequest from {:?}", src_addr);
@@ -417,18 +408,7 @@ fn main_loop(
                     LocalContact(contact) => {
                         debug!(target: "probing", "Received contact info: {:#?}", contact);
                         debug!(target: &contact.wg_ip.to_string(), "Received local contacts");
-                        let mut new_timed_events = network_manager.process_local_contact(contact);
-                        if !new_timed_events.is_empty() {
-                            events = new_timed_events.remove(0);
-                            while timed_events.len() < new_timed_events.len() {
-                                timed_events.push(vec![]);
-                            }
-                            for (i, mut evt) in new_timed_events.into_iter().enumerate() {
-                                timed_events[i].append(&mut evt);
-                            }
-                        } else {
-                            events = vec![];
-                        }
+                        events = network_manager.process_local_contact(contact);
                     }
                 }
                 for evt in events {
@@ -452,17 +432,6 @@ fn main_loop(
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 info!(target: "advertisement", "Send advertisement to {}", destination);
                 crypt_socket.send_to(&buf, destination).ok();
-            }
-            Ok(Event::RequestAdvertisement {
-                to: destination,
-                wg_ip,
-                send_to,
-            }) => {
-                debug!(target: &wg_ip.to_string(),"Send advertisement request to {:?} for {:?}", destination, send_to);
-                info!(target: "advertisement", "Send advertisement request to {:?} for {:?}", destination, send_to);
-                let req = UdpPacket::RequestAdvertisement(send_to, wg_ip);
-                let buf = serde_json::to_vec(&req).unwrap();
-                crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
             }
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
                 debug!(target: &destination.ip().to_string(), "Send route database request to {:?}", destination);
@@ -491,7 +460,6 @@ fn main_loop(
                 debug!(target: &destination.ip().to_string(), "Send local contacts to {:?}", destination);
                 let local_contact = UdpPacket::local_contact_from_config(
                     static_config,
-                    network_manager.my_visible_admin_endpoint,
                     network_manager.my_visible_wg_endpoint,
                 );
                 trace!(target: "probing", "local contact to {:#?}", local_contact);
@@ -548,7 +516,7 @@ fn main_loop(
                 tx.send(Event::UpdateWireguardConfiguration).unwrap();
 
                 // all routes have been updated. So process new nodes (not ideal solution here)
-                let events = network_manager.process_new_nodes();
+                let events = network_manager.process_new_nodes_every_second(static_config);
                 for evt in events {
                     tx.send(evt).unwrap();
                 }

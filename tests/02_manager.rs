@@ -34,7 +34,6 @@ mod tests {
             local_admin_port: 0,
             wg_ip: peer_ip,
             name: "test".to_string(),
-            your_visible_admin_endpoint: Some("192.168.1.1:1".parse().unwrap()),
             your_visible_wg_endpoint: Some("192.168.1.1:1".parse().unwrap()),
             routedb_version: 0,
         };
@@ -50,7 +49,6 @@ mod tests {
             use UdpPacket::*;
             match udp {
                 Advertisement(_) => {}
-                RequestAdvertisement(_, _) => {}
                 RouteDatabaseRequest => {}
                 RouteDatabase(req) => {
                     println!("{} {:?}", req.sender, req.known_routes);

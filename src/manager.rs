@@ -49,11 +49,6 @@ pub enum RouteChange {
     },
 }
 
-//pub struct NodeInfo {
-//    timestamp: u64,
-//    public_key: Option<PublicKeyWithTime>,
-//}
-
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RouteInfo {
     to: Ipv4Addr,
@@ -85,20 +80,69 @@ pub struct DynamicPeer {
     pub local_reachable_wg_endpoint: Option<SocketAddr>,
     pub local_reachable_admin_endpoint: Option<SocketAddr>,
     pub dp_visible_wg_endpoint: Option<SocketAddr>,
-    pub dp_visible_admin_endpoint: Option<SocketAddr>,
     pub admin_port: u16,
     pub lastseen: u64,
 }
 
+#[derive(Debug)]
+pub struct Node {
+    is_static_peer: Option<bool>,
+    wg_ip: Ipv4Addr,
+    admin_port : u16,
+    hop_cnt: usize,
+    gateway: Option<Ipv4Addr>,
+    public_key: Option<PublicKeyWithTime>,
+    known_in_s: usize,
+}
+impl Node {
+    pub fn from(ri: &RouteInfo) -> Self {
+        Node {
+            is_static_peer: None,
+            wg_ip: ri.to,
+            admin_port: ri.local_admin_port,
+            hop_cnt: ri.hop_cnt,
+            gateway: ri.gateway,
+            public_key: None,
+            known_in_s: 0,
+        }
+    }
+    pub fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
+        let pk_available = if self.public_key.is_some() {
+            ", public key available"
+        }
+        else {
+            ""
+        };
+        trace!(target: "nodes", "Alive node: {:?} for {} s {}", self.admin_port, self.known_in_s, pk_available);
+        self.known_in_s += 1;
+
+        if self.is_static_peer.is_none() {
+            self.is_static_peer = Some(static_config.peers.contains_key(&self.wg_ip));
+        }
+
+        if self.is_static_peer == Some(true) {
+            // nothing to do for a static peer
+            //
+            // static peers will be polled regularly until direct connection has been successfully
+            // established.
+            return vec![];
+        }
+
+        
+
+
+        vec![]
+    }
+}
+
 pub struct NetworkManager {
     wg_ip: Ipv4Addr,
-    pub my_visible_admin_endpoint: Option<SocketAddr>,
     pub my_visible_wg_endpoint: Option<SocketAddr>,
     route_db: RouteDB,
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
 
     pending_route_changes: Vec<RouteChange>,
-    new_nodes: Vec<SocketAddrV4>,
+    known_nodes: HashMap<Ipv4Addr,Node>,
     peer: HashMap<Ipv4Addr, DynamicPeer>,
     fifo_dead: Vec<Ipv4Addr>,
     fifo_ping: Vec<Ipv4Addr>,
@@ -109,12 +153,11 @@ impl NetworkManager {
         NetworkManager {
             wg_ip,
             //all_nodes: HashMap::new(),
-            my_visible_admin_endpoint: None,
             my_visible_wg_endpoint: None,
             route_db: RouteDB::default(),
             peer_route_db: HashMap::new(),
             pending_route_changes: vec![],
-            new_nodes: vec![],
+            known_nodes: HashMap::new(),
             peer: HashMap::new(),
             fifo_dead: vec![],
             fifo_ping: vec![],
@@ -157,29 +200,19 @@ impl NetworkManager {
         self.fifo_ping.push(advertisement.wg_ip);
         let lastseen = crate::util::now();
 
-        let mut dp_visible_admin_endpoint = None;
         let mut local_reachable_admin_endpoint = None;
         let mut local_reachable_wg_endpoint = None;
 
         use AddressedTo::*;
         match &advertisement.addressed_to {
-            StaticAddress | VisibleAddress => {
-                dp_visible_admin_endpoint = Some(src_addr);
+            StaticAddress | ReplyFromStaticAddress => {
             }
             LocalAddress | ReplyFromLocalAddress => {
                 local_reachable_wg_endpoint =
                     Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
                 local_reachable_admin_endpoint = Some(src_addr);
             }
-            ReplyFromStaticAddress | ReplyFromVisibleAddress => {
-                if advertisement.your_visible_admin_endpoint.is_some() {
-                    self.my_visible_admin_endpoint = advertisement.your_visible_admin_endpoint;
-                }
-            }
             WireguardAddress | ReplyFromWireguardAddress => {
-                if advertisement.your_visible_admin_endpoint.is_some() {
-                    self.my_visible_admin_endpoint = advertisement.your_visible_admin_endpoint;
-                }
                 if advertisement.your_visible_wg_endpoint.is_some() {
                     self.my_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
                 }
@@ -194,7 +227,6 @@ impl NetworkManager {
             name: advertisement.name.to_string(),
             local_reachable_admin_endpoint,
             local_reachable_wg_endpoint,
-            dp_visible_admin_endpoint,
             dp_visible_wg_endpoint: None,
             admin_port: src_addr.port(),
             lastseen,
@@ -235,12 +267,6 @@ impl NetworkManager {
                         }
                     }
 
-                    if dp.dp_visible_admin_endpoint.is_none() {
-                        // Get endpoint from old entry
-                        dp.dp_visible_admin_endpoint =
-                            entry.get_mut().dp_visible_admin_endpoint.take();
-                    }
-
                     if dp.local_reachable_wg_endpoint.is_some() {
                         if entry.get().local_reachable_wg_endpoint.is_none() {
                             need_wg_conf_update = true;
@@ -248,11 +274,6 @@ impl NetworkManager {
                     } else {
                         dp.local_reachable_wg_endpoint =
                             entry.get_mut().local_reachable_wg_endpoint.take();
-                    }
-
-                    if dp.local_reachable_admin_endpoint.is_none() {
-                        dp.local_reachable_admin_endpoint =
-                            entry.get_mut().local_reachable_admin_endpoint.take();
                     }
 
                     if need_wg_conf_update {
@@ -273,7 +294,6 @@ impl NetworkManager {
                 // wireguard tunnel, because that tunnel is not yet set up.
                 let addressed_to = match advertisement.addressed_to {
                     StaticAddress => ReplyFromStaticAddress,
-                    VisibleAddress => ReplyFromVisibleAddress,
                     LocalAddress => ReplyFromLocalAddress,
                     WireguardAddress => ReplyFromLocalAddress,
 
@@ -311,11 +331,12 @@ impl NetworkManager {
         }
         events
     }
-    pub fn process_new_nodes(&mut self) -> Vec<Event> {
+    pub fn process_new_nodes_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
         let mut events = vec![];
         warn!("process_new_nodes");
-        while let Some(sa) = self.new_nodes.pop() {
-            events.push(Event::SendLocalContactRequest { to: sa });
+        for node in self.known_nodes.values_mut() {
+            let mut new_events = node.process_every_second(static_config);
+            events.append(&mut new_events);
         }
         events
     }
@@ -387,10 +408,10 @@ impl NetworkManager {
         }
         events
     }
-    pub fn process_local_contact(&self, local: LocalContactPacket) -> Vec<Vec<Event>> {
+    pub fn process_local_contact(&self, local: LocalContactPacket) -> Vec<Event> {
         // Send advertisement to all local addresses
         debug!(target: &local.wg_ip.to_string(), "LocalContact: {:#?}", local);
-        let events: Vec<Event> = local
+        local
             .local_ip_list
             .iter()
             .filter(|ip| match *ip {
@@ -402,35 +423,7 @@ impl NetworkManager {
                 to: SocketAddr::new(*ip, local.local_admin_port),
                 wg_ip: local.wg_ip,
             })
-            .collect();
-
-        let mut timed_events = vec![events];
-
-        // Send advertisement to a possible visible endpoint
-        if local.my_visible_wg_endpoint.is_some() {
-            if let Some(admin_endpoint) = local.my_visible_admin_endpoint {
-                if let Some(my_visible_admin_endpoint) = self.my_visible_admin_endpoint.as_ref() {
-                    for _ in 1..30 {
-                        let timed = vec![
-                            Event::SendAdvertisement {
-                                addressed_to: AddressedTo::VisibleAddress,
-                                to: admin_endpoint,
-                                wg_ip: local.wg_ip,
-                            },
-                            Event::RequestAdvertisement {
-                                to: SocketAddrV4::new(local.wg_ip, local.local_admin_port),
-                                wg_ip: local.wg_ip,
-                                send_to: *my_visible_admin_endpoint,
-                            },
-                        ];
-                        warn!("process_local_contact: need send request");
-                        timed_events.push(timed);
-                    }
-                }
-            }
-        }
-
-        timed_events
+            .collect()
     }
     fn recalculate_routes(&mut self) {
         trace!(target: "routing", "Recalculate routes");
@@ -503,6 +496,11 @@ impl NetworkManager {
                             }
                         }
                     }
+                    if let Entry::Vacant(e) = self.known_nodes.entry(ri.to) {
+                        info!(target: "probing", "detected a new node {} via {}", ri.to, ri.gateway.as_ref().unwrap());
+                        let node = Node::from(ri);
+                        e.insert(node);
+                    }
                 }
             } else {
                 warn!(target: "routing", "incomplete database from {} => ignore", wg_ip);
@@ -526,6 +524,9 @@ impl NetworkManager {
                     to: ri.to,
                     gateway: ri.gateway,
                 });
+
+                // and delete from the known_nodes.
+                self.known_nodes.remove(&ri.to);
             } else {
                 trace!(target: "routing", "unchanged route {:?}", ri);
             }
@@ -541,11 +542,6 @@ impl NetworkManager {
                         to,
                         gateway: ri.gateway,
                     });
-                    if ri.gateway.is_some() {
-                        info!(target: "probing", "detected a new host {} via {}", to, ri.gateway.as_ref().unwrap());
-                        let sa = SocketAddrV4::new(to, ri.local_admin_port);
-                        self.new_nodes.push(sa);
-                    }
                     let mut ri_new = RouteInfo {
                         to,
                         local_admin_port: ri.local_admin_port,

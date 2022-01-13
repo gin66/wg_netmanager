@@ -15,12 +15,10 @@ use crate::manager::*;
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AddressedTo {
     StaticAddress,
-    VisibleAddress,
     LocalAddress,
     WireguardAddress,
 
     ReplyFromStaticAddress,
-    ReplyFromVisibleAddress,
     ReplyFromLocalAddress,
     ReplyFromWireguardAddress,
 }
@@ -33,7 +31,6 @@ pub struct AdvertisementPacket {
     pub local_admin_port: u16,
     pub wg_ip: Ipv4Addr,
     pub name: String,
-    pub your_visible_admin_endpoint: Option<SocketAddr>,
     pub your_visible_wg_endpoint: Option<SocketAddr>,
     pub routedb_version: usize,
 }
@@ -50,7 +47,6 @@ pub struct LocalContactPacket {
     pub local_ip_list: Vec<IpAddr>,
     pub local_wg_port: u16,
     pub local_admin_port: u16,
-    pub my_visible_admin_endpoint: Option<SocketAddr>,
     pub my_visible_wg_endpoint: Option<SocketAddr>,
     pub wg_ip: Ipv4Addr,
     pub name: String,
@@ -58,7 +54,6 @@ pub struct LocalContactPacket {
 #[derive(Serialize, Deserialize)]
 pub enum UdpPacket {
     Advertisement(AdvertisementPacket),
-    RequestAdvertisement(SocketAddr, Ipv4Addr),
     RouteDatabaseRequest,
     RouteDatabase(RouteDatabasePacket),
     LocalContactRequest,
@@ -78,8 +73,6 @@ impl UdpPacket {
             local_admin_port: static_config.admin_port,
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
-            your_visible_admin_endpoint: to_dynamic_peer
-                .and_then(|dp| dp.dp_visible_admin_endpoint),
             your_visible_wg_endpoint: to_dynamic_peer.and_then(|dp| dp.dp_visible_wg_endpoint),
             routedb_version,
         })
@@ -105,7 +98,6 @@ impl UdpPacket {
     }
     pub fn local_contact_from_config(
         static_config: &StaticConfiguration,
-        my_visible_admin_endpoint: Option<SocketAddr>,
         my_visible_wg_endpoint: Option<SocketAddr>,
     ) -> Self {
         UdpPacket::LocalContact(LocalContactPacket {
@@ -113,7 +105,6 @@ impl UdpPacket {
             local_ip_list: static_config.ip_list.clone(),
             local_wg_port: static_config.wg_port,
             local_admin_port: static_config.admin_port,
-            my_visible_admin_endpoint,
             my_visible_wg_endpoint,
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
@@ -124,9 +115,6 @@ impl fmt::Debug for UdpPacket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             UdpPacket::Advertisement(ad) => ad.fmt(f),
-            UdpPacket::RequestAdvertisement(_, _) => {
-                f.debug_struct("RequestAdvertisement").finish()
-            }
             UdpPacket::RouteDatabaseRequest => f.debug_struct("RouteDatabaseRequest").finish(),
             UdpPacket::RouteDatabase(_) => f.debug_struct("RouteDatabase").finish(),
             UdpPacket::LocalContactRequest => f.debug_struct("LocalContactRequest").finish(),

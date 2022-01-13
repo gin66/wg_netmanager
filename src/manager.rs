@@ -331,7 +331,6 @@ impl NetworkManager {
         static_config: &StaticConfiguration,
     ) -> Vec<Event> {
         let mut events = vec![];
-        warn!("process_new_nodes");
         for node in self.known_nodes.values_mut() {
             let mut new_events = node.process_every_second(static_config);
             events.append(&mut new_events);

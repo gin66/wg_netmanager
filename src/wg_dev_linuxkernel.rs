@@ -100,9 +100,6 @@ impl WireguardDevice for WireguardDeviceLinux {
         );
         debug!("Interface {} created", self.device_name);
 
-        let _ = self.execute_command(vec!["ip", "link", "set", &self.device_name, "up"], None);
-        debug!("Interface {} up", self.device_name);
-
         Ok(())
     }
     fn take_down_device(&self) -> BoxResult<()> {
@@ -120,6 +117,9 @@ impl WireguardDevice for WireguardDeviceLinux {
             vec!["ip", "addr", "add", &ip_extend, "dev", &self.device_name],
             None,
         );
+
+        let _ = self.execute_command(vec!["ip", "link", "set", &self.device_name, "up"], None);
+        debug!("Interface {} up", self.device_name);
 
         let _ = self.execute_command(vec!["ip", "route", "del", &format!("{:?}", subnet)], None);
 

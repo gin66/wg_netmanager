@@ -1,6 +1,6 @@
 [package]
 name = "wg_netmanager"
-version = "0.2.9"
+version = "0.3.0"
 edition = "2021"
 authors = ["Jochen Kiemes <jochen@kiemes.de>"]
 license = "MIT"

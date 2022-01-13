@@ -930,7 +930,7 @@ checksum = "1a143597ca7c7793eff794def352d41792a93c481eb1042423ff7ff72ba2c31f"
 
 [[package]]
 name = "wg_netmanager"
-version = "0.2.8"
+version = "0.2.9"
 dependencies = [
  "base64",
  "chacha20poly1305",

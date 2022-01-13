@@ -168,7 +168,7 @@ impl StaticConfiguration {
                 debug!(target: "configuration", "peer {} uses visible (NAT) endpoint {}", peer.wg_ip, endpoint);
                 debug!(target: &peer.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
                 lines.push(format!("EndPoint = {}", endpoint));
-//                lines.push("PersistentKeepalive = 5".to_string());
+                //                lines.push("PersistentKeepalive = 5".to_string());
             }
             lines.push("".to_string());
         }

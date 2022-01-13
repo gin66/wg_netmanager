@@ -98,7 +98,7 @@ pub struct Node {
     send_count: usize,
 }
 impl Node {
-    pub fn from(ri: &RouteInfo) -> Self {
+    fn from(ri: &RouteInfo) -> Self {
         Node {
             is_static_peer: None,
             wg_ip: ri.to,
@@ -112,7 +112,7 @@ impl Node {
             send_count: 0,
         }
     }
-    pub fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
+    fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
         let mut events = vec![];
 
         let pk_available = if self.public_key.is_some() {
@@ -165,9 +165,12 @@ impl Node {
 
         events
     }
-    pub fn process_local_contact(&mut self, local: LocalContactPacket) {
+    fn process_local_contact(&mut self, local: LocalContactPacket) {
         self.local_ip_list = Some(local.local_ip_list);
         self.local_admin_port = Some(local.local_admin_port);
+    }
+    fn ok_to_delete_without_route(&self) -> bool {
+        self.known_in_s > 10
     }
 }
 
@@ -375,10 +378,23 @@ impl NetworkManager {
         static_config: &StaticConfiguration,
     ) -> Vec<Event> {
         let mut events = vec![];
+        let mut node_to_delete = vec![];
         for node in self.known_nodes.values_mut() {
+            if !self.route_db.route_for.contains_key(&node.wg_ip) {
+                // have no route to this peer
+                if node.ok_to_delete_without_route() {
+                    node_to_delete.push(node.wg_ip);
+                    continue;
+                }
+            }
             let mut new_events = node.process_every_second(static_config);
             events.append(&mut new_events);
         }
+
+        for wg_ip in node_to_delete {
+            self.known_nodes.remove(&wg_ip);
+        }
+
         events
     }
     pub fn provide_route_database(&self) -> Vec<UdpPacket> {

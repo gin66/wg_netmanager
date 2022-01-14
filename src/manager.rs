@@ -154,7 +154,7 @@ impl Node {
                 // All ok. so constantly send advertisement to the Ipv6 address
                 events.push(Event::SendAdvertisement {
                     addressed_to: AddressedTo::WireguardV6Address,
-                    to: SocketAddr::new(IpAddr::V6(map_to_ipv6(&self.wg_ip)), admin_port),
+                    to: SocketAddr::new(IpAddr::V6(map_to_ipv6(&self.wg_ip)), *admin_port),
                     wg_ip: self.wg_ip,
                 });
             }

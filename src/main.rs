@@ -457,7 +457,7 @@ fn main_loop(
                             events = vec![Event::SendLocalContact { to: destination }];
                         }
                         SocketAddr::V6(source) => {
-                            error!(target: "probing", "Expected IPV4 and not IPV6 address");
+                            error!(target: "probing", "Expected IPV4 and not IPV6 address {:?}", source);
                             events = vec![];
                         }
                     },

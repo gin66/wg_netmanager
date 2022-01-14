@@ -6,8 +6,6 @@ Todos:
 * check availability of used shell commands (ip/wg)
 * include boringtun, if kernel does not provide wireguard interface
 * find a solution for sudo
-* share info about visible endpoint/admin udp port
-	+ Retrieve endpoint from clients out of wg showconf parsed output
 * add dns
 * rename bring_up() to create_device()
 * avoid syncconf with identical configuration (can happen if several nodes are added at once)
@@ -15,11 +13,16 @@ Todos:
 * Support https://github.com/FlyveHest/wg-friendly-peer-names
 * Add mobile client type: is connection initiator. not reachable from outside
 * Add legacy mode for traditional wireguard clients
-* Validate commandline ip against subnet
 * Replace lots of unwrap() with friendly error code
 * Add option to set a static route to loopback to prevent leakage of packets to default gateway 
+* How to detect a net.ipv6.bindv6only=1 system
+* Reduce ip-load (how?) for keep alive packages
+
 
 DONE:
+* share info about visible endpoint/admin udp port
+	+ Retrieve endpoint from clients out of wg showconf parsed output
+* Validate commandline ip against subnet
 * Route delete does not work as expected. in one case temp. direct link was down, but the route for it wasn't
 * wg_netmanager has started after a while, sending advertisement to public endpoint
 	=> route was missing

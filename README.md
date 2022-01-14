@@ -1,8 +1,6 @@
 Wireguard network manager
 =========================
 
-# Status: TESTING
-
 # Motivation / Problem
 
 Situation is a couple of vps, some IoT devices in the home network and couple of roaming laptops/iPads/smartphones.  Till now a quite complex setup involving wireguard, openvpn, ssh'ing from box to box was in use.
@@ -101,6 +99,53 @@ Admin
 - [X] TUI interface
 - [ ] REST API
 - [ ] Web UI frontend
+
+My test setup is:
+
+```
+             Alpha-VPS          Internet       Beta-VPS
+          behind firewall ---------+---------  public IP
+                                   |
+                                   |
+                                   |
+                                 Router
+                                   |
+                      192.168.x.x  |
+            Charlie   ------------------------  Delta
+
+```
+Alpha-VPA and Beta-VPS use old linux version without wireguard kernel driver. So wireguard-go is in use.
+
+1. After start of wg_manager on all four machines, three wireguard connections are setup quickly:
+
+	- Alpha-VPS <=> Beta-VPS
+	- Charlie <=> Beta-VPS
+	- Delta <=> Beta-VPS
+
+	In addition the following gateway rules are added:
+	- Alpha-VPS ==> Charlie/Delta via Gateway Beta-VPS
+	- Charlie ==> Alpha-VPS/Delta via Gateway Beta-VPSS
+	- Delta ==> Alpha-VPS/Charlie via Gateway Beta-VPSS
+
+2. Shortly afterwards Charlie/Delta discover the local connection possibility. So the wireguard connections/routes change to:
+
+	- Alpha-VPS <=> Beta-VPS
+	- Charlie <=> Beta-VPS
+	- Delta <=> Beta-VPS
+	- Charlie <=> Delta
+
+	- Alpha-VPS ==> Charlie/Delta via Gateway Beta-VPS
+	- Charlie ==> Alpha-VPS via Gateway Beta-VPSS
+	- Delta ==> Alpha-VPS via Gateway Beta-VPSS
+
+3. After the one or other minute, NAT traversal is set up. And only wireguard connections exist without any gateway:
+
+	- Alpha-VPS <=> Beta-VPS
+	- Alpha-VPS <=> Charlie
+	- Alpha-VPS <=> Delta
+	- Charlie <=> Beta-VPS
+	- Charlie <=> Delta
+	- Delta <=> Beta-VPS
 
 # Installation
 

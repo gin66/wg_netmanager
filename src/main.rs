@@ -209,22 +209,22 @@ fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDevice>
 
     let port = static_config.my_admin_port();
 
-    #[cfg(target_os = "linux")]
-    let need_v6_socket = true;
+    let mut need_v6_socket = true;
+    let mut need_v4_socket = true;
 
-    #[cfg(target_os = "linux")]
-    let need_v4_socket = false;
+    // for sysctl net.ipv6.bindv6only=0 systems like linux: ipv6 socket reads/sends ipv4 messages
+    if cfg!(target_os = "linux") {
+        need_v4_socket = false;
+    }
 
-    #[cfg(target_os = "macos")]
-    let need_v6_socket = false;
-
-    #[cfg(target_os = "macos")]
-    let need_v4_socket = true;
+    // compromise on macos not being able to do NAT traversal
+    if cfg!(target_os = "macos") {
+        need_v6_socket = false;
+    }
 
     let mut opt_crypt_socket_v6 = None;
     let mut opt_crypt_socket_v4 = None;
 
-    // for sysctl net.ipv6.bindv6only=0 systems like linux: ipv6 socket reads/sends ipv4 messages
     if need_v6_socket {
         debug!("bind to :::{}", port);
         opt_crypt_socket_v6 = Some(

@@ -208,64 +208,101 @@ fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDevice>
     .expect("Error setting Ctrl-C handler");
 
     let port = static_config.my_admin_port();
-    debug!("bind to :::{}", port);
-    let crypt_socket_v6 =
-        CryptUdp::bind(IpAddr::V6("::".parse().unwrap()), port)?.key(&static_config.shared_key)?;
 
-    // for sysctl net.ipv6.bindv6only=1 system
-    // debug!("bind to 0.0.0.0:{}", port);
-    // let crypt_socket_v4 = CryptUdp::bind(IpAddr::V4("0.0.0.0".parse().unwrap()), port)?.key(&static_config.shared_key)?;
-    let crypt_socket_v4 = crypt_socket_v6.try_clone()?;
+    #[cfg(target_os = "linux")]
+    let need_v6_socket = true;
+
+    #[cfg(target_os = "linux")]
+    let need_v4_socket = false;
+
+    #[cfg(target_os = "macos")]
+    let need_v6_socket = false;
+
+    #[cfg(target_os = "macos")]
+    let need_v4_socket = true;
+
+    let mut opt_crypt_socket_v6 = None;
+    let mut opt_crypt_socket_v4 = None;
+
+    // for sysctl net.ipv6.bindv6only=0 systems like linux: ipv6 socket reads/sends ipv4 messages
+    if need_v6_socket {
+        debug!("bind to :::{}", port);
+        opt_crypt_socket_v6 = Some(
+            CryptUdp::bind(IpAddr::V6("::".parse().unwrap()), port)?
+                .key(&static_config.shared_key)?,
+        );
+    }
+    if need_v4_socket {
+        debug!("bind to 0.0.0.0:{}", port);
+        opt_crypt_socket_v4 = Some(
+            CryptUdp::bind(IpAddr::V4("0.0.0.0".parse().unwrap()), port)?
+                .key(&static_config.shared_key)?,
+        );
+    }
+
+    if opt_crypt_socket_v4.is_none() {
+        opt_crypt_socket_v4 = opt_crypt_socket_v6.as_ref().map(|s| s.try_clone().unwrap());
+    }
+    if opt_crypt_socket_v6.is_none() {
+        opt_crypt_socket_v6 = opt_crypt_socket_v4.as_ref().map(|s| s.try_clone().unwrap());
+    }
+
+    let crypt_socket_v4 = opt_crypt_socket_v4.unwrap();
+    let crypt_socket_v6 = opt_crypt_socket_v6.unwrap();
 
     // Set up udp receiver thread for ipv4
-    let tx_clone = tx.clone();
-    let crypt_socket_v4_clone = crypt_socket_v4
-        .try_clone()
-        .expect("couldn't clone the crypt_socket");
-    std::thread::spawn(move || loop {
-        let mut buf = [0; 2000];
-        match crypt_socket_v4_clone.recv_from(&mut buf) {
-            Ok((received, src_addr)) => {
-                info!("received {} bytes from {:?}", received, src_addr);
-                match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
-                    Ok(udp_packet) => {
-                        tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
-                    }
-                    Err(e) => {
-                        error!("Error in json decode: {:?}", e);
+    if need_v4_socket {
+        let tx_clone = tx.clone();
+        let crypt_socket_v4_clone = crypt_socket_v4
+            .try_clone()
+            .expect("couldn't clone the crypt_socket");
+        std::thread::spawn(move || loop {
+            let mut buf = [0; 2000];
+            match crypt_socket_v4_clone.recv_from(&mut buf) {
+                Ok((received, src_addr)) => {
+                    info!("received {} bytes from {:?}", received, src_addr);
+                    match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
+                        Ok(udp_packet) => {
+                            tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
+                        }
+                        Err(e) => {
+                            error!("Error in json decode: {:?}", e);
+                        }
                     }
                 }
+                Err(e) => {
+                    error!("{:?}", e);
+                }
             }
-            Err(e) => {
-                error!("{:?}", e);
-            }
-        }
-    });
+        });
+    }
 
     // Set up udp receiver thread for ipv6
-    let tx_clone = tx.clone();
-    let crypt_socket_v6_clone = crypt_socket_v6
-        .try_clone()
-        .expect("couldn't clone the crypt_socket");
-    std::thread::spawn(move || loop {
-        let mut buf = [0; 2000];
-        match crypt_socket_v6_clone.recv_from(&mut buf) {
-            Ok((received, src_addr)) => {
-                info!("received {} bytes from {:?}", received, src_addr);
-                match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
-                    Ok(udp_packet) => {
-                        tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
-                    }
-                    Err(e) => {
-                        error!("Error in json decode: {:?}", e);
+    if need_v6_socket {
+        let tx_clone = tx.clone();
+        let crypt_socket_v6_clone = crypt_socket_v6
+            .try_clone()
+            .expect("couldn't clone the crypt_socket");
+        std::thread::spawn(move || loop {
+            let mut buf = [0; 2000];
+            match crypt_socket_v6_clone.recv_from(&mut buf) {
+                Ok((received, src_addr)) => {
+                    info!("received {} bytes from {:?}", received, src_addr);
+                    match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
+                        Ok(udp_packet) => {
+                            tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
+                        }
+                        Err(e) => {
+                            error!("Error in json decode: {:?}", e);
+                        }
                     }
                 }
+                Err(e) => {
+                    error!("{:?}", e);
+                }
             }
-            Err(e) => {
-                error!("{:?}", e);
-            }
-        }
-    });
+        });
+    }
 
     // Set up timer tick
     let tx_clone = tx.clone();

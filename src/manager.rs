@@ -169,6 +169,7 @@ impl Node {
         self.local_ip_list = Some(local.local_ip_list);
         self.local_admin_port = Some(local.local_admin_port);
         self.visible_endpoint = local.my_visible_wg_endpoint;
+        self.public_key = Some(local.public_key);
     }
     fn ok_to_delete_without_route(&self) -> bool {
         self.known_in_s > 10

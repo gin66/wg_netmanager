@@ -113,8 +113,13 @@ impl WireguardDevice for WireguardDeviceLinux {
         // The option noprefixroute of ip addr add would be ideal, but is not supported on older linux/ip
         self.ip = *ip;
         let ip_extend = format!("{}/{}", ip, subnet.prefix_len());
+        let ipv6_extend = format!("{}/{}", ip.to_ipv6_mapped(), 96+subnet.prefix_len());
         let _ = self.execute_command(
             vec!["ip", "addr", "add", &ip_extend, "dev", &self.device_name],
+            None,
+        );
+        let _ = self.execute_command(
+            vec!["ip", "addr", "add", &ipv6_extend, "dev", &self.device_name],
             None,
         );
 

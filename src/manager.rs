@@ -87,15 +87,16 @@ pub struct DynamicPeer {
 #[derive(Debug)]
 pub struct Node {
     is_static_peer: Option<bool>,
-    wg_ip: Ipv4Addr,
+    pub wg_ip: Ipv4Addr,
     admin_port: u16,
     hop_cnt: usize,
     gateway: Option<Ipv4Addr>,
-    public_key: Option<PublicKeyWithTime>,
+    pub public_key: Option<PublicKeyWithTime>,
     known_in_s: usize,
     local_ip_list: Option<Vec<IpAddr>>,
     local_admin_port: Option<u16>,
     send_count: usize,
+    pub visible_endpoint: Option<SocketAddr>,
 }
 impl Node {
     fn from(ri: &RouteInfo) -> Self {
@@ -110,6 +111,7 @@ impl Node {
             local_ip_list: None,
             local_admin_port: None,
             send_count: 0,
+            visible_endpoint: None,
         }
     }
     fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
@@ -168,6 +170,7 @@ impl Node {
     fn process_local_contact(&mut self, local: LocalContactPacket) {
         self.local_ip_list = Some(local.local_ip_list);
         self.local_admin_port = Some(local.local_admin_port);
+        self.visible_endpoint = local.my_visible_wg_endpoint;
     }
     fn ok_to_delete_without_route(&self) -> bool {
         self.known_in_s > 10
@@ -181,7 +184,7 @@ pub struct NetworkManager {
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
 
     pending_route_changes: Vec<RouteChange>,
-    known_nodes: HashMap<Ipv4Addr, Node>,
+    pub known_nodes: HashMap<Ipv4Addr, Node>,
     peer: HashMap<Ipv4Addr, DynamicPeer>,
     fifo_dead: Vec<Ipv4Addr>,
     fifo_ping: Vec<Ipv4Addr>,

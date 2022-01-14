@@ -173,6 +173,20 @@ impl StaticConfiguration {
             lines.push("".to_string());
         }
 
+        for node in manager.known_nodes.values() {
+            if let Some(public_key) = node.public_key.as_ref() {
+                lines.push("[Peer]".to_string());
+                lines.push(format!("PublicKey = {}", &public_key.key));
+                lines.push(format!("AllowedIPs = {}/128", node.wg_ip.to_ipv6_mapped()));
+                if let Some(endpoint) = node.visible_endpoint {
+                    debug!(target: "configuration", "node {} uses visible (NAT) endpoint {}", node.wg_ip, endpoint);
+                    debug!(target: &node.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
+                    lines.push(format!("EndPoint = {}", endpoint));
+                    lines.push("PersistentKeepalive = 5".to_string());
+                }
+                lines.push("".to_string());
+            }
+        }
         lines.join("\n")
     }
     pub fn my_admin_port(&self) -> u16 {

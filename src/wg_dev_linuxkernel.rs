@@ -213,6 +213,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         for what in ["route", "addr"] {
             debug!("Flush {}", what);
             let _ = self.execute_command(vec!["ip", what, "flush", "dev", &self.device_name], None);
+            let _ = self.execute_command(vec!["ip", "-6", what, "flush", "dev", &self.device_name], None);
             debug!("{} flushed", what);
         }
         Ok(())

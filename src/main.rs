@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
 
@@ -208,17 +208,48 @@ fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDevice>
     .expect("Error setting Ctrl-C handler");
 
     let port = static_config.my_admin_port();
-    debug!("bind to 0.0.0.0:{}", port);
-    let crypt_socket = CryptUdp::bind(port)?.key(&static_config.shared_key)?;
+    debug!("bind to :::{}", port);
+    let crypt_socket_v6 =
+        CryptUdp::bind(IpAddr::V6("::".parse().unwrap()), port)?.key(&static_config.shared_key)?;
 
-    // Set up udp receiver thread
+    // for sysctl net.ipv6.bindv6only=1 system
+    // debug!("bind to 0.0.0.0:{}", port);
+    // let crypt_socket_v4 = CryptUdp::bind(IpAddr::V4("0.0.0.0".parse().unwrap()), port)?.key(&static_config.shared_key)?;
+    let crypt_socket_v4 = crypt_socket_v6.try_clone()?;
+
+    // Set up udp receiver thread for ipv4
     let tx_clone = tx.clone();
-    let crypt_socket_clone = crypt_socket
+    let crypt_socket_v4_clone = crypt_socket_v4
         .try_clone()
         .expect("couldn't clone the crypt_socket");
     std::thread::spawn(move || loop {
         let mut buf = [0; 2000];
-        match crypt_socket_clone.recv_from(&mut buf) {
+        match crypt_socket_v4_clone.recv_from(&mut buf) {
+            Ok((received, src_addr)) => {
+                info!("received {} bytes from {:?}", received, src_addr);
+                match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
+                    Ok(udp_packet) => {
+                        tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
+                    }
+                    Err(e) => {
+                        error!("Error in json decode: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                error!("{:?}", e);
+            }
+        }
+    });
+
+    // Set up udp receiver thread for ipv6
+    let tx_clone = tx.clone();
+    let crypt_socket_v6_clone = crypt_socket_v6
+        .try_clone()
+        .expect("couldn't clone the crypt_socket");
+    std::thread::spawn(move || loop {
+        let mut buf = [0; 2000];
+        match crypt_socket_v6_clone.recv_from(&mut buf) {
             Ok((received, src_addr)) => {
                 info!("received {} bytes from {:?}", received, src_addr);
                 match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
@@ -263,7 +294,15 @@ fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDevice>
         TuiApp::off()
     };
 
-    let rc = main_loop(static_config, &*wg_dev, crypt_socket, tx, rx, &mut tui_app);
+    let rc = main_loop(
+        static_config,
+        &*wg_dev,
+        crypt_socket_v4,
+        crypt_socket_v6,
+        tx,
+        rx,
+        &mut tui_app,
+    );
 
     if !static_config.use_existing_interface {
         wg_dev.take_down_device().ok();
@@ -277,7 +316,8 @@ fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDevice>
 fn main_loop(
     static_config: &StaticConfiguration,
     wg_dev: &dyn WireguardDevice,
-    mut crypt_socket: CryptUdp,
+    mut crypt_socket_v4: CryptUdp,
+    mut crypt_socket_v6: CryptUdp,
     tx: Sender<Event>,
     rx: Receiver<Event>,
     tui_app: &mut TuiApp,
@@ -376,6 +416,17 @@ fn main_loop(
                 }
             }
             Ok(Event::Udp(udp_packet, src_addr)) => {
+                let src_addr = match src_addr {
+                    SocketAddr::V4(_) => src_addr,
+                    SocketAddr::V6(sa) => {
+                        if let Some(ipv4) = sa.ip().to_ipv4() {
+                            SocketAddr::V4(SocketAddrV4::new(ipv4, sa.port()))
+                        } else {
+                            src_addr
+                        }
+                    }
+                };
+
                 use UdpPacket::*;
                 let events: Vec<Event>;
                 match udp_packet {
@@ -389,8 +440,8 @@ fn main_loop(
                             debug!(target: &destination.ip().to_string(), "Received database request");
                             events = vec![Event::SendRouteDatabase { to: destination }];
                         }
-                        SocketAddr::V6(..) => {
-                            error!(target: "routing", "Expected IPV4 and not IPV6 address");
+                        SocketAddr::V6(source) => {
+                            error!(target: "routing", "Expected IPV4 and not IPV6 address {:?}", source);
                             events = vec![];
                         }
                     },
@@ -405,7 +456,7 @@ fn main_loop(
                             debug!(target: &destination.ip().to_string(), "Received local contact request");
                             events = vec![Event::SendLocalContact { to: destination }];
                         }
-                        SocketAddr::V6(..) => {
+                        SocketAddr::V6(source) => {
                             error!(target: "probing", "Expected IPV4 and not IPV6 address");
                             events = vec![];
                         }
@@ -440,14 +491,20 @@ fn main_loop(
                 );
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 info!(target: "advertisement", "Send advertisement to {}", destination);
-                crypt_socket.send_to(&buf, destination).ok();
+                if destination.is_ipv4() {
+                    crypt_socket_v4.send_to(&buf, destination).ok();
+                } else {
+                    crypt_socket_v6.send_to(&buf, destination).ok();
+                }
             }
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
                 debug!(target: &destination.ip().to_string(), "Send route database request to {:?}", destination);
                 let request = UdpPacket::route_database_request();
                 let buf = serde_json::to_vec(&request).unwrap();
                 info!(target: "routing", "Send RouteDatabaseRequest to {}", destination);
-                crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
+                crypt_socket_v4
+                    .send_to(&buf, SocketAddr::V4(destination))
+                    .ok();
             }
             Ok(Event::SendRouteDatabase { to: destination }) => {
                 debug!(target: &destination.ip().to_string(), "Send route database to {:?}", destination);
@@ -455,7 +512,9 @@ fn main_loop(
                 for p in packages {
                     let buf = serde_json::to_vec(&p).unwrap();
                     info!(target: "routing", "Send RouteDatabase to {}", destination);
-                    crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
+                    crypt_socket_v4
+                        .send_to(&buf, SocketAddr::V4(destination))
+                        .ok();
                 }
             }
             Ok(Event::SendLocalContactRequest { to: destination }) => {
@@ -463,7 +522,9 @@ fn main_loop(
                 let request = UdpPacket::local_contact_request();
                 let buf = serde_json::to_vec(&request).unwrap();
                 info!(target: "probing", "Send LocalContactRequest to {}", destination);
-                crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
+                crypt_socket_v4
+                    .send_to(&buf, SocketAddr::V4(destination))
+                    .ok();
             }
             Ok(Event::SendLocalContact { to: destination }) => {
                 debug!(target: &destination.ip().to_string(), "Send local contacts to {:?}", destination);
@@ -474,7 +535,9 @@ fn main_loop(
                 trace!(target: "probing", "local contact to {:#?}", local_contact);
                 let buf = serde_json::to_vec(&local_contact).unwrap();
                 info!(target: "probing", "Send local contact to {}", destination);
-                crypt_socket.send_to(&buf, SocketAddr::V4(destination)).ok();
+                crypt_socket_v4
+                    .send_to(&buf, SocketAddr::V4(destination))
+                    .ok();
             }
             Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
                 network_manager.output();

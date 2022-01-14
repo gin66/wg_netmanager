@@ -144,20 +144,18 @@ impl Node {
             || self.public_key.is_none()
             || self.visible_endpoint.is_none()
         {
-            if (self.known_in_s % 60 == 0 || self.known_in_s < 5) {
+            if self.known_in_s % 60 == 0 || self.known_in_s < 5 {
                 // Send request for local contact
                 let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
                 events.push(Event::SendLocalContactRequest { to: destination });
             }
-        } else {
-            if let Some(admin_port) = self.local_admin_port.as_ref() {
-                // All ok. so constantly send advertisement to the Ipv6 address
-                events.push(Event::SendAdvertisement {
-                    addressed_to: AddressedTo::WireguardV6Address,
-                    to: SocketAddr::new(IpAddr::V6(map_to_ipv6(&self.wg_ip)), *admin_port),
-                    wg_ip: self.wg_ip,
-                });
-            }
+        } else if let Some(admin_port) = self.local_admin_port.as_ref() {
+            // All ok. so constantly send advertisement to the Ipv6 address
+            events.push(Event::SendAdvertisement {
+                addressed_to: AddressedTo::WireguardV6Address,
+                to: SocketAddr::new(IpAddr::V6(map_to_ipv6(&self.wg_ip)), *admin_port),
+                wg_ip: self.wg_ip,
+            });
         }
 
         if self.send_count < 100 {

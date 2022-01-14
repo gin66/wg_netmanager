@@ -147,8 +147,9 @@ pub struct CryptUdp {
 }
 
 impl CryptUdp {
-    pub fn bind(port: u16) -> BoxResult<Self> {
-        let socket = UdpSocket::bind(format!("0.0.0.0:{}", port))?;
+    pub fn bind(ip: IpAddr, port: u16) -> BoxResult<Self> {
+        // bind to ipv4 AND ipv6
+        let socket = UdpSocket::bind(SocketAddr::new(ip, port))?;
         Ok(CryptUdp {
             socket,
             key: None,

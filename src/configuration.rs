@@ -152,7 +152,7 @@ impl StaticConfiguration {
             lines.push("[Peer]".to_string());
             lines.push(format!("PublicKey = {}", &peer.public_key.key));
             lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));
-            lines.push(format!("AllowedIPs = {}/128", node.wg_ip.to_ipv6_mapped()));
+            lines.push(format!("AllowedIPs = {}/128", peer.wg_ip.to_ipv6_mapped()));
             let ips = manager.get_ips_for_peer(peer.wg_ip);
             for ip in ips {
                 lines.push(format!("AllowedIPs = {}/32", ip));

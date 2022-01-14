@@ -122,6 +122,10 @@ impl WireguardDevice for WireguardDeviceLinux {
             vec!["ip", "addr", "add", &ipv6_extend, "dev", &self.device_name],
             None,
         );
+        let _ = self.execute_command(
+            vec!["ip", "route", "add", &ipv6_extend, "dev", &self.device_name],
+            None,
+        );
 
         let _ = self.execute_command(vec!["ip", "link", "set", &self.device_name, "up"], None);
         debug!("Interface {} up", self.device_name);

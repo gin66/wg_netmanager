@@ -117,6 +117,8 @@ impl Node {
     fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
         let mut events = vec![];
 
+        let can_send_before = self.public_key.is_some() && self.visible_endpoint.is_some();
+
         let pk_available = if self.public_key.is_some() {
             ", public key available"
         } else {
@@ -161,6 +163,12 @@ impl Node {
                     }
                 }
             }
+        }
+
+        let can_send_after = self.public_key.is_some() && self.visible_endpoint.is_some();
+
+        if !can_send_before && can_send_after {
+            events.push(Event::UpdateWireguardConfiguration);
         }
 
         events
@@ -231,6 +239,7 @@ impl NetworkManager {
     }
     pub fn analyze_advertisement(
         &mut self,
+        static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
     ) -> Vec<Event> {
@@ -255,7 +264,23 @@ impl NetworkManager {
             }
             WireguardAddress | ReplyFromWireguardAddress => {
                 if advertisement.your_visible_wg_endpoint.is_some() {
-                    self.my_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                    let mut is_local = false;
+
+                    for ip in static_config.ip_list.iter() {
+                        if *ip
+                            == advertisement
+                                .your_visible_wg_endpoint
+                                .as_ref()
+                                .unwrap()
+                                .ip()
+                        {
+                            is_local = true;
+                        }
+                    }
+
+                    if !is_local {
+                        self.my_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                    }
                 }
             }
         }

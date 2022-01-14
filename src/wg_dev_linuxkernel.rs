@@ -7,7 +7,7 @@ use ipnet::Ipv4Net;
 use log::*;
 
 use crate::error::*;
-use crate::wg_dev::WireguardDevice;
+use crate::wg_dev::*;
 
 pub struct WireguardDeviceLinux {
     device_name: String,
@@ -53,7 +53,7 @@ impl WireguardDeviceLinux {
         } else {
             #[allow(clippy::try_err)]
             Err(format!(
-                "process failed wth {}",
+                "process failed with {}",
                 String::from_utf8_lossy(&output.stderr)
             ))?
         }
@@ -113,7 +113,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         // The option noprefixroute of ip addr add would be ideal, but is not supported on older linux/ip
         self.ip = *ip;
         let ip_extend = format!("{}/{}", ip, subnet.prefix_len());
-        let ipv6_extend = format!("{}/{}", ip.to_ipv6_mapped(), 96+subnet.prefix_len());
+        let ipv6_extend = format!("{}/{}", map_to_ipv6(ip), 96 + subnet.prefix_len());
         let _ = self.execute_command(
             vec!["ip", "addr", "add", &ip_extend, "dev", &self.device_name],
             None,

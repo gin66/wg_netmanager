@@ -330,7 +330,7 @@ fn main_loop(
                 //    }
                 //}
 
-                let events = network_manager.process_new_nodes_every_second(&static_config);
+                let events = network_manager.process_new_nodes_every_second(static_config);
                 for evt in events.into_iter() {
                     tx.send(evt).unwrap();
                 }

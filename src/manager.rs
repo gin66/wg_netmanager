@@ -137,12 +137,10 @@ impl Node {
             return events;
         }
 
-        if self.local_ip_list.is_none() {
-            if self.known_in_s % 60 == 0 || self.known_in_s < 5 {
-                // Send request for local contact
-                let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
-                events.push(Event::SendLocalContactRequest { to: destination });
-            }
+        if self.local_ip_list.is_none() && (self.known_in_s % 60 == 0 || self.known_in_s < 5) {
+            // Send request for local contact
+            let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
+            events.push(Event::SendLocalContactRequest { to: destination });
         }
 
         if self.send_count < 10 {

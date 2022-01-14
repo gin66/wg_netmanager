@@ -5,6 +5,7 @@ use log::*;
 use serde::{Deserialize, Serialize};
 
 use crate::manager::*;
+use crate::wg_dev::map_to_ipv6;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct PublicKeyWithTime {
@@ -152,7 +153,7 @@ impl StaticConfiguration {
             lines.push("[Peer]".to_string());
             lines.push(format!("PublicKey = {}", &peer.public_key.key));
             lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));
-            lines.push(format!("AllowedIPs = {}/128", peer.wg_ip.to_ipv6_mapped()));
+            lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&peer.wg_ip)));
             let ips = manager.get_ips_for_peer(peer.wg_ip);
             for ip in ips {
                 lines.push(format!("AllowedIPs = {}/32", ip));
@@ -178,7 +179,7 @@ impl StaticConfiguration {
             if let Some(public_key) = node.public_key.as_ref() {
                 lines.push("[Peer]".to_string());
                 lines.push(format!("PublicKey = {}", &public_key.key));
-                lines.push(format!("AllowedIPs = {}/128", node.wg_ip.to_ipv6_mapped()));
+                lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&node.wg_ip)));
                 if let Some(endpoint) = node.visible_endpoint {
                     debug!(target: "configuration", "node {} uses visible (NAT) endpoint {}", node.wg_ip, endpoint);
                     debug!(target: &node.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);

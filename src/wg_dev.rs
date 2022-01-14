@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 
 use ipnet::Ipv4Net;
 
@@ -38,4 +38,10 @@ pub fn get_wireguard_device<T: Into<String>>(wg_name: T) -> BoxResult<Box<dyn Wi
 
     #[cfg(not(target_os = "linux"))]
     Err("Unsupported OS".into())
+}
+
+pub fn map_to_ipv6(ipv4: &Ipv4Addr) -> Ipv6Addr {
+    let mut segments = ipv4.to_ipv6_mapped().segments();
+    segments[0] = 0xfd00;
+    Ipv6Addr::from(segments)
 }

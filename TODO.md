@@ -5,6 +5,7 @@ Todos:
 * warn about readbility of config file if not -rw-------
 * check availability of used shell commands (ip/wg)
 * include boringtun, if kernel does not provide wireguard interface
+	or https://git.zx2c4.com/wireguard-rs (more official)
 * find a solution for sudo
 * add dns
 * rename bring_up() to create_device()

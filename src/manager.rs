@@ -160,7 +160,7 @@ impl Node {
             }
         }
 
-        if self.send_count < 10 {
+        if self.send_count < 100 {
             if let Some(ip_list) = self.local_ip_list.as_ref() {
                 if let Some(admin_port) = self.local_admin_port.as_ref() {
                     self.send_count += 1;

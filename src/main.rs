@@ -428,12 +428,15 @@ fn main_loop(
             }) => {
                 debug!(target: &wg_ip.to_string(),"Send advertisement to {:?}", destination);
                 let routedb_version = network_manager.db_version();
+                let my_visible_wg_endpoint =
+                    network_manager.my_visible_wg_endpoint.as_ref().copied();
                 let opt_dp: Option<&DynamicPeer> = network_manager.dynamic_peer_for(&wg_ip);
                 let advertisement = UdpPacket::advertisement_from_config(
                     static_config,
                     routedb_version,
                     addressed_to,
                     opt_dp,
+                    my_visible_wg_endpoint,
                 );
                 let buf = serde_json::to_vec(&advertisement).unwrap();
                 info!(target: "advertisement", "Send advertisement to {}", destination);

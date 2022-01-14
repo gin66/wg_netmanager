@@ -32,6 +32,7 @@ use serde::{Deserialize, Serialize};
 use crate::configuration::*;
 use crate::crypt_udp::*;
 use crate::event::Event;
+use crate::wg_dev::map_to_ipv6;
 
 #[derive(Debug)]
 pub enum RouteChange {
@@ -139,10 +140,24 @@ impl Node {
             return events;
         }
 
-        if (self.local_ip_list.is_none() || self.public_key.is_none() || self.visible_endpoint.is_none()) && (self.known_in_s % 60 == 0 || self.known_in_s < 5) {
+        if (self.local_ip_list.is_none()
+            || self.public_key.is_none()
+            || self.visible_endpoint.is_none())
+            && (self.known_in_s % 60 == 0 || self.known_in_s < 5)
+        {
             // Send request for local contact
             let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
             events.push(Event::SendLocalContactRequest { to: destination });
+        } else {
+            // All ok. so constantly send advertisement to the Ipv6 address
+            events.push(Event::SendAdvertisement {
+                addressed_to: AddressedTo::WireguardV6Address,
+                to: SocketAddr::new(
+                    IpAddr::V6(map_to_ipv6(&self.wg_ip)),
+                    self.local_admin_port.as_ref().copied().unwrap(),
+                ),
+                wg_ip: self.wg_ip,
+            });
         }
 
         if self.send_count < 10 {
@@ -253,6 +268,7 @@ impl NetworkManager {
 
         let mut local_reachable_admin_endpoint = None;
         let mut local_reachable_wg_endpoint = None;
+        let mut dp_visible_wg_endpoint = None;
 
         use AddressedTo::*;
         match &advertisement.addressed_to {
@@ -261,6 +277,9 @@ impl NetworkManager {
                 local_reachable_wg_endpoint =
                     Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
                 local_reachable_admin_endpoint = Some(src_addr);
+            }
+            WireguardV6Address | ReplyFromWireguardV6Address => {
+                dp_visible_wg_endpoint = advertisement.my_visible_wg_endpoint;
             }
             WireguardAddress | ReplyFromWireguardAddress => {
                 if advertisement.your_visible_wg_endpoint.is_some() {
@@ -293,7 +312,7 @@ impl NetworkManager {
             name: advertisement.name.to_string(),
             local_reachable_admin_endpoint,
             local_reachable_wg_endpoint,
-            dp_visible_wg_endpoint: None,
+            dp_visible_wg_endpoint,
             admin_port: src_addr.port(),
             lastseen,
         };

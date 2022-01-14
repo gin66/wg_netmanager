@@ -16,10 +16,12 @@ use crate::manager::*;
 pub enum AddressedTo {
     StaticAddress,
     LocalAddress,
+    WireguardV6Address,
     WireguardAddress,
 
     ReplyFromStaticAddress,
     ReplyFromLocalAddress,
+    ReplyFromWireguardV6Address,
     ReplyFromWireguardAddress,
 }
 
@@ -31,6 +33,7 @@ pub struct AdvertisementPacket {
     pub local_admin_port: u16,
     pub wg_ip: Ipv4Addr,
     pub name: String,
+    pub my_visible_wg_endpoint: Option<SocketAddr>,
     pub your_visible_wg_endpoint: Option<SocketAddr>,
     pub routedb_version: usize,
 }
@@ -65,6 +68,7 @@ impl UdpPacket {
         routedb_version: usize,
         addressed_to: AddressedTo,
         to_dynamic_peer: Option<&DynamicPeer>,
+        my_visible_wg_endpoint: Option<SocketAddr>,
     ) -> Self {
         UdpPacket::Advertisement(AdvertisementPacket {
             addressed_to,
@@ -74,6 +78,7 @@ impl UdpPacket {
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
             your_visible_wg_endpoint: to_dynamic_peer.and_then(|dp| dp.dp_visible_wg_endpoint),
+            my_visible_wg_endpoint,
             routedb_version,
         })
     }

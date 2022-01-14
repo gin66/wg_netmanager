@@ -97,6 +97,7 @@ pub struct Node {
     local_ip_list: Option<Vec<IpAddr>>,
     local_admin_port: Option<u16>,
     send_count: usize,
+    can_send_to_visible_endpoint: bool,
     pub visible_endpoint: Option<SocketAddr>,
 }
 impl Node {
@@ -112,13 +113,12 @@ impl Node {
             local_ip_list: None,
             local_admin_port: None,
             send_count: 0,
+            can_send_to_visible_endpoint: false,
             visible_endpoint: None,
         }
     }
     fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
         let mut events = vec![];
-
-        let can_send_before = self.public_key.is_some() && self.visible_endpoint.is_some();
 
         let pk_available = if self.public_key.is_some() {
             ", public key available"
@@ -178,9 +178,10 @@ impl Node {
             }
         }
 
-        let can_send_after = self.public_key.is_some() && self.visible_endpoint.is_some();
+        let can_send = self.public_key.is_some() && self.visible_endpoint.is_some();
 
-        if !can_send_before && can_send_after {
+        if can_send && !self.can_send_to_visible_endpoint {
+            self.can_send_to_visible_endpoint = true;
             events.push(Event::UpdateWireguardConfiguration);
         }
 

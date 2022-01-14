@@ -47,14 +47,16 @@ DONE:
 * Add time to udp packet and check time window to mitigate replay attack
 
 LOW PRIORITY:
+* Try to use a SIP-router and remove the need for a static server
 * exchange info about new public listeners and update config-file
 * allow the possibility to read config from stdin.
   This would allow to ssh in a machine and start wg_manager without storing the shared key on the filesystem
 * provide a REST interface, so by ssh'ing in any machine it is possibly to retrieve a ascii qrcode and use this as log in for pure wireguard client
-* eliminate the need to specify two listen ports (one could be sufficient with appropriate scheme)
 * more endpoints per peer
 
 OBSOLETE:
+* eliminate the need to specify two listen ports (one could be sufficient with appropriate scheme)
+  => Need two
 * rename publicIp to e.g. visibleHost or reachableHost
   => replaced by endpoint
 * udp: validate sender to be a valid one

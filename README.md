@@ -100,6 +100,8 @@ Admin
 - [ ] REST API
 - [ ] Web UI frontend
 
+# Working Example
+
 My test setup is:
 
 ```
@@ -124,8 +126,8 @@ Alpha-VPA and Beta-VPS use old linux version without wireguard kernel driver. So
 
 	In addition the following gateway rules are added:
 	- Alpha-VPS ==> Charlie/Delta via Gateway Beta-VPS
-	- Charlie ==> Alpha-VPS/Delta via Gateway Beta-VPSS
-	- Delta ==> Alpha-VPS/Charlie via Gateway Beta-VPSS
+	- Charlie ==> Alpha-VPS/Delta via Gateway Beta-VPS
+	- Delta ==> Alpha-VPS/Charlie via Gateway Beta-VPS
 
 2. Shortly afterwards Charlie/Delta discover the local connection possibility. So the wireguard connections/routes change to:
 
@@ -135,8 +137,8 @@ Alpha-VPA and Beta-VPS use old linux version without wireguard kernel driver. So
 	- Charlie <=> Delta
 
 	- Alpha-VPS ==> Charlie/Delta via Gateway Beta-VPS
-	- Charlie ==> Alpha-VPS via Gateway Beta-VPSS
-	- Delta ==> Alpha-VPS via Gateway Beta-VPSS
+	- Charlie ==> Alpha-VPS via Gateway Beta-VPS
+	- Delta ==> Alpha-VPS via Gateway Beta-VPS
 
 3. After the one or other minute, NAT traversal is set up. And only wireguard connections exist without any gateway:
 

@@ -10,6 +10,9 @@ use wg_dev_linuxkernel::WireguardDeviceLinux;
 
 pub struct ArchitectureLinux {}
 impl Architecture for ArchitectureLinux {
+    fn default_path_to_network_yaml() -> &'static str {
+        "/etc/wg_netmanager/network.yaml"
+    }
     fn ipv4v6_socket_setup() -> (bool, bool) {
         // for sysctl net.ipv6.bindv6only=0 systems like linux: ipv6 socket reads/sends ipv4 messages
         (false, true)

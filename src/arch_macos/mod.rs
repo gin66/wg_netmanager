@@ -9,6 +9,9 @@ use wg_dev_linuxkernel::WireguardDeviceLinux;
 
 pub struct ArchitectureMacOs {}
 impl Architecture for ArchitectureMacOs {
+    fn default_path_to_network_yaml() -> &'static str {
+        "network.yaml"
+    }
     fn ipv4v6_socket_setup() -> (bool, bool) {
         // compromise on macos not being able to do NAT traversal
         (true, false)

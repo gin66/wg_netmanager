@@ -20,6 +20,7 @@ fn main() -> BoxResult<()> {
             Arg::with_name("config")
                 .short("c")
                 .long("config")
+                .default_value(Arch::default_path_to_network_yaml())
                 .value_name("FILE")
                 .help("Custom config file in yaml-style")
                 .takes_value(true),

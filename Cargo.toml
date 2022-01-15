@@ -35,3 +35,4 @@ rust-ini = "0.17"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 ifcfg = "0.1"
+simple-signal = "1.1"

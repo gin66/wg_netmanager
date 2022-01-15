@@ -36,6 +36,8 @@ pub struct StaticConfigurationBuilder {
     peers: HashMap<Ipv4Addr, PublicPeer>,
     use_tui: Option<bool>,
     use_existing_interface: Option<bool>,
+    network_yaml_filename: Option<String>,
+    peer_yaml_filename: Option<String>,
 }
 impl StaticConfigurationBuilder {
     pub fn new() -> Self {
@@ -93,6 +95,14 @@ impl StaticConfigurationBuilder {
         self.use_existing_interface = Some(use_existing_interface);
         self
     }
+    pub fn network_yaml_filename<T: Into<String>>(mut self, fname: T) -> Self {
+        self.network_yaml_filename = Some(fname.into());
+        self
+    }
+    pub fn peer_yaml_filename<T: Into<String>>(mut self, fname: T) -> Self {
+        self.peer_yaml_filename = Some(fname.into());
+        self
+    }
     pub fn build(self) -> StaticConfiguration {
         let peer_cnt = self.peers.len();
         StaticConfiguration {
@@ -110,6 +120,8 @@ impl StaticConfigurationBuilder {
             peer_cnt,
             use_tui: self.use_tui.unwrap(),
             use_existing_interface: self.use_existing_interface.unwrap(),
+            network_yaml_filename: self.network_yaml_filename.unwrap(),
+            peer_yaml_filename: self.peer_yaml_filename,
         }
     }
 }
@@ -130,6 +142,8 @@ pub struct StaticConfiguration {
     pub peer_cnt: usize,
     pub use_tui: bool,
     pub use_existing_interface: bool,
+    pub network_yaml_filename: String,
+    pub peer_yaml_filename: Option<String>,
 }
 
 impl StaticConfiguration {

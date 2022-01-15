@@ -2,9 +2,16 @@ mod interfaces;
 mod wg_dev_linuxkernel;
 
 use std::net::IpAddr;
+use std::sync::mpsc;
+
+use clap::ArgMatches;
+use simple_signal::{self, Signal};
 
 use crate::arch_def::Architecture;
-use crate::wg_dev::*;
+use crate::configuration::StaticConfiguration;
+use crate::error::BoxResult;
+use crate::event::Event;
+use crate::wg_dev::WireguardDevice;
 
 use wg_dev_linuxkernel::WireguardDeviceLinux;
 
@@ -28,5 +35,36 @@ impl Architecture for ArchitectureLinux {
     }
     fn get_wg_dev<T: Into<String>>(wg_name: T) -> Box<dyn WireguardDevice> {
         Box::new(WireguardDeviceLinux::init(wg_name))
+    }
+    fn command_install(matches: &ArgMatches, static_config: StaticConfiguration) -> BoxResult<()> {
+        let _ = matches.is_present("force");
+        let mut lines: Vec<String> = vec![];
+        lines.push("[Unit]".to_string());
+        lines.push("Description= The Wireguard network manager".to_string());
+        lines.push(format!(
+            "ConditionPathExists={}",
+            static_config.network_yaml_filename
+        ));
+        if let Some(fname) = static_config.peer_yaml_filename.as_ref() {
+            lines.push(format!("ConditionPathExists={}", fname));
+        }
+        lines.push("".to_string());
+        lines.push("[Service]".to_string());
+        lines.push("Type=simple ".to_string());
+        lines.push(format!(
+            "ExecStart={}",
+            std::env::current_exe().unwrap().to_str().unwrap()
+        ));
+        lines.push("ExecStop=/bin/kill -USR1 $MAINPID".to_string());
+        lines.push("".to_string());
+        lines.push("[Install]".to_string());
+        lines.push("WantedBy=multi-user.target".to_string());
+        println!("{}", lines.join("\n"));
+        Ok(())
+    }
+    fn arch_specific_init(tx: mpsc::Sender<Event>) {
+        simple_signal::set_handler(&[Signal::Int, Signal::Term], move |_signals| {
+            tx.send(Event::CtrlC).unwrap();
+        });
     }
 }

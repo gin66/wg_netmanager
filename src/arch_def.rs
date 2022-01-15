@@ -1,5 +1,11 @@
 use std::net::IpAddr;
+use std::sync::mpsc;
 
+use clap::ArgMatches;
+
+use crate::configuration::StaticConfiguration;
+use crate::error::BoxResult;
+use crate::event::Event;
 use crate::wg_dev::WireguardDevice;
 
 pub trait Architecture {
@@ -19,7 +25,13 @@ pub trait Architecture {
         vec![]
     }
     #[allow(unused_variables)]
+    fn arch_specific_init(tx: mpsc::Sender<Event>) {}
+    #[allow(unused_variables)]
     fn get_wg_dev<T: Into<String>>(wg_name: T) -> Box<dyn WireguardDevice> {
+        unimplemented!();
+    }
+    #[allow(unused_variables)]
+    fn command_install(matches: &ArgMatches, static_config: StaticConfiguration) -> BoxResult<()> {
         unimplemented!();
     }
 }

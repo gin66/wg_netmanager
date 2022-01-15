@@ -129,6 +129,7 @@ fn main() -> BoxResult<()> {
                 .short("O")
                 .help("Output the static configuration and exit immediately (for test only)"),
         )
+        .subcommand(App::new("install").about("Support installation as deamon"))
         .get_matches();
 
     let use_tui = matches.is_present("tui");
@@ -243,13 +244,24 @@ fn main() -> BoxResult<()> {
         .peers(peers)
         .use_tui(use_tui)
         .use_existing_interface(use_existing_interface)
+        .network_yaml_filename(network_config)
+        .peer_yaml_filename(peer_config)
         .build();
+
+    let subcommand = matches.subcommand();
+    if subcommand.0 == "install" {
+        return Arch::command_install(subcommand.1.unwrap(), static_config);
+    }
 
     if matches.is_present("Output") {
         println!("{:#?}", static_config);
-        Ok(())
+        return Ok(());
     }
-    else {
-        wg_netmanager::run_loop::run(&static_config, wg_dev)
-    }
+
+    //if let Some(("install", cmd)) = subcommand {
+    //    println!("found install");
+    //    return Ok(());
+    //}
+
+    wg_netmanager::run_loop::run(&static_config, wg_dev)
 }

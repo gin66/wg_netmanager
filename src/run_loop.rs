@@ -22,6 +22,8 @@ pub fn run(
 ) -> BoxResult<()> {
     let (tx, rx) = channel();
 
+    Arch::arch_specific_init(tx.clone());
+
     let tx_handler = tx.clone();
     ctrlc::set_handler(move || {
         warn!("CTRL-C");

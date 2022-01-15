@@ -7,6 +7,7 @@ pub mod tui_display;
 pub mod util;
 pub mod wg_dev;
 pub mod wg_dev_linuxkernel;
+pub mod main_loop;
 
 #[cfg(target_os = "linux")]
 pub mod interfaces;

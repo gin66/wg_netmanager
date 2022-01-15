@@ -107,7 +107,6 @@ fn main() -> BoxResult<()> {
                 .short("i")
                 .long("wireguard-interface")
                 .help("Sets the wireguard interface")
-                .default_value(Arch::default_wireguard_interface())
                 .takes_value(true),
         )
         .arg(

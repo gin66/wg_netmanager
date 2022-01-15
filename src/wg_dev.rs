@@ -4,7 +4,7 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use ipnet::Ipv4Net;
 
 use crate::error::*;
-use crate::wg_dev_linuxkernel::*;
+use crate::arch::*;
 
 pub trait WireguardDevice {
     fn check_device(&self) -> BoxResult<bool>;
@@ -27,7 +27,7 @@ pub fn get_wireguard_device_linux<T: Into<String>>(
 ) -> BoxResult<Box<dyn WireguardDevice>> {
     // here is the place to detect capabilities of the environment
 
-    Ok(Box::new(WireguardDeviceLinux::init(wg_name)))
+    Ok(Box::new(ArchWireguardDevice::init(wg_name)))
 }
 
 #[cfg(target_os = "macos")]

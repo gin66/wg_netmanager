@@ -10,11 +10,12 @@ use crate::crypt_udp::CryptUdp;
 use crate::crypt_udp::UdpPacket;
 use crate::error::*;
 use crate::event::Event;
+use crate::arch::*;
 use crate::manager::*;
 use crate::tui_display::TuiApp;
 use crate::wg_dev::*;
 
-pub fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDevice>) -> BoxResult<()> {
+pub fn run(static_config: &StaticConfiguration, mut wg_dev: ArchWireguardDevice) -> BoxResult<()> {
     let (tx, rx) = channel();
 
     let tx_handler = tx.clone();
@@ -152,7 +153,7 @@ pub fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDev
 
     let rc = main_loop(
         static_config,
-        &*wg_dev,
+        &wg_dev,
         crypt_socket_v4,
         crypt_socket_v6,
         tx,
@@ -171,7 +172,7 @@ pub fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDev
 
 fn main_loop(
     static_config: &StaticConfiguration,
-    wg_dev: &dyn WireguardDevice,
+    wg_dev: &ArchWireguardDevice,
     mut crypt_socket_v4: CryptUdp,
     mut crypt_socket_v6: CryptUdp,
     tx: Sender<Event>,

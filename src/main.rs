@@ -10,6 +10,7 @@ use yaml_rust::YamlLoader;
 use wg_netmanager::configuration::*;
 use wg_netmanager::error::*;
 use wg_netmanager::wg_dev::*;
+use wg_netmanager::arch::*;
 
 fn main() -> BoxResult<()> {
     let matches = App::new("Wireguard Network Manager")
@@ -158,7 +159,7 @@ fn main() -> BoxResult<()> {
         peers.insert(wg_ip, pp);
     }
 
-    let wg_dev = get_wireguard_device(interface)?;
+    let wg_dev = ArchWireguardDevice::init(interface);
     let (my_private_key, my_public_key) = wg_dev.create_key_pair()?;
     trace!("My private key: {}", my_private_key);
     trace!("My public key: {}", my_public_key);

@@ -6,7 +6,8 @@ pub mod manager;
 pub mod tui_display;
 pub mod util;
 pub mod wg_dev;
-pub mod wg_dev_linuxkernel;
+pub mod arch;
+pub mod arch_linux;
 pub mod main_loop;
 
 #[cfg(target_os = "linux")]

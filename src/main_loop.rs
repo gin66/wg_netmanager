@@ -4,6 +4,7 @@ use std::time;
 
 use log::*;
 
+use crate::arch_def::Architecture;
 use crate::configuration::*;
 use crate::crypt_udp::AddressedTo;
 use crate::crypt_udp::CryptUdp;
@@ -14,9 +15,11 @@ use crate::manager::*;
 use crate::tui_display::TuiApp;
 use crate::wg_dev::*;
 use crate::Arch;
-use crate::arch_def::Architecture;
 
-pub fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDevice>) -> BoxResult<()> {
+pub fn run(
+    static_config: &StaticConfiguration,
+    mut wg_dev: Box<dyn WireguardDevice>,
+) -> BoxResult<()> {
     let (tx, rx) = channel();
 
     let tx_handler = tx.clone();
@@ -30,7 +33,7 @@ pub fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDev
 
     let port = static_config.my_admin_port();
 
-    let (need_v4_socket,need_v6_socket) = Arch::ipv4v6_socket_setup();
+    let (need_v4_socket, need_v6_socket) = Arch::ipv4v6_socket_setup();
 
     let mut opt_crypt_socket_v6 = None;
     let mut opt_crypt_socket_v4 = None;

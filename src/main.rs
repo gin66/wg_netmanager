@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
-use std::net::{Ipv4Addr};
+use std::net::Ipv4Addr;
 
 use clap::{App, Arg};
 use log::*;
@@ -183,4 +183,3 @@ fn main() -> BoxResult<()> {
 
     wg_netmanager::main_loop::run(&static_config, wg_dev)
 }
-

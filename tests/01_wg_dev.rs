@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use wg_netmanager::Arch;
+    use wg_netmanager::arch_def::*;
     use wg_netmanager::configuration::*;
-    use wg_netmanager::wg_dev::*;
-    use wg_netmanager::wg_dev_linuxkernel::*;
 
     #[allow(dead_code)]
     fn demo_config() -> StaticConfigurationBuilder {
@@ -14,19 +14,19 @@ mod tests {
 
     #[test]
     fn test_check_device_fail() {
-        let wg_dev = WireguardDeviceLinux::init("wgtest0");
+        let wg_dev = Arch::get_wg_dev("wgtest0");
         let dc = wg_dev.check_device().unwrap();
         assert!(!dc);
     }
 
     #[test]
-    fn test_bring_up_device() {
-        let wg_dev = WireguardDeviceLinux::init("wgtest1");
+    fn test_create_device() {
+        let wg_dev = Arch::get_wg_dev("wgtest1");
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
 
-        wg_dev.bring_up_device().unwrap();
+        wg_dev.create_device().unwrap();
 
         let dev_present_after = wg_dev.check_device().unwrap();
         assert!(dev_present_after);
@@ -38,13 +38,13 @@ mod tests {
     }
 
     #[test]
-    fn test_bring_up_device_with_ip() {
-        let mut wg_dev = WireguardDeviceLinux::init("wgtest2");
+    fn test_create_device_with_ip() {
+        let mut wg_dev = Arch::get_wg_dev("wgtest2");
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
 
-        wg_dev.bring_up_device().unwrap();
+        wg_dev.create_device().unwrap();
 
         let dev_present_after = wg_dev.check_device().unwrap();
         assert!(dev_present_after);
@@ -61,13 +61,13 @@ mod tests {
     }
 
     #[test]
-    fn test_bring_up_device_with_ip_and_key() {
-        let mut wg_dev = WireguardDeviceLinux::init("wgtest3");
+    fn test_create_device_with_ip_and_key() {
+        let mut wg_dev = Arch::get_wg_dev("wgtest3");
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
 
-        wg_dev.bring_up_device().unwrap();
+        wg_dev.create_device().unwrap();
 
         let dev_present_after = wg_dev.check_device().unwrap();
         assert!(dev_present_after);

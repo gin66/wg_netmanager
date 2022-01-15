@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use std::net::Ipv4Addr;
+    use std::collections::HashMap;
 
     use log::*;
 
@@ -24,20 +25,41 @@ mod tests {
         let peer_ip: Ipv4Addr = "10.1.1.2".parse().unwrap();
         let mut mgr = NetworkManager::new(ip);
 
-        let ad = AdvertisementPacket {
-            addressed_to: AddressedTo::StaticAddress,
-            public_key: PublicKeyWithTime {
+        let public_key = PublicKeyWithTime {
                 key: "".to_string(),
                 priv_key_creation_time: 0,
-            },
+            };
+        let static_config = StaticConfiguration {
+            name: "test".to_string(),
+            ip_list: vec![],
+            wg_ip: "192.168.1.1".parse().unwrap(),
+            wg_name: "wg0".to_string(),
+            wg_port: 55555,
+            admin_port: 50000,
+            subnet: "192.168.1.1/24".parse().unwrap(),
+            shared_key: vec![],
+            my_private_key: "".to_string(),
+            my_public_key: public_key.clone(),
+            peers: HashMap::new(),
+            peer_cnt: 1,
+            use_tui: false,
+            use_existing_interface: true,
+            network_yaml_filename: "".to_string(),
+            peer_yaml_filename: None,
+        };
+
+        let ad = AdvertisementPacket {
+            addressed_to: AddressedTo::StaticAddress,
+            public_key,
             local_wg_port: 0,
             local_admin_port: 0,
             wg_ip: peer_ip,
             name: "test".to_string(),
             your_visible_wg_endpoint: Some("192.168.1.1:1".parse().unwrap()),
+            my_visible_wg_endpoint: Some("192.168.1.2:1".parse().unwrap()),
             routedb_version: 0,
         };
-        let events = mgr.analyze_advertisement(ad, "192.168.1.1:2".parse().unwrap());
+        let events = mgr.analyze_advertisement(&static_config, ad, "192.168.1.1:2".parse().unwrap());
 
         trace!("{:#?}", events);
 

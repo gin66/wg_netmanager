@@ -118,10 +118,7 @@ fn main() -> BoxResult<()> {
     let wg_port: u16 = matches.value_of("wireguard_port").unwrap().parse().unwrap();
     let admin_port: u16 = matches.value_of("admin_port").unwrap().parse().unwrap();
 
-    #[cfg(target_os = "linux")]
-    let ip_list = wg_netmanager::interfaces::get();
-    #[cfg(not(target_os = "linux"))]
-    let ip_list = vec![];
+    let ip_list = get_local_interfaces();
 
     let config = matches.value_of("config").unwrap_or("network.yaml");
 

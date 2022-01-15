@@ -21,37 +21,6 @@ pub trait WireguardDevice {
     fn create_key_pair(&self) -> BoxResult<(String, String)>;
 }
 
-#[cfg(target_os = "linux")]
-pub fn get_wireguard_device_linux<T: Into<String>>(
-    wg_name: T,
-) -> BoxResult<Box<dyn WireguardDevice>> {
-    // here is the place to detect capabilities of the environment
-
-    Ok(Box::new(ArchWireguardDevice::init(wg_name)))
-}
-
-#[cfg(target_os = "macos")]
-pub fn get_wireguard_device_linux<T: Into<String>>(
-    wg_name: T,
-) -> BoxResult<Box<dyn WireguardDevice>> {
-    // here is the place to detect capabilities of the environment
-
-    Ok(Box::new(WireguardDeviceLinux::init(wg_name)))
-}
-
-pub fn get_wireguard_device<T: Into<String>>(wg_name: T) -> BoxResult<Box<dyn WireguardDevice>> {
-    // os dependent initialization
-
-    #[cfg(target_os = "linux")]
-    return get_wireguard_device_linux(wg_name);
-
-    #[cfg(target_os = "macos")]
-    return get_wireguard_device_linux(wg_name);
-
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
-    Err("Unsupported OS".into())
-}
-
 pub fn map_to_ipv6(ipv4: &Ipv4Addr) -> Ipv6Addr {
     let mut segments = ipv4.to_ipv6_mapped().segments();
     segments[0] = 0xfd00;

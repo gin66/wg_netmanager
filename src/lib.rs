@@ -14,7 +14,7 @@ pub use arch_def::Architecture;
 #[cfg(target_os = "linux")]
 pub mod arch_linux;
 
-#[cfg(target_os = "mac_os")]
+#[cfg(target_os = "macos")]
 pub mod arch_macos;
 
 #[cfg(target_os = "windows")]

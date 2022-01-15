@@ -13,6 +13,7 @@ pub struct PublicKeyWithTime {
     pub priv_key_creation_time: u64,
 }
 
+#[derive(Debug)]
 pub struct PublicPeer {
     pub endpoint: String,
     pub wg_port: u16,
@@ -113,6 +114,7 @@ impl StaticConfigurationBuilder {
     }
 }
 
+#[derive(Debug)]
 pub struct StaticConfiguration {
     pub name: String,
     pub ip_list: Vec<IpAddr>,

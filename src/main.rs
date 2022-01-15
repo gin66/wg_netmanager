@@ -124,6 +124,11 @@ fn main() -> BoxResult<()> {
                 .help("Sets the name for this computer")
                 .takes_value(true),
         )
+        .arg(
+            Arg::with_name("Output")
+                .short("O")
+                .help("Output the static configuration and exit immediately (for test only)"),
+        )
         .get_matches();
 
     let use_tui = matches.is_present("tui");
@@ -240,5 +245,11 @@ fn main() -> BoxResult<()> {
         .use_existing_interface(use_existing_interface)
         .build();
 
-    wg_netmanager::run_loop::run(&static_config, wg_dev)
+    if matches.is_present("Output") {
+        println!("{:#?}", static_config);
+        Ok(())
+    }
+    else {
+        wg_netmanager::run_loop::run(&static_config, wg_dev)
+    }
 }

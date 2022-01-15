@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use std::net::Ipv4Addr;
     use std::collections::HashMap;
+    use std::net::Ipv4Addr;
 
     use log::*;
 
@@ -26,9 +26,9 @@ mod tests {
         let mut mgr = NetworkManager::new(ip);
 
         let public_key = PublicKeyWithTime {
-                key: "".to_string(),
-                priv_key_creation_time: 0,
-            };
+            key: "".to_string(),
+            priv_key_creation_time: 0,
+        };
         let static_config = StaticConfiguration {
             name: "test".to_string(),
             ip_list: vec![],
@@ -59,7 +59,8 @@ mod tests {
             my_visible_wg_endpoint: Some("192.168.1.2:1".parse().unwrap()),
             routedb_version: 0,
         };
-        let events = mgr.analyze_advertisement(&static_config, ad, "192.168.1.1:2".parse().unwrap());
+        let events =
+            mgr.analyze_advertisement(&static_config, ad, "192.168.1.1:2".parse().unwrap());
 
         trace!("{:#?}", events);
 

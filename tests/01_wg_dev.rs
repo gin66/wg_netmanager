@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod tests {
-    use wg_netmanager::Arch;
     use wg_netmanager::arch_def::*;
     use wg_netmanager::configuration::*;
+    use wg_netmanager::Arch;
 
     #[allow(dead_code)]
     fn demo_config() -> StaticConfigurationBuilder {

@@ -59,6 +59,7 @@ impl Architecture for ArchitectureLinux {
         if let Some(fname) = static_config.peer_yaml_filename.as_ref() {
             lines.push(format!("ConditionPathExists={}", fname));
         }
+        lines.push("After=network.target".to_string());
         lines.push("".to_string());
         lines.push("[Service]".to_string());
         lines.push("Type=simple ".to_string());
@@ -67,6 +68,8 @@ impl Architecture for ArchitectureLinux {
             std::env::current_exe().unwrap().to_str().unwrap()
         ));
         lines.push(format!("ExecStop={} -HUP $MAINPID", kill_fname[0]));
+        lines.push("Restart=always".to_string());
+        lines.push("RestartSec=1".to_string());
         lines.push("".to_string());
         lines.push("[Install]".to_string());
         lines.push("WantedBy=multi-user.target".to_string());

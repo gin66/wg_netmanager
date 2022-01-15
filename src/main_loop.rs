@@ -10,12 +10,13 @@ use crate::crypt_udp::CryptUdp;
 use crate::crypt_udp::UdpPacket;
 use crate::error::*;
 use crate::event::Event;
-use crate::arch::*;
 use crate::manager::*;
 use crate::tui_display::TuiApp;
 use crate::wg_dev::*;
+use crate::Arch;
+use crate::arch_def::Architecture;
 
-pub fn run(static_config: &StaticConfiguration, mut wg_dev: ArchWireguardDevice) -> BoxResult<()> {
+pub fn run(static_config: &StaticConfiguration, mut wg_dev: Box<dyn WireguardDevice>) -> BoxResult<()> {
     let (tx, rx) = channel();
 
     let tx_handler = tx.clone();
@@ -29,18 +30,7 @@ pub fn run(static_config: &StaticConfiguration, mut wg_dev: ArchWireguardDevice)
 
     let port = static_config.my_admin_port();
 
-    let mut need_v6_socket = true;
-    let mut need_v4_socket = true;
-
-    // for sysctl net.ipv6.bindv6only=0 systems like linux: ipv6 socket reads/sends ipv4 messages
-    if cfg!(target_os = "linux") {
-        need_v4_socket = false;
-    }
-
-    // compromise on macos not being able to do NAT traversal
-    if cfg!(target_os = "macos") {
-        need_v6_socket = false;
-    }
+    let (need_v4_socket,need_v6_socket) = Arch::ipv4v6_socket_setup();
 
     let mut opt_crypt_socket_v6 = None;
     let mut opt_crypt_socket_v4 = None;
@@ -153,7 +143,7 @@ pub fn run(static_config: &StaticConfiguration, mut wg_dev: ArchWireguardDevice)
 
     let rc = main_loop(
         static_config,
-        &wg_dev,
+        &*wg_dev,
         crypt_socket_v4,
         crypt_socket_v6,
         tx,
@@ -172,7 +162,7 @@ pub fn run(static_config: &StaticConfiguration, mut wg_dev: ArchWireguardDevice)
 
 fn main_loop(
     static_config: &StaticConfiguration,
-    wg_dev: &ArchWireguardDevice,
+    wg_dev: &dyn WireguardDevice,
     mut crypt_socket_v4: CryptUdp,
     mut crypt_socket_v6: CryptUdp,
     tx: Sender<Event>,

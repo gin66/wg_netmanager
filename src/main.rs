@@ -9,8 +9,7 @@ use yaml_rust::YamlLoader;
 
 use wg_netmanager::configuration::*;
 use wg_netmanager::error::*;
-use wg_netmanager::wg_dev::*;
-use wg_netmanager::arch::*;
+use wg_netmanager::*;
 
 fn main() -> BoxResult<()> {
     let matches = App::new("Wireguard Network Manager")
@@ -118,7 +117,7 @@ fn main() -> BoxResult<()> {
     let wg_port: u16 = matches.value_of("wireguard_port").unwrap().parse().unwrap();
     let admin_port: u16 = matches.value_of("admin_port").unwrap().parse().unwrap();
 
-    let ip_list = get_local_interfaces();
+    let ip_list = Arch::get_local_interfaces();
 
     let config = matches.value_of("config").unwrap_or("network.yaml");
 
@@ -156,7 +155,7 @@ fn main() -> BoxResult<()> {
         peers.insert(wg_ip, pp);
     }
 
-    let wg_dev = ArchWireguardDevice::init(interface);
+    let wg_dev = Arch::get_wg_dev(interface);
     let (my_private_key, my_public_key) = wg_dev.create_key_pair()?;
     trace!("My private key: {}", my_private_key);
     trace!("My public key: {}", my_public_key);

@@ -4,7 +4,6 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use ipnet::Ipv4Net;
 
 use crate::error::*;
-use crate::arch::*;
 
 pub trait WireguardDevice {
     fn check_device(&self) -> BoxResult<bool>;

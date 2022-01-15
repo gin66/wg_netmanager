@@ -176,7 +176,7 @@ As of now best to issue, too:
 
 With this preparation the network manager can be started:
 ```
-	sudo wg_netmanager -c network.yaml utun5 10.1.1.5 macos -e
+	sudo wg_netmanager -c network.yaml utun0 10.1.1.5 macos -e
 ```
 Eventually use further `-v` or a `-t`. On start couple errors will be shown, but it runs.
 NAT traversal is most likely not supported. Need to figure out first ipv4/ipv6 co-existence for same UDP-port number

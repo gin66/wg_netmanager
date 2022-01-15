@@ -5,6 +5,8 @@ use std::net::IpAddr;
 use crate::arch_def::Architecture;
 use crate::wg_dev::*;
 
+use wg_dev_linuxkernel::WireguardDeviceLinux;
+
 pub struct ArchitectureMacOs {}
 impl Architecture for ArchitectureMacOs {
     fn ipv4v6_socket_setup() -> (bool, bool) {

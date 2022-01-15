@@ -37,8 +37,22 @@ impl Architecture for ArchitectureLinux {
         Box::new(WireguardDeviceLinux::init(wg_name))
     }
     fn command_install(matches: &ArgMatches, static_config: StaticConfiguration) -> BoxResult<()> {
+        let kill_candidates = [
+            "/run/current-system/sw/bin/kill",
+            "/bin/kill",
+            "/usr/bin/kill",
+        ];
+        let kill_fname = kill_candidates
+            .into_iter()
+            .filter(|fname| std::path::Path::new(fname).exists())
+            .collect::<Vec<_>>();
+
         let _ = matches.is_present("force");
         let mut lines: Vec<String> = vec![];
+        lines.push(
+            "Copy the following lines to /etc/systemd/system/wg_netmanager.service".to_string(),
+        );
+        lines.push("#================================".to_string());
         lines.push("[Unit]".to_string());
         lines.push("Description= The Wireguard network manager".to_string());
         lines.push(format!(
@@ -55,15 +69,21 @@ impl Architecture for ArchitectureLinux {
             "ExecStart={}",
             std::env::current_exe().unwrap().to_str().unwrap()
         ));
-        lines.push("ExecStop=/bin/kill -USR1 $MAINPID".to_string());
+        lines.push(format!("ExecStop={} -HUP $MAINPID", kill_fname[0]));
         lines.push("".to_string());
         lines.push("[Install]".to_string());
         lines.push("WantedBy=multi-user.target".to_string());
+        lines.push("#================================".to_string());
+        lines.push("".to_string());
+        lines.push("Then execute:".to_string());
+        lines.push("    sudo systemctl daemon-reload".to_string());
+        lines.push("    sudo systemctl enable wg_netmanager".to_string());
+        lines.push("".to_string());
         println!("{}", lines.join("\n"));
         Ok(())
     }
     fn arch_specific_init(tx: mpsc::Sender<Event>) {
-        simple_signal::set_handler(&[Signal::Int, Signal::Term], move |_signals| {
+        simple_signal::set_handler(&[Signal::Int, Signal::Term, Signal::Hup], move |_signals| {
             tx.send(Event::CtrlC).unwrap();
         });
     }

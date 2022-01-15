@@ -1,0 +1,4 @@
+name: alice
+wgIp: 10.1.1.1
+wgInterface: wg0
+existingInterface: false

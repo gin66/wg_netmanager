@@ -7,7 +7,7 @@ use crate::error::*;
 
 pub trait WireguardDevice {
     fn check_device(&self) -> BoxResult<bool>;
-    fn bring_up_device(&self) -> BoxResult<()>;
+    fn create_device(&self) -> BoxResult<()>;
     fn take_down_device(&self) -> BoxResult<()>;
     fn set_ip(&mut self, ip: &Ipv4Addr, subnet: &Ipv4Net) -> BoxResult<()>;
     fn add_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()>;

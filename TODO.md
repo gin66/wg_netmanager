@@ -8,7 +8,6 @@ Todos:
 	or https://git.zx2c4.com/wireguard-rs (more official)
 * find a solution for sudo
 * add dns
-* rename bring_up() to create_device()
 * avoid syncconf with identical configuration (can happen if several nodes are added at once)
 * make video with watch wg showconf per vps
 * Support https://github.com/FlyveHest/wg-friendly-peer-names
@@ -21,6 +20,7 @@ Todos:
 
 
 DONE:
+* rename bring_up() to create_device()
 * share info about visible endpoint/admin udp port
 	+ Retrieve endpoint from clients out of wg showconf parsed output
 * Validate commandline ip against subnet

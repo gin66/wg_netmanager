@@ -131,7 +131,7 @@ pub fn run(
     if !static_config.use_existing_interface {
         wg_dev.take_down_device().ok();
 
-        wg_dev.bring_up_device()?;
+        wg_dev.create_device()?;
     } else {
         wg_dev.flush_all()?;
     }

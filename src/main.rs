@@ -13,16 +13,25 @@ use wg_netmanager::*;
 
 fn main() -> BoxResult<()> {
     let matches = App::new("Wireguard Network Manager")
-        .version("0.1")
+        .version("0.3.3")
         .author("Jochen Kiemes <jochen@kiemes.de>")
         .about("Manages a network of wireguard nodes with no central server.")
         .arg(
-            Arg::with_name("config")
+            Arg::with_name("network_config")
                 .short("c")
-                .long("config")
+                .long("network_config")
                 .default_value(Arch::default_path_to_network_yaml())
-                .value_name("FILE")
-                .help("Custom config file in yaml-style")
+                .value_name("NETWORK")
+                .help("Network config file in yaml-style")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("peer_config")
+                .short("p")
+                .long("peer_config")
+                .default_value(Arch::default_path_to_peer_yaml())
+                .value_name("PEER")
+                .help("Peer config file in yaml-style")
                 .takes_value(true),
         )
         .arg(
@@ -67,21 +76,25 @@ fn main() -> BoxResult<()> {
         )
         .arg(
             Arg::with_name("interface")
+                .short("i")
+                .long("wireguard-interface")
                 .help("Sets the wireguard interface")
-                .required(true)
-                .index(1),
+                .default_value(Arch::default_wireguard_interface())
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("wg_ip")
-                .help("Sets the wireguard private ip")
-                .required(true)
-                .index(2),
+                .short("a")
+                .long("wireguard-address")
+                .help("Sets the wireguard ip address (ipv4)")
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("name")
+                .short("n")
+                .long("name")
                 .help("Sets the name for this computer")
-                .required(true)
-                .index(3),
+                .takes_value(true),
         )
         .get_matches();
 
@@ -120,12 +133,17 @@ fn main() -> BoxResult<()> {
 
     let ip_list = Arch::get_local_interfaces();
 
-    let config = matches.value_of("config").unwrap_or("network.yaml");
-
-    let mut file = File::open(config)?;
+    let network_config = matches.value_of("network_config").unwrap();
+    let mut file = File::open(network_config)?;
     let mut content = String::new();
     file.read_to_string(&mut content)?;
     let conf = YamlLoader::load_from_str(&content).unwrap();
+
+    let peer_config = matches.value_of("peer_config").unwrap();
+    let mut file = File::open(peer_config)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    let peer_conf = YamlLoader::load_from_str(&content).unwrap();
 
     debug!("Raw configuration:");
     debug!("{:#?}", conf);
@@ -182,5 +200,5 @@ fn main() -> BoxResult<()> {
         .use_existing_interface(use_existing_interface)
         .build();
 
-    wg_netmanager::main_loop::run(&static_config, wg_dev)
+    wg_netmanager::run_loop::run(&static_config, wg_dev)
 }

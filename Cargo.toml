@@ -1,5 +1,6 @@
 [package]
 name = "wg_netmanager"
+# Need to be in sync with main.rs
 version = "0.3.3"
 edition = "2021"
 authors = ["Jochen Kiemes <jochen@kiemes.de>"]

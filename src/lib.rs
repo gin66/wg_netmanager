@@ -17,8 +17,20 @@ pub mod arch_linux;
 #[cfg(target_os = "mac_os")]
 pub mod arch_macos;
 
+#[cfg(target_os = "windows")]
+pub mod arch_windows;
+
+#[cfg(target_os = "android")]
+pub mod arch_android;
+
 #[cfg(target_os = "linux")]
 pub use crate::arch_linux::ArchitectureLinux as Arch;
 
-#[cfg(target_os = "mac_os")]
+#[cfg(target_os = "macos")]
 pub use crate::arch_macos::ArchitectureMacOs as Arch;
+
+#[cfg(target_os = "windows")]
+pub use crate::arch_windows::ArchitectureWindows as Arch;
+
+#[cfg(target_os = "android")]
+pub use crate::arch_android::ArchitectureAndroid as Arch;

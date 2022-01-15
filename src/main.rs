@@ -17,21 +17,24 @@ fn get_option_bool(matches: &ArgMatches, config: &Option<Yaml>, option_name: &'s
     }
 
     if let Some(conf) = config.as_ref() {
-       if let Some(val) = conf[option_name].as_bool() {
-           return val;
-       }
+        if let Some(val) = conf[option_name].as_bool() {
+            return val;
+        }
     }
 
     false
 }
-fn get_option_string(matches: &ArgMatches, config: &Option<Yaml>, option_name: &'static str) -> BoxResult<String> {
+fn get_option_string(
+    matches: &ArgMatches,
+    config: &Option<Yaml>,
+    option_name: &'static str,
+) -> BoxResult<String> {
     if let Some(val) = matches.value_of(option_name) {
         return Ok(val.to_string());
-    }
-    else if let Some(conf) = config.as_ref() {
-       if let Some(val) = conf[option_name].as_str() {
-           return Ok(val.to_string());
-       }
+    } else if let Some(conf) = config.as_ref() {
+        if let Some(val) = conf[option_name].as_str() {
+            return Ok(val.to_string());
+        }
     }
     Err(format!("Configuration option <{}> is not defined", option_name).into())
 }

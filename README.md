@@ -40,9 +40,9 @@ Unfortunately there is still the need to define at least ONE static peer.
 
 Bring up e.g. alice, bob and charlie would be just:
 ```
-ALICE'S   BOX> wg_netmanager -c net.yaml wg0 10.1.1.1  alice
-BOB'S     BOX> wg_netmanager -c net.yaml wg0 10.1.1.16 bob
-CHARLIE'S BOX> wg_netmanager -c net.yaml wg0 10.1.1.21 charlie
+ALICE'S   BOX> wg_netmanager -c net.yaml -i wg0 -a 10.1.1.1  -n alice
+BOB'S     BOX> wg_netmanager -c net.yaml -i wg0 -a 10.1.1.16 -n bob
+CHARLIE'S BOX> wg_netmanager -c net.yaml -i wg0 -a 10.1.1.21 -n charlie
 ```
 with alice being reachable on 192.168.1.70
 
@@ -176,7 +176,7 @@ As of now best to issue, too:
 
 With this preparation the network manager can be started:
 ```
-	sudo wg_netmanager -c network.yaml utun0 10.1.1.5 macos -e
+	sudo wg_netmanager -c network.yaml -i utun0 -a 10.1.1.5 -n macos -e
 ```
 Eventually use further `-v` or a `-t`. On start couple errors will be shown, but it runs.
 NAT traversal is most likely not supported. Need to figure out first ipv4/ipv6 co-existence for same UDP-port number
@@ -202,6 +202,14 @@ Then copy the final yaml file to all your nodes and start the wg_netmanager with
 For vps, which do not support wireguard as network interface, either boringtun or wireguard-go can be used. Then inform wg_netmanager about the pre-configured wireguard interface with the `-e` commandline switch.
 
 For a list of commandline options, just use `--help` as usual.
+
+The required command line options for wireguard interface (-i), address (-a) and name (-n), can be stored in a peer.yaml file like this:
+```ỳaml
+	name: alice
+	wgIp: 10.1.1.1
+	wgInterface: wg0
+	existingInterface: false
+```
 
 # Testing
 

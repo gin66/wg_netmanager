@@ -23,9 +23,6 @@ impl Architecture for ArchitectureLinux {
     fn default_path_to_peer_yaml() -> &'static str {
         "/etc/wg_netmanager/peer.yaml"
     }
-    fn default_wireguard_interface() -> &'static str {
-        "wg0"
-    }
     fn ipv4v6_socket_setup() -> (bool, bool) {
         // for sysctl net.ipv6.bindv6only=0 systems like linux: ipv6 socket reads/sends ipv4 messages
         (false, true)

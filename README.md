@@ -160,6 +160,8 @@ With rust installed, just issue
 
 The packages wireguard-tools and iproute/iproute2 need to be installed.
 
+If kernel driver does not exist (e.g. VPS), then either `wireguard-go` or `boringtun` should be installed and in the path (using `sudo`).
+
 ## Macos
 
 The packages wireguard-tools and wireguard-go need to be installed e.g. via brew.
@@ -188,7 +190,7 @@ or - in case your sudo requires password:
 
 Eventually use further `-v` or a `-t`.
 
-For vps, which do not support wireguard as network interface, either boringtun or wireguard-go can be used. Then inform wg_netmanager about the pre-configured wireguard interface with the `-e` commandline switch.
+For vps, which do not support wireguard as network interface, either boringtun or wireguard-go can be used. wg_netmanager will try to run first wireguard-go and then boringtun. If this fails, but wireguard interface can be created by other means, then inform wg_netmanager about the existing wireguard interface with the `-e` commandline switch.
 
 For a list of commandline options, just use `--help` as usual.
 
@@ -199,6 +201,7 @@ The required command line options for wireguard interface (-i), address (-a) and
 	wgInterface: wg0
 	existingInterface: false
 ```
+The last one is actually only needed, if set to true.
 
 # Testing
 

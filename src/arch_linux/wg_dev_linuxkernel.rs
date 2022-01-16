@@ -25,7 +25,11 @@ impl WireguardDeviceLinux {
         mut args: Vec<&str>,
         input: Option<&str>,
     ) -> BoxResult<std::process::Output> {
-        let mut args_with_sudo = vec!["sudo"];
+        let mut args_with_sudo = vec![];
+        if nix::unistd::getuid != 0 {
+            args_with_sudo.push("sudo");
+            args_with_sudo.push("WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KMOD=1")
+        }
         args_with_sudo.append(&mut args);
 
         let stdin_par = if input.is_none() {
@@ -36,6 +40,7 @@ impl WireguardDeviceLinux {
 
         let child = Command::new(args_with_sudo.remove(0))
             .args(args_with_sudo)
+            .env("WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KMOD", "1")
             .stdin(stdin_par)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -103,14 +108,7 @@ impl WireguardDevice for WireguardDeviceLinux {
             // try wireguard-go
             debug!("Create device via wireguard-go");
             // Setting the environment variable works only with sudo
-            result = self.execute_command(
-                vec![
-                    "WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KMOD=1",
-                    "wireguard-go",
-                    &self.device_name,
-                ],
-                None,
-            );
+            result = self.execute_command(vec!["wireguard-go", &self.device_name], None);
         }
 
         if result.is_err() {

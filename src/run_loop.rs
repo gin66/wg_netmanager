@@ -35,11 +35,18 @@ pub fn run(
 
     let port = static_config.my_admin_port();
 
-    let (need_v4_socket, need_v6_socket) = Arch::ipv4v6_socket_setup();
+    let (v4_socket_first, need_v4_socket, need_v6_socket) = Arch::ipv4v6_socket_setup();
 
     let mut opt_crypt_socket_v6 = None;
     let mut opt_crypt_socket_v4 = None;
 
+    if need_v4_socket && v4_socket_first {
+        debug!("bind to 0.0.0.0:{}", port);
+        opt_crypt_socket_v4 = Some(
+            CryptUdp::bind(IpAddr::V4("0.0.0.0".parse().unwrap()), port)?
+                .key(&static_config.shared_key)?,
+        );
+    }
     if need_v6_socket {
         debug!("bind to :::{}", port);
         opt_crypt_socket_v6 = Some(
@@ -47,7 +54,7 @@ pub fn run(
                 .key(&static_config.shared_key)?,
         );
     }
-    if need_v4_socket {
+    if need_v4_socket && !v4_socket_first {
         debug!("bind to 0.0.0.0:{}", port);
         opt_crypt_socket_v4 = Some(
             CryptUdp::bind(IpAddr::V4("0.0.0.0".parse().unwrap()), port)?

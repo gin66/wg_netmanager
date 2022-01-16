@@ -15,7 +15,7 @@ pub trait Architecture {
     fn default_path_to_peer_yaml() -> &'static str {
         "peer.yaml"
     }
-    fn ipv4v6_socket_setup() -> (bool, bool) {
+    fn ipv4v6_socket_setup() -> (bool, bool, bool) {
         unimplemented!();
     }
     fn get_local_interfaces() -> Vec<IpAddr> {

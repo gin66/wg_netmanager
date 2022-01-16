@@ -93,7 +93,7 @@ impl WireguardDevice for WireguardDeviceLinux {
         Ok(result.is_ok())
     }
     fn create_device(&self) -> BoxResult<()> {
-        debug!("Bring up device");
+        debug!("Create device");
         let _ = self.execute_command(
             vec!["ip", "link", "add", &self.device_name, "type", "wireguard"],
             None,

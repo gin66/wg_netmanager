@@ -94,6 +94,8 @@ jobs:
           - aarch64-unknown-linux-gnu
           - aarch64-unknown-linux-musl
           - x86_64-unknown-linux-musl
+          - mipsel-unknown-linux-musl
+          - mipsel-openwrt-linux-musl
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1

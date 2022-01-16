@@ -83,7 +83,7 @@ pub fn run(
             match crypt_socket_v4_clone.recv_from(&mut buf) {
                 Ok((received, src_addr)) => {
                     info!("received {} bytes from {:?}", received, src_addr);
-                    match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
+                    match rmp_serde::from_slice::<UdpPacket>(&buf[..received]) {
                         Ok(udp_packet) => {
                             tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
                         }
@@ -110,7 +110,7 @@ pub fn run(
             match crypt_socket_v6_clone.recv_from(&mut buf) {
                 Ok((received, src_addr)) => {
                     info!("received {} bytes from {:?}", received, src_addr);
-                    match serde_json::from_slice::<UdpPacket>(&buf[..received]) {
+                    match rmp_serde::from_slice::<UdpPacket>(&buf[..received]) {
                         Ok(udp_packet) => {
                             tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
                         }
@@ -348,7 +348,7 @@ fn main_loop(
                     opt_dp,
                     my_visible_wg_endpoint,
                 );
-                let buf = serde_json::to_vec(&advertisement).unwrap();
+                let buf = rmp_serde::to_vec(&advertisement).unwrap();
                 info!(target: "advertisement", "Send advertisement to {}", destination);
                 if destination.is_ipv4() {
                     crypt_socket_v4.send_to(&buf, destination).ok();
@@ -359,7 +359,7 @@ fn main_loop(
             Ok(Event::SendRouteDatabaseRequest { to: destination }) => {
                 debug!(target: &destination.ip().to_string(), "Send route database request to {:?}", destination);
                 let request = UdpPacket::route_database_request();
-                let buf = serde_json::to_vec(&request).unwrap();
+                let buf = rmp_serde::to_vec(&request).unwrap();
                 info!(target: "routing", "Send RouteDatabaseRequest to {}", destination);
                 crypt_socket_v4
                     .send_to(&buf, SocketAddr::V4(destination))
@@ -369,7 +369,7 @@ fn main_loop(
                 debug!(target: &destination.ip().to_string(), "Send route database to {:?}", destination);
                 let packages = network_manager.provide_route_database();
                 for p in packages {
-                    let buf = serde_json::to_vec(&p).unwrap();
+                    let buf = rmp_serde::to_vec(&p).unwrap();
                     info!(target: "routing", "Send RouteDatabase to {}", destination);
                     crypt_socket_v4
                         .send_to(&buf, SocketAddr::V4(destination))
@@ -379,7 +379,7 @@ fn main_loop(
             Ok(Event::SendLocalContactRequest { to: destination }) => {
                 debug!(target: &destination.ip().to_string(), "Send local contact request to {:?}", destination);
                 let request = UdpPacket::local_contact_request();
-                let buf = serde_json::to_vec(&request).unwrap();
+                let buf = rmp_serde::to_vec(&request).unwrap();
                 info!(target: "probing", "Send LocalContactRequest to {}", destination);
                 crypt_socket_v4
                     .send_to(&buf, SocketAddr::V4(destination))
@@ -392,7 +392,7 @@ fn main_loop(
                     network_manager.my_visible_wg_endpoint,
                 );
                 trace!(target: "probing", "local contact to {:#?}", local_contact);
-                let buf = serde_json::to_vec(&local_contact).unwrap();
+                let buf = rmp_serde::to_vec(&local_contact).unwrap();
                 info!(target: "probing", "Send local contact to {}", destination);
                 crypt_socket_v4
                     .send_to(&buf, SocketAddr::V4(destination))

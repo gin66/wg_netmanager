@@ -26,7 +26,7 @@ impl WireguardDeviceLinux {
         input: Option<&str>,
     ) -> BoxResult<std::process::Output> {
         let mut args_with_sudo = vec![];
-        if nix::unistd::getuid().is_root() {
+        if !nix::unistd::getuid().is_root() {
             args_with_sudo.push("sudo");
             args_with_sudo.push("WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KMOD=1")
         }

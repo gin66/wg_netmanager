@@ -139,11 +139,11 @@ fn main() -> BoxResult<()> {
         Ok(mut file) => {
             let mut content = String::new();
             file.read_to_string(&mut content)?;
-            let mut peer_conf = YamlLoader::load_from_str(&content).unwrap();
-            if peer_conf.len() != 1 {
+            let mut peer_conf_vec = YamlLoader::load_from_str(&content).unwrap();
+            if peer_conf_vec.len() != 1 {
                 return Err("Malformed peer configuration".into());
             }
-            opt_peer_conf = Some(peer_conf.remove(0));
+            opt_peer_conf = Some(peer_conf_vec.remove(0));
         }
         Err(e) => match e.kind() {
             std::io::ErrorKind::PermissionDenied => {

@@ -150,7 +150,8 @@ Alpha-VPA and Beta-VPS use old linux version without wireguard kernel driver. So
 	- Charlie <=> Delta
 	- Delta <=> Beta-VPS
 
-Actually, the tendency to go to one-to-one connections causes a new problem. The required amount of keep alive packages (to keep firewall ports persistent) between nodes increases with nearly quadratically with the number of nodes in the net....
+Actually, the tendency to go to one-to-one connections causes a new problem. The required amount of keep alive packages (to keep firewall ports persistent) between nodes increases nearly quadratically with the number of nodes in the net....
+
 Not so much a problem in my setup, but still something to be addressed in the long run.
 
 # Not so good working Example

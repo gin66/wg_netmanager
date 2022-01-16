@@ -39,7 +39,11 @@ mod tests {
 
     #[test]
     fn test_create_device_with_ip() {
+        // let _ = wg_netmanager::error::set_up_logging(log::LevelFilter::Trace, None);
+
         let mut wg_dev = Arch::get_wg_dev("wgtest2");
+
+        let _ = wg_dev.take_down_device();
 
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
@@ -49,9 +53,9 @@ mod tests {
         let dev_present_after = wg_dev.check_device().unwrap();
         assert!(dev_present_after);
 
-        let subnet: ipnet::Ipv4Net = "10.1.0.0/16".parse().unwrap();
+        let subnet: ipnet::Ipv4Net = "10.202.0.0/16".parse().unwrap();
         wg_dev
-            .set_ip(&"10.1.1.1".parse().unwrap(), &subnet)
+            .set_ip(&"10.202.1.1".parse().unwrap(), &subnet)
             .unwrap();
 
         wg_dev.take_down_device().unwrap();
@@ -64,6 +68,8 @@ mod tests {
     fn test_create_device_with_ip_and_key() {
         let mut wg_dev = Arch::get_wg_dev("wgtest3");
 
+        let _ = wg_dev.take_down_device();
+
         let dev_present_before = wg_dev.check_device().unwrap();
         assert!(!dev_present_before);
 
@@ -72,9 +78,9 @@ mod tests {
         let dev_present_after = wg_dev.check_device().unwrap();
         assert!(dev_present_after);
 
-        let subnet: ipnet::Ipv4Net = "10.1.0.0/16".parse().unwrap();
+        let subnet: ipnet::Ipv4Net = "10.203.0.0/16".parse().unwrap();
         wg_dev
-            .set_ip(&"10.1.1.1".parse().unwrap(), &subnet)
+            .set_ip(&"10.203.1.1".parse().unwrap(), &subnet)
             .unwrap();
 
         wg_dev

@@ -127,7 +127,10 @@ impl WireguardDevice for WireguardDeviceMacos {
         debug!("Set route to {} via {:?}", host, gateway);
         let ip = format!("{}", self.ip);
         if let Some(gateway) = gateway {
-            let _ = self.execute_command(vec!["route", "add", &host.to_string(), &gateway.to_string()], None);
+            let _ = self.execute_command(
+                vec!["route", "add", &host.to_string(), &gateway.to_string()],
+                None,
+            );
         } else {
             let _ = self.execute_command(vec!["route", "add", &host.to_string(), &ip], None);
         }
@@ -138,8 +141,10 @@ impl WireguardDevice for WireguardDeviceMacos {
         debug!("Replace route to {} via {:?}", host, gateway);
         let ip = format!("{}", self.ip);
         if let Some(gateway) = gateway {
-            let _ =
-                self.execute_command(vec!["route", "change", &host.to_string(), &gateway.to_string()], None);
+            let _ = self.execute_command(
+                vec!["route", "change", &host.to_string(), &gateway.to_string()],
+                None,
+            );
         } else {
             let _ = self.execute_command(vec!["route", "change", &host.to_string(), &ip], None);
         }

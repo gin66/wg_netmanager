@@ -93,14 +93,29 @@ impl WireguardDevice for WireguardDeviceLinux {
         Ok(result.is_ok())
     }
     fn create_device(&self) -> BoxResult<()> {
-        debug!("Create device");
-        let _ = self.execute_command(
+        debug!("Create device via ip link add");
+        let mut result = self.execute_command(
             vec!["ip", "link", "add", &self.device_name, "type", "wireguard"],
             None,
         );
-        debug!("Interface {} created", self.device_name);
 
-        Ok(())
+        if result.is_err() {
+            // try wireguard-go
+            debug!("Create device via wireguard-go");
+            result = self.execute_command(vec!["wireguard-go", &self.device_name], None);
+        }
+
+        if result.is_err() {
+            // try boringtun
+            debug!("Create device via boringtun");
+            result = self.execute_command(vec!["boringtun", &self.device_name], None);
+        }
+
+        if result.is_ok() {
+            debug!("Interface {} created", self.device_name);
+        }
+
+        result.map(|_| ())
     }
     fn take_down_device(&self) -> BoxResult<()> {
         debug!("Take down device");
@@ -114,23 +129,24 @@ impl WireguardDevice for WireguardDeviceLinux {
         self.ip = *ip;
         let ip_extend = format!("{}/{}", ip, subnet.prefix_len());
         let ipv6_extend = format!("{}/{}", map_to_ipv6(ip), 96 + subnet.prefix_len());
-        let _ = self.execute_command(
+        self.execute_command(
             vec!["ip", "addr", "add", &ip_extend, "dev", &self.device_name],
             None,
-        );
-        let _ = self.execute_command(
+        )?;
+        self.execute_command(
             vec!["ip", "addr", "add", &ipv6_extend, "dev", &self.device_name],
             None,
-        );
-        let _ = self.execute_command(
-            vec!["ip", "route", "add", &ipv6_extend, "dev", &self.device_name],
-            None,
-        );
+        )?;
 
-        let _ = self.execute_command(vec!["ip", "link", "set", &self.device_name, "up"], None);
+        self.execute_command(vec!["ip", "link", "set", &self.device_name, "up"], None)?;
         debug!("Interface {} up", self.device_name);
 
-        let _ = self.execute_command(vec!["ip", "route", "del", &format!("{:?}", subnet)], None);
+        self.execute_command(
+            vec!["ip", "route", "add", &ipv6_extend, "dev", &self.device_name],
+            None,
+        )?;
+
+        self.execute_command(vec!["ip", "route", "del", &format!("{:?}", subnet)], None)?;
 
         debug!("Interface {} set ip", self.device_name);
         Ok(())
@@ -138,7 +154,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     fn add_route(&self, host: Ipv4Addr, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route to {} via {:?}", host, gateway);
         if let Some(gateway) = gateway {
-            let _ = self.execute_command(
+            self.execute_command(
                 vec![
                     "ip",
                     "route",
@@ -150,9 +166,9 @@ impl WireguardDevice for WireguardDeviceLinux {
                     &self.device_name,
                 ],
                 None,
-            );
+            )?;
         } else {
-            let _ = self.execute_command(
+            self.execute_command(
                 vec![
                     "ip",
                     "route",
@@ -162,7 +178,7 @@ impl WireguardDevice for WireguardDeviceLinux {
                     &self.device_name,
                 ],
                 None,
-            );
+            )?;
         }
         debug!("Interface {} set route", self.device_name);
         Ok(())
@@ -170,7 +186,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     fn replace_route(&self, host: Ipv4Addr, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Replace route to {} via {:?}", host, gateway);
         if let Some(gateway) = gateway {
-            let _ = self.execute_command(
+            self.execute_command(
                 vec![
                     "ip",
                     "route",
@@ -182,9 +198,9 @@ impl WireguardDevice for WireguardDeviceLinux {
                     &self.device_name,
                 ],
                 None,
-            );
+            )?;
         } else {
-            let _ = self.execute_command(
+            self.execute_command(
                 vec![
                     "ip",
                     "route",
@@ -194,14 +210,14 @@ impl WireguardDevice for WireguardDeviceLinux {
                     &self.device_name,
                 ],
                 None,
-            );
+            )?;
         }
         debug!("Interface {} set route", self.device_name);
         Ok(())
     }
     fn del_route(&self, host: Ipv4Addr, _gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Delete route to {}", host);
-        let _ = self.execute_command(vec!["ip", "route", "del", &format!("{}/32", host)], None);
+        self.execute_command(vec!["ip", "route", "del", &format!("{}/32", host)], None)?;
         debug!("Interface {} deleted route", self.device_name);
         Ok(())
     }

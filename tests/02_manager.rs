@@ -19,7 +19,7 @@ mod tests {
 
     #[test]
     fn test_with_one_dynamic_peer() {
-        //wg_netmanager::error::set_up_logging(log::LevelFilter::Trace);
+        //wg_netmanager::error::set_up_logging(log::LevelFilter::Trace, None);
 
         let ip: Ipv4Addr = "10.1.1.1".parse().unwrap();
         let peer_ip: Ipv4Addr = "10.1.1.2".parse().unwrap();

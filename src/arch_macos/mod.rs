@@ -1,11 +1,11 @@
-pub mod wg_dev_linuxkernel;
+pub mod wg_dev_macos;
 
 use std::net::IpAddr;
 
 use crate::arch_def::Architecture;
 use crate::wg_dev::*;
 
-use wg_dev_linuxkernel::WireguardDeviceLinux;
+use wg_dev_macos::WireguardDeviceMacos;
 
 pub struct ArchitectureMacOs {}
 impl Architecture for ArchitectureMacOs {
@@ -23,6 +23,6 @@ impl Architecture for ArchitectureMacOs {
         vec![]
     }
     fn get_wg_dev<T: Into<String>>(wg_name: T) -> Box<dyn WireguardDevice> {
-        Box::new(WireguardDeviceLinux::init(wg_name))
+        Box::new(WireguardDeviceMacos::init(wg_name))
     }
 }

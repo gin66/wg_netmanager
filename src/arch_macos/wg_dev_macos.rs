@@ -9,13 +9,13 @@ use log::*;
 use crate::error::*;
 use crate::wg_dev::*;
 
-pub struct WireguardDeviceLinux {
+pub struct WireguardDeviceMacos {
     device_name: String,
     ip: Ipv4Addr,
 }
-impl WireguardDeviceLinux {
+impl WireguardDeviceMacos {
     pub fn init<T: Into<String>>(wg_name: T) -> Self {
-        WireguardDeviceLinux {
+        WireguardDeviceMacos {
             device_name: wg_name.into(),
             ip: "0.0.0.0".parse().unwrap(),
         }
@@ -86,16 +86,16 @@ impl WireguardDeviceLinux {
     }
 }
 
-impl WireguardDevice for WireguardDeviceLinux {
+impl WireguardDevice for WireguardDeviceMacos {
     fn check_device(&self) -> BoxResult<bool> {
         debug!("Check for device {}", self.device_name);
-        let result = self.execute_command(vec!["ip", "link", "show", &self.device_name], None);
+        let result = self.execute_command(vec!["ifconfig", &self.device_name], None);
         Ok(result.is_ok())
     }
     fn create_device(&self) -> BoxResult<()> {
-        debug!("Bring up device");
+        debug!("Create device");
         let _ = self.execute_command(
-            vec!["ip", "link", "add", &self.device_name, "type", "wireguard"],
+            vec!["wireguard-go", &self.device_name],
             None,
         );
         debug!("Interface {} created", self.device_name);
@@ -104,7 +104,7 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn take_down_device(&self) -> BoxResult<()> {
         debug!("Take down device");
-        let _ = self.execute_command(vec!["ip", "link", "del", &self.device_name], None);
+        let _ = self.execute_command(vec!["killall", "wireguard-go" ], None);
         debug!("Interface {} destroyed", self.device_name);
         Ok(())
     }
@@ -112,56 +112,41 @@ impl WireguardDevice for WireguardDeviceLinux {
         debug!("Set IP {}", ip);
         // The option noprefixroute of ip addr add would be ideal, but is not supported on older linux/ip
         self.ip = *ip;
-        let ip_extend = format!("{}/{}", ip, subnet.prefix_len());
+        let ip_extend = format!("{}", ip);
+        let ip_netmask = format!("{}", subnet.netmask());
         let ipv6_extend = format!("{}/{}", map_to_ipv6(ip), 96 + subnet.prefix_len());
         let _ = self.execute_command(
-            vec!["ip", "addr", "add", &ip_extend, "dev", &self.device_name],
+            vec!["ifconfig", &self.device_name, &ip_extend, &ip_extend],
             None,
         );
         let _ = self.execute_command(
-            vec!["ip", "addr", "add", &ipv6_extend, "dev", &self.device_name],
+            vec!["ifconfig", &self.device_name, "inet6", &ipv6_extend, "add"],
             None,
         );
-        let _ = self.execute_command(
-            vec!["ip", "route", "add", &ipv6_extend, "dev", &self.device_name],
-            None,
-        );
-
-        let _ = self.execute_command(vec!["ip", "link", "set", &self.device_name, "up"], None);
-        debug!("Interface {} up", self.device_name);
-
-        let _ = self.execute_command(vec!["ip", "route", "del", &format!("{:?}", subnet)], None);
 
         debug!("Interface {} set ip", self.device_name);
         Ok(())
     }
     fn add_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route {}", route);
+        let ip = format!("{}", self.ip);
         if let Some(gateway) = gateway {
             let _ = self.execute_command(
                 vec![
-                    "ip",
                     "route",
                     "add",
                     route,
-                    "via",
                     &gateway.to_string(),
-                    "dev",
-                    &self.device_name,
                 ],
                 None,
             );
         } else {
             let _ = self.execute_command(
                 vec![
-                    "ip",
                     "route",
                     "add",
                     route,
-                    "dev",
-                    &self.device_name,
-                    //    "src",
-                    //    &format!("{}", self.ip),
+                    &ip,
                 ],
                 None,
             );
@@ -171,31 +156,24 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn replace_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route {}", route);
+        let ip = format!("{}", self.ip);
         if let Some(gateway) = gateway {
             let _ = self.execute_command(
                 vec![
-                    "ip",
                     "route",
-                    "replace",
+                    "change",
                     route,
-                    "via",
                     &gateway.to_string(),
-                    "dev",
-                    &self.device_name,
                 ],
                 None,
             );
         } else {
             let _ = self.execute_command(
                 vec![
-                    "ip",
                     "route",
-                    "replace",
+                    "change",
                     route,
-                    "dev",
-                    &self.device_name,
-                    //    "src",
-                    //    &format!("{}", self.ip),
+                    &ip,
                 ],
                 None,
             );
@@ -205,20 +183,12 @@ impl WireguardDevice for WireguardDeviceLinux {
     }
     fn del_route(&self, route: &str, _gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         debug!("Set route {}", route);
-        let _ = self.execute_command(vec!["ip", "route", "del", route], None);
+        let _ = self.execute_command(vec!["route", "delete", route], None);
         debug!("Interface {} deleted route", self.device_name);
         Ok(())
     }
     fn flush_all(&self) -> BoxResult<()> {
-        for what in ["route", "addr"] {
-            debug!("Flush {}", what);
-            let _ = self.execute_command(vec!["ip", what, "flush", "dev", &self.device_name], None);
-            let _ = self.execute_command(
-                vec!["ip", "-6", what, "flush", "dev", &self.device_name],
-                None,
-            );
-            debug!("{} flushed", what);
-        }
+        warn!("flush_all not implemented for macos");
         Ok(())
     }
     fn set_conf(&self, conf: &str) -> BoxResult<()> {

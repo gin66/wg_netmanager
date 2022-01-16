@@ -162,23 +162,13 @@ The packages wireguard-tools and iproute/iproute2 need to be installed.
 
 ## Macos
 
-The packages wireguard-tools, iproute2mac and wireguard-go need to be installed e.g. via brew.
-Then a device needs to be created with:
-```
-	sudo wireguard-go utun
-```
-Then check with `ip link` which utun-device has been created, e.g. `utun0`.
+The packages wireguard-tools  and wireguard-go need to be installed e.g. via brew.
 
-As of now best to issue, too:
+The network manager can be started:
 ```
-	sudo ifconfig utun0 10.1.1.5 255.255.255.0
+	sudo wg_netmanager -c network.yaml -i utun0 -a 10.1.1.5 -n macos
 ```
-
-With this preparation the network manager can be started:
-```
-	sudo wg_netmanager -c network.yaml -i utun0 -a 10.1.1.5 -n macos -e
-```
-Eventually use further `-v` or a `-t`. On start couple errors will be shown, but it runs.
+Eventually use further `-v` or a `-t`.
 NAT traversal is most likely not supported. Need to figure out first ipv4/ipv6 co-existence for same UDP-port number
 
 # Usage

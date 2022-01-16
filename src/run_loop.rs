@@ -432,15 +432,15 @@ fn main_loop(
                     match rc {
                         AddRoute { to, gateway } => {
                             debug!(target: &to.to_string(), "add route with gateway {:?}", gateway);
-                            wg_dev.add_route(&format!("{}/32", to), gateway)?;
+                            wg_dev.add_route(to, gateway)?;
                         }
                         ReplaceRoute { to, gateway } => {
                             debug!(target: &to.to_string(), "replace route with gateway {:?}", gateway);
-                            wg_dev.replace_route(&format!("{}/32", to), gateway)?;
+                            wg_dev.replace_route(to, gateway)?;
                         }
                         DelRoute { to, gateway } => {
                             debug!(target: &to.to_string(), "del route with gateway {:?}", gateway);
-                            wg_dev.del_route(&format!("{}/32", to), gateway)?;
+                            wg_dev.del_route(to, gateway)?;
                         }
                     }
                 }

@@ -10,9 +10,9 @@ pub trait WireguardDevice {
     fn create_device(&self) -> BoxResult<()>;
     fn take_down_device(&self) -> BoxResult<()>;
     fn set_ip(&mut self, ip: &Ipv4Addr, subnet: &Ipv4Net) -> BoxResult<()>;
-    fn add_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()>;
-    fn replace_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()>;
-    fn del_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()>;
+    fn add_route(&self, host: Ipv4Addr, gateway: Option<Ipv4Addr>) -> BoxResult<()>;
+    fn replace_route(&self, host: Ipv4Addr, gateway: Option<Ipv4Addr>) -> BoxResult<()>;
+    fn del_route(&self, host: Ipv4Addr, gateway: Option<Ipv4Addr>) -> BoxResult<()>;
     fn set_conf(&self, conf: &str) -> BoxResult<()>;
     fn sync_conf(&self, conf: &str) -> BoxResult<()>;
     fn flush_all(&self) -> BoxResult<()>;

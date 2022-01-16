@@ -123,32 +123,32 @@ impl WireguardDevice for WireguardDeviceMacos {
         debug!("Interface {} set ip", self.device_name);
         Ok(())
     }
-    fn add_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
-        debug!("Set route {}", route);
+    fn add_route(&self, host: Ipv4Addr, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
+        debug!("Set route to {} via {:?}", host, gateway);
         let ip = format!("{}", self.ip);
         if let Some(gateway) = gateway {
-            let _ = self.execute_command(vec!["route", "add", route, &gateway.to_string()], None);
+            let _ = self.execute_command(vec!["route", "add", &host.to_string(), &gateway.to_string()], None);
         } else {
-            let _ = self.execute_command(vec!["route", "add", route, &ip], None);
+            let _ = self.execute_command(vec!["route", "add", &host.to_string(), &ip], None);
         }
         debug!("Interface {} set route", self.device_name);
         Ok(())
     }
-    fn replace_route(&self, route: &str, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
-        debug!("Set route {}", route);
+    fn replace_route(&self, host: Ipv4Addr, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
+        debug!("Replace route to {} via {:?}", host, gateway);
         let ip = format!("{}", self.ip);
         if let Some(gateway) = gateway {
             let _ =
-                self.execute_command(vec!["route", "change", route, &gateway.to_string()], None);
+                self.execute_command(vec!["route", "change", &host.to_string(), &gateway.to_string()], None);
         } else {
-            let _ = self.execute_command(vec!["route", "change", route, &ip], None);
+            let _ = self.execute_command(vec!["route", "change", &host.to_string(), &ip], None);
         }
         debug!("Interface {} set route", self.device_name);
         Ok(())
     }
-    fn del_route(&self, route: &str, _gateway: Option<Ipv4Addr>) -> BoxResult<()> {
-        debug!("Set route {}", route);
-        let _ = self.execute_command(vec!["route", "delete", route], None);
+    fn del_route(&self, host: Ipv4Addr, _gateway: Option<Ipv4Addr>) -> BoxResult<()> {
+        debug!("Delete route to {}", host);
+        let _ = self.execute_command(vec!["route", "delete", &host.to_string()], None);
         debug!("Interface {} deleted route", self.device_name);
         Ok(())
     }

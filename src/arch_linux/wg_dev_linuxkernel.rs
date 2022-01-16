@@ -36,7 +36,6 @@ impl WireguardDeviceLinux {
 
         let child = Command::new(args_with_sudo.remove(0))
             .args(args_with_sudo)
-            .env("WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KMOD","1") // for wireguard-go
             .stdin(stdin_par)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -103,7 +102,8 @@ impl WireguardDevice for WireguardDeviceLinux {
         if result.is_err() {
             // try wireguard-go
             debug!("Create device via wireguard-go");
-            result = self.execute_command(vec!["wireguard-go", &self.device_name], None);
+            // Setting the environment variable works only with sudo
+            result = self.execute_command(vec!["WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KMOD=1", "wireguard-go", &self.device_name], None);
         }
 
         if result.is_err() {

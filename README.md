@@ -162,18 +162,11 @@ The packages wireguard-tools and iproute/iproute2 need to be installed.
 
 ## Macos
 
-The packages wireguard-tools  and wireguard-go need to be installed e.g. via brew.
-
-The network manager can be started:
-```
-	sudo wg_netmanager -c network.yaml -i utun0 -a 10.1.1.5 -n macos
-```
-Eventually use further `-v` or a `-t`.
-NAT traversal is most likely not supported. Need to figure out first ipv4/ipv6 co-existence for same UDP-port number
+The packages wireguard-tools and wireguard-go need to be installed e.g. via brew.
 
 # Usage
 
-Generally, a shared key need to be created and stored under sharedKey in your local copy of network.yaml. This can be done by:
+Generally, a shared key needs to be created and stored under sharedKey in your local copy of network.yaml. This can be done by:
 ```
 	wg genkey
 ```
@@ -187,7 +180,13 @@ Then copy the final yaml file to all your nodes and start the wg_netmanager with
 ```
 	wg_netmanager -c network.yaml <wireguard-interface> <wireguard-ip> <name>
 ```
+or - in case your sudo requires password:
+```
+	sudo wg_netmanager -c network.yaml <wireguard-interface> <wireguard-ip> <name>
+```
 
+
+Eventually use further `-v` or a `-t`.
 
 For vps, which do not support wireguard as network interface, either boringtun or wireguard-go can be used. Then inform wg_netmanager about the pre-configured wireguard interface with the `-e` commandline switch.
 

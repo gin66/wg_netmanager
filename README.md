@@ -236,3 +236,7 @@ Remedy is, that the wireguard interface is associated with IP and resp. netmask.
 ```
 
 Consequently, in the config-file the subnet has to specified. If the subnet does not include 8.8.8.8, then other nodes will not accept it - unless the defined subnet includes 8.8.8.8
+
+# License
+
+The code of this crate is licensed according to MIT. To learn about the licenses of included crates, please check `cargo license`.

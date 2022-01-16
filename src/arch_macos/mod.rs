@@ -15,9 +15,8 @@ impl Architecture for ArchitectureMacOs {
     fn default_path_to_peer_yaml() -> &'static str {
         "peer.yaml"
     }
-    fn ipv4v6_socket_setup() -> (bool, bool) {
-        // compromise on macos not being able to do NAT traversal
-        (true, false)
+    fn ipv4v6_socket_setup() -> (bool, bool, bool) {
+        (true, true, true)
     }
     fn get_local_interfaces() -> Vec<IpAddr> {
         vec![]

@@ -94,17 +94,14 @@ impl WireguardDevice for WireguardDeviceMacos {
     }
     fn create_device(&self) -> BoxResult<()> {
         debug!("Create device");
-        let _ = self.execute_command(
-            vec!["wireguard-go", &self.device_name],
-            None,
-        );
+        let _ = self.execute_command(vec!["wireguard-go", &self.device_name], None);
         debug!("Interface {} created", self.device_name);
 
         Ok(())
     }
     fn take_down_device(&self) -> BoxResult<()> {
         debug!("Take down device");
-        let _ = self.execute_command(vec!["killall", "wireguard-go" ], None);
+        let _ = self.execute_command(vec!["killall", "wireguard-go"], None);
         debug!("Interface {} destroyed", self.device_name);
         Ok(())
     }
@@ -113,7 +110,6 @@ impl WireguardDevice for WireguardDeviceMacos {
         // The option noprefixroute of ip addr add would be ideal, but is not supported on older linux/ip
         self.ip = *ip;
         let ip_extend = format!("{}", ip);
-        let ip_netmask = format!("{}", subnet.netmask());
         let ipv6_extend = format!("{}/{}", map_to_ipv6(ip), 96 + subnet.prefix_len());
         let _ = self.execute_command(
             vec!["ifconfig", &self.device_name, &ip_extend, &ip_extend],
@@ -131,25 +127,9 @@ impl WireguardDevice for WireguardDeviceMacos {
         debug!("Set route {}", route);
         let ip = format!("{}", self.ip);
         if let Some(gateway) = gateway {
-            let _ = self.execute_command(
-                vec![
-                    "route",
-                    "add",
-                    route,
-                    &gateway.to_string(),
-                ],
-                None,
-            );
+            let _ = self.execute_command(vec!["route", "add", route, &gateway.to_string()], None);
         } else {
-            let _ = self.execute_command(
-                vec![
-                    "route",
-                    "add",
-                    route,
-                    &ip,
-                ],
-                None,
-            );
+            let _ = self.execute_command(vec!["route", "add", route, &ip], None);
         }
         debug!("Interface {} set route", self.device_name);
         Ok(())
@@ -158,25 +138,10 @@ impl WireguardDevice for WireguardDeviceMacos {
         debug!("Set route {}", route);
         let ip = format!("{}", self.ip);
         if let Some(gateway) = gateway {
-            let _ = self.execute_command(
-                vec![
-                    "route",
-                    "change",
-                    route,
-                    &gateway.to_string(),
-                ],
-                None,
-            );
+            let _ =
+                self.execute_command(vec!["route", "change", route, &gateway.to_string()], None);
         } else {
-            let _ = self.execute_command(
-                vec![
-                    "route",
-                    "change",
-                    route,
-                    &ip,
-                ],
-                None,
-            );
+            let _ = self.execute_command(vec!["route", "change", route, &ip], None);
         }
         debug!("Interface {} set route", self.device_name);
         Ok(())

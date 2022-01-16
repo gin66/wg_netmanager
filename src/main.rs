@@ -135,14 +135,25 @@ fn main() -> BoxResult<()> {
 
     let mut opt_peer_conf: Option<Yaml> = None;
     let peer_config = matches.value_of("peer_config").unwrap();
-    if let Ok(mut file) = File::open(peer_config) {
-        let mut content = String::new();
-        file.read_to_string(&mut content)?;
-        let mut peer_conf = YamlLoader::load_from_str(&content).unwrap();
-        if peer_conf.len() != 1 {
-            return Err("Malformed peer configuration".into());
+    match File::open(peer_config) {
+        Ok(mut file) => {
+            let mut content = String::new();
+            file.read_to_string(&mut content)?;
+            let mut peer_conf = YamlLoader::load_from_str(&content).unwrap();
+            if peer_conf.len() != 1 {
+                return Err("Malformed peer configuration".into());
+            }
+            opt_peer_conf = Some(peer_conf.remove(0));
         }
-        opt_peer_conf = Some(peer_conf.remove(0));
+        Err(e) => match e.kind() {
+            std::io::ErrorKind::PermissionDenied => {
+                return Err(format!("Permission denied for {}", peer_config).into());
+            }
+            std::io::ErrorKind::NotFound => {
+                // That's OK
+            }
+            _ => return Err(Box::new(e)),
+        },
     }
 
     let computer_name = get_option_string(&matches, &opt_peer_conf, "name")?;
@@ -173,16 +184,29 @@ fn main() -> BoxResult<()> {
     }
 
     let network_config = matches.value_of("network_config").unwrap();
-    let mut file = File::open(network_config)?;
-    let mut content = String::new();
-    file.read_to_string(&mut content)?;
-    let network_conf_vec = YamlLoader::load_from_str(&content).unwrap();
-    if network_conf_vec.len() != 1 {
-        return Err("Malformed network configuration".into());
+    let network_conf: Yaml;
+    match File::open(network_config) {
+        Ok(mut file) => {
+            let mut content = String::new();
+            file.read_to_string(&mut content)?;
+            let mut network_conf_vec = YamlLoader::load_from_str(&content).unwrap();
+            if network_conf_vec.len() != 1 {
+                return Err("Malformed network configuration".into());
+            }
+            network_conf = network_conf_vec.remove(0);
+            debug!("Raw configuration:");
+            debug!("{:#?}", network_conf);
+        }
+        Err(e) => match e.kind() {
+            std::io::ErrorKind::PermissionDenied => {
+                return Err(format!("Permission denied for {}", network_config).into());
+            }
+            std::io::ErrorKind::NotFound => {
+                return Err(format!("Cannot find required network configuration: {}", network_config).into());
+            }
+            _ => return Err(Box::new(e)),
+        },
     }
-    let network_conf = &network_conf_vec[0];
-    debug!("Raw configuration:");
-    debug!("{:#?}", network_conf);
 
     let ip_list = Arch::get_local_interfaces();
 

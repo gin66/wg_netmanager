@@ -41,7 +41,7 @@ fn get_option_string(
 
 fn main() -> BoxResult<()> {
     let matches = App::new("Wireguard Network Manager")
-        .version("0.3.7")
+        .version("0.3.8")
         .author("Jochen Kiemes <jochen@kiemes.de>")
         .about("Manages a network of wireguard nodes with no central server.")
         .arg(

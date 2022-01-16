@@ -150,6 +150,32 @@ Alpha-VPA and Beta-VPS use old linux version without wireguard kernel driver. So
 	- Charlie <=> Delta
 	- Delta <=> Beta-VPS
 
+# Not so good working Example
+
+A second setup is:
+
+```
+             Alpha-VPS          Internet       Beta-VPS
+          behind firewall ---------+---------  public IP
+                                   |
+                                   |
+                                   |
+                            =====Router 1====Masquerade+Firewall
+                                   |
+                      192.168.1.x  |
+            Charlie   -------------+----------  Delta
+                                   |
+                                   |
+                            =====Router 2====Masquerade+Firewall
+                      192.168.2.x  |
+```
+This setup does not run stable and the wg_netmanager of Router 2 residing in domain 192.168.2.x drops off.
+
+Moreover, a node accessing another node via an IP outside of wireguard IP wants to initiate a new connection.
+Currently the answer is sent back (to an already known node) to the wireguard tunnel, which cannot reach the callee.
+This way the connection will not be established.
+=> Need to revise the internal structure for dynamic peer and implement better scheme + analysis of src_addr.
+
 # Installation
 
 With rust installed, just issue

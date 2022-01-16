@@ -36,6 +36,7 @@ impl WireguardDeviceLinux {
 
         let child = Command::new(args_with_sudo.remove(0))
             .args(args_with_sudo)
+            .env("WG_I_PREFER_BUGGY_USERSPACE_TO_POLISHED_KMOD","1") // for wireguard-go
             .stdin(stdin_par)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

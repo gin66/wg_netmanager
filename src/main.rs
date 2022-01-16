@@ -281,10 +281,5 @@ fn main() -> BoxResult<()> {
         return Ok(());
     }
 
-    //if let Some(("install", cmd)) = subcommand {
-    //    println!("found install");
-    //    return Ok(());
-    //}
-
     wg_netmanager::run_loop::run(&static_config, wg_dev)
 }

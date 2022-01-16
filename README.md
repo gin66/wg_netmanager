@@ -74,6 +74,7 @@ OS-Support
 - [ ] Android
 - [ ] FreeBSD
 - [ ] OpenBSD
+- [X] Openwrt Linux
 
 Wireguard-Interface
 - [X] Kernel-driver + Command ip/wg
@@ -165,6 +166,13 @@ If kernel driver does not exist (e.g. VPS), then either `wireguard-go` or `borin
 ## Macos
 
 The packages wireguard-tools and wireguard-go need to be installed e.g. via brew.
+
+## Macos
+
+The package wireguard-tools and kmod-wireguard need to be installed:
+```
+	opkg install wireguard-tools kmod-wireguard
+```
 
 # Usage
 

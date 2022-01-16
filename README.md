@@ -193,7 +193,7 @@ If kernel driver does not exist (e.g. VPS), then either `wireguard-go` or `borin
 
 The packages wireguard-tools and wireguard-go need to be installed e.g. via brew.
 
-## Macos
+## Openwrt
 
 The package wireguard-tools and kmod-wireguard need to be installed:
 ```

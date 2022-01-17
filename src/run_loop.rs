@@ -11,6 +11,7 @@ use crate::crypt_udp::CryptUdp;
 use crate::crypt_udp::UdpPacket;
 use crate::error::*;
 use crate::event::Event;
+use crate::node::*;
 use crate::manager::*;
 use crate::tui_display::TuiApp;
 use crate::wg_dev::*;
@@ -181,7 +182,7 @@ fn main_loop(
     rx: Receiver<Event>,
     tui_app: &mut TuiApp,
 ) -> BoxResult<()> {
-    let mut network_manager = NetworkManager::new(static_config.wg_ip);
+    let mut network_manager = NetworkManager::new(static_config);
 
     // set up initial wireguard configuration without peers
     tx.send(Event::UpdateWireguardConfiguration).unwrap();
@@ -230,6 +231,11 @@ fn main_loop(
                 //}
 
                 let events = network_manager.process_new_nodes_every_second(static_config);
+                for evt in events.into_iter() {
+                    tx.send(evt).unwrap();
+                }
+
+                let events = network_manager.process_all_nodes_every_second(static_config);
                 for evt in events.into_iter() {
                     tx.send(evt).unwrap();
                 }

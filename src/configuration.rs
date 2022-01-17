@@ -13,7 +13,7 @@ pub struct PublicKeyWithTime {
     pub priv_key_creation_time: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PublicPeer {
     pub endpoint: String,
     pub wg_port: u16,

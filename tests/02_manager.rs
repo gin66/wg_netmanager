@@ -5,15 +5,38 @@ mod tests {
 
     use log::*;
 
-    //use wg_netmanager::configuration::*;
     use wg_netmanager::configuration::*;
     use wg_netmanager::crypt_udp::*;
     use wg_netmanager::manager::*;
 
+    fn get_test_config() -> StaticConfiguration {
+        StaticConfiguration {
+            name: "Test".to_string(),
+            ip_list: vec![],
+            wg_name: "wg_test".to_string(),
+            wg_ip: "10.1.1.1".parse().unwrap(),
+            wg_port: 50000,
+            admin_port: 50001,
+            subnet: "10.1.1.1/8".parse().unwrap(),
+            shared_key: vec![],
+            my_private_key: "".to_string(),
+            my_public_key: PublicKeyWithTime {
+                key: "".to_string(),
+                priv_key_creation_time: 0,
+            },
+            peers: HashMap::new(),
+            peer_cnt: 0,
+            use_tui: false,
+            use_existing_interface: false,
+            network_yaml_filename: "".to_string(),
+            peer_yaml_filename: None,
+        }
+    }
+
     #[test]
     fn test_make_manager() {
-        let ip: Ipv4Addr = "10.1.1.1".parse().unwrap();
-        let mut mgr = NetworkManager::new(ip);
+        let config = get_test_config();
+        let mut mgr = NetworkManager::new(&config);
         assert_eq!(mgr.get_route_changes().len(), 0);
     }
 
@@ -21,9 +44,7 @@ mod tests {
     fn test_with_one_dynamic_peer() {
         //wg_netmanager::error::set_up_logging(log::LevelFilter::Trace, None);
 
-        let ip: Ipv4Addr = "10.1.1.1".parse().unwrap();
         let peer_ip: Ipv4Addr = "10.1.1.2".parse().unwrap();
-        let mut mgr = NetworkManager::new(ip);
 
         let public_key = PublicKeyWithTime {
             key: "".to_string(),
@@ -32,7 +53,7 @@ mod tests {
         let static_config = StaticConfiguration {
             name: "test".to_string(),
             ip_list: vec![],
-            wg_ip: "192.168.1.1".parse().unwrap(),
+            wg_ip: "10.1.1.1".parse().unwrap(),
             wg_name: "wg0".to_string(),
             wg_port: 55555,
             admin_port: 50000,
@@ -47,6 +68,7 @@ mod tests {
             network_yaml_filename: "".to_string(),
             peer_yaml_filename: None,
         };
+        let mut mgr = NetworkManager::new(&static_config);
 
         let ad = AdvertisementPacket {
             addressed_to: AddressedTo::StaticAddress,

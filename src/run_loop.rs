@@ -186,8 +186,6 @@ fn main_loop(
     // set up initial wireguard configuration without peers
     tx.send(Event::UpdateWireguardConfiguration).unwrap();
 
-    //let mut timed_events: Vec<Vec<Event>> = vec![];
-
     let mut tick_cnt = 0;
     loop {
         trace!(target: "loop", "Main loop");
@@ -208,13 +206,6 @@ fn main_loop(
                     // every 30s
                     network_manager.stats();
                 }
-
-                //if !timed_events.is_empty() {
-                //    let events = timed_events.remove(0);
-                //    for evt in events.into_iter() {
-                //        tx.send(evt).unwrap();
-                //    }
-                //}
 
                 let events = network_manager.process_all_nodes_every_second(static_config);
                 for evt in events.into_iter() {

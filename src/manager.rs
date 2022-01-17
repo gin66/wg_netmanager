@@ -57,15 +57,15 @@ pub struct RouteInfo {
     gateway: Option<Ipv4Addr>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct RouteDB {
     version: usize,
     route_for: HashMap<Ipv4Addr, RouteInfo>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PeerRouteDB {
-    version: usize,
+    pub version: usize,
     nr_entries: usize,
     route_for: HashMap<Ipv4Addr, RouteInfo>,
 }
@@ -75,10 +75,7 @@ pub struct NetworkManager {
     pub my_visible_wg_endpoint: Option<SocketAddr>,
     route_db: RouteDB,
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
-
     pending_route_changes: Vec<RouteChange>,
-    pub known_nodes: HashMap<Ipv4Addr, Node>,
-
     pub all_nodes: HashMap<Ipv4Addr, Box<dyn NetParticipant>>,
 }
 
@@ -97,7 +94,6 @@ impl NetworkManager {
             route_db: RouteDB::default(),
             peer_route_db: HashMap::new(),
             pending_route_changes: vec![],
-            known_nodes: HashMap::new(),
             all_nodes,
         }
     }
@@ -270,7 +266,7 @@ impl NetworkManager {
         // Send advertisement to all local addresses
         debug!(target: &local.wg_ip.to_string(), "LocalContact: {:#?}", local);
         let wg_ip = local.wg_ip;
-        if let Some(node) = self.known_nodes.get_mut(&wg_ip) {
+        if let Some(node) = self.all_nodes.get_mut(&wg_ip) {
             node.process_local_contact(local);
         }
     }
@@ -378,7 +374,7 @@ impl NetworkManager {
                 to_be_deleted.push(ri.to);
 
                 // and delete from the known_nodes.
-                self.known_nodes.remove(&ri.to);
+                //self.known_nodes.remove(&ri.to);
             } else {
                 trace!(target: "routing", "unchanged route {:?}", ri);
             }

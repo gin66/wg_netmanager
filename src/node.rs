@@ -7,7 +7,7 @@ use log::*;
 use crate::configuration::{PublicKeyWithTime, PublicPeer, StaticConfiguration};
 use crate::crypt_udp::{AddressedTo, AdvertisementPacket, LocalContactPacket};
 use crate::event::Event;
-use crate::manager::RouteInfo;
+use crate::manager::{RouteInfo, PeerRouteDB};
 use crate::wg_dev::map_to_ipv6;
 
 pub trait NetParticipant {
@@ -37,6 +37,9 @@ pub trait NetParticipant {
         &mut self,
         pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
     );
+    fn process_local_contact(&mut self, local: LocalContactPacket) {
+        warn!("process_local_contact: not implemented");
+    }
 }
 
 #[derive(Debug)]
@@ -203,7 +206,7 @@ pub struct DynamicPeer {
     pub gateway_for: HashSet<Ipv4Addr>,
     pub admin_port: u16,
     pub lastseen: u64,
-    known_routedb_version: Option<usize>,
+    routedb: Option<PeerRouteDB>,
     latest_routedb_version: usize,
 }
 impl DynamicPeer {
@@ -259,7 +262,7 @@ impl DynamicPeer {
             gateway_for: HashSet::new(),
             admin_port: src_addr.port(),
             lastseen,
-            known_routedb_version: None,
+            routedb: None,
             latest_routedb_version: advertisement.routedb_version,
         }
     }
@@ -303,7 +306,7 @@ impl NetParticipant for DynamicPeer {
         //
         let dt = now - self.lastseen;
         if dt % 30 == 29 {
-            if self.known_routedb_version != Some(self.latest_routedb_version) {
+            if self.routedb.as_ref().map(|db| db.version) != Some(self.latest_routedb_version) {
                 let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
                 events.push(Event::SendRouteDatabaseRequest { to: destination });
             }
@@ -338,7 +341,7 @@ impl NetParticipant for DynamicPeer {
                 <= advertisement.public_key.priv_key_creation_time
             {
                 info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
-                self.known_routedb_version = None;
+                self.routedb = None;
 
                 events.push(Event::UpdateWireguardConfiguration);
 

@@ -340,7 +340,7 @@ fn main_loop(
             }
             Ok(Event::UpdateWireguardConfiguration) => {
                 info!("Update peers");
-                let conf = static_config.as_conf_as_peer(&network_manager);
+                let conf = static_config.to_wg_configuration(&network_manager);
                 info!(target: "wireguard", "Configuration as peer\n{}\n", conf);
                 wg_dev.sync_conf(&conf)?;
             }

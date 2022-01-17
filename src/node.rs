@@ -1,4 +1,5 @@
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
+use std::collections::HashSet;
 
 use log::*;
 
@@ -14,24 +15,43 @@ pub trait NetParticipant {
     fn ok_to_delete_without_route(&self, _now: u64) -> bool {
         false
     }
+    fn peer_wireguard_configuration(&self) -> Option<Vec<String>>;
 }
 
 #[derive(Debug)]
 pub struct StaticPeer {
-    peer: PublicPeer,
+    static_peer: PublicPeer,
+    public_key: Option<PublicKeyWithTime>,
+    gateway_for: HashSet<Ipv4Addr>,
     is_alive: bool,
     send_advertisement_seconds_count_down: usize,
 }
 impl StaticPeer {
     pub fn from_public_peer(peer: &PublicPeer) -> Box<dyn NetParticipant> {
         Box::new(StaticPeer {
-            peer: (*peer).clone(),
+            static_peer: (*peer).clone(),
+            public_key: None,
+            gateway_for: HashSet::new(),
             is_alive: false,
             send_advertisement_seconds_count_down: 0,
         })
     }
 }
 impl NetParticipant for StaticPeer {
+    fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
+        self.public_key.as_ref().map(
+            |public_key| {
+            let mut lines = vec![];
+            lines.push(format!("PublicKey = {}", &public_key.key));
+            lines.push(format!("AllowedIPs = {}/32", self.static_peer.wg_ip));
+            lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&self.static_peer.wg_ip)));
+            for ip in self.gateway_for.iter() {
+                lines.push(format!("AllowedIPs = {}/32", ip));
+            }
+            lines.push(format!("EndPoint = {}", self.static_peer.endpoint));
+            lines
+        })
+    }
     fn process_every_second(
         &mut self,
         _now: u64,
@@ -43,15 +63,15 @@ impl NetParticipant for StaticPeer {
             if self.send_advertisement_seconds_count_down == 0 {
                 self.send_advertisement_seconds_count_down = 60;
                 // Resolve here to make it work for dyndns hosts
-                match self.peer.endpoint.to_socket_addrs() {
+                match self.static_peer.endpoint.to_socket_addrs() {
                     Ok(endpoints) => {
                         trace!("ENDPOINTS: {:#?}", endpoints);
                         for sa in endpoints {
-                            let destination = SocketAddr::new(sa.ip(), self.peer.admin_port);
+                            let destination = SocketAddr::new(sa.ip(), self.static_peer.admin_port);
                             events.push(Event::SendAdvertisement {
                                 addressed_to: AddressedTo::StaticAddress,
                                 to: destination,
-                                wg_ip: self.peer.wg_ip,
+                                wg_ip: self.static_peer.wg_ip,
                             });
                         }
                     }
@@ -60,7 +80,7 @@ impl NetParticipant for StaticPeer {
                         // that's it
                         warn!(
                             "Cannot get endpoint ip(s) for {}: {:?}",
-                            self.peer.endpoint, e
+                            self.static_peer.endpoint, e
                         );
                     }
                 }
@@ -83,10 +103,29 @@ pub struct DynamicPeer {
     pub local_reachable_wg_endpoint: Option<SocketAddr>,
     pub local_reachable_admin_endpoint: Option<SocketAddr>,
     pub dp_visible_wg_endpoint: Option<SocketAddr>,
+    pub gateway_for: HashSet<Ipv4Addr>,
     pub admin_port: u16,
     pub lastseen: u64,
 }
 impl NetParticipant for DynamicPeer {
+    fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
+            let mut lines = vec![];
+            lines.push(format!("PublicKey = {}", &self.public_key.key));
+            lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&self.wg_ip)));
+            for ip in self.gateway_for.iter() {
+                lines.push(format!("AllowedIPs = {}/32", ip));
+            }
+            if let Some(endpoint) = self.local_reachable_wg_endpoint.as_ref() {
+                debug!(target: "configuration", "peer {} uses local endpoint {}", self.wg_ip, endpoint);
+                debug!(target: &self.wg_ip.to_string(), "use local endpoint {}", endpoint);
+                lines.push(format!("EndPoint = {}", endpoint));
+            } else if let Some(endpoint) = self.dp_visible_wg_endpoint.as_ref() {
+                debug!(target: "configuration", "peer {} uses visible (NAT) endpoint {}", self.wg_ip, endpoint);
+                debug!(target: &self.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
+                lines.push(format!("EndPoint = {}", endpoint));
+            }
+            Some(lines)
+    }
     fn process_every_second(
         &mut self,
         now: u64,
@@ -153,6 +192,20 @@ impl Node {
     }
 }
 impl NetParticipant for Node {
+    fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
+        self.public_key.as_ref().map(
+            |public_key| {
+            let mut lines = vec![];
+            lines.push(format!("PublicKey = {}", &public_key.key));
+            lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&self.wg_ip)));
+            if let Some(endpoint) = self.visible_endpoint.as_ref() {
+                debug!(target: "configuration", "node {} uses visible (NAT) endpoint {}", self.wg_ip, endpoint);
+                debug!(target: &self.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
+                lines.push(format!("EndPoint = {}", endpoint));
+            }
+            lines
+        })
+    }
     fn process_every_second(
         &mut self,
         _now: u64,

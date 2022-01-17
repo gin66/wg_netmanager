@@ -23,6 +23,7 @@
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use log::*;
@@ -185,6 +186,7 @@ impl NetworkManager {
             local_reachable_admin_endpoint,
             local_reachable_wg_endpoint,
             dp_visible_wg_endpoint,
+            gateway_for: HashSet::new(),
             admin_port: src_addr.port(),
             lastseen,
         };

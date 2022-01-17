@@ -23,8 +23,7 @@
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::collections::HashSet;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{Ipv4Addr, SocketAddr};
 
 use log::*;
 use serde::{Deserialize, Serialize};
@@ -112,6 +111,7 @@ impl NetworkManager {
     }
 
     pub fn get_route_changes(&mut self) -> Vec<RouteChange> {
+        self.recalculate_routes();
         let mut routes = vec![];
         routes.append(&mut self.pending_route_changes);
         routes
@@ -135,160 +135,45 @@ impl NetworkManager {
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
     ) -> Vec<Event> {
-        let mut events = vec![];
-
-        let lastseen = crate::util::now();
-
-        let mut local_reachable_admin_endpoint = None;
-        let mut local_reachable_wg_endpoint = None;
-        let mut dp_visible_wg_endpoint = None;
-
-        use AddressedTo::*;
-        match &advertisement.addressed_to {
-            StaticAddress | ReplyFromStaticAddress => {}
-            LocalAddress | ReplyFromLocalAddress => {
-                local_reachable_wg_endpoint =
-                    Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
-                local_reachable_admin_endpoint = Some(src_addr);
-            }
-            WireguardV6Address | ReplyFromWireguardV6Address => {
-                dp_visible_wg_endpoint = advertisement.my_visible_wg_endpoint;
-            }
-            WireguardAddress | ReplyFromWireguardAddress => {
-                if advertisement.your_visible_wg_endpoint.is_some() {
-                    let mut is_local = false;
-
-                    for ip in static_config.ip_list.iter() {
-                        if *ip
-                            == advertisement
-                                .your_visible_wg_endpoint
-                                .as_ref()
-                                .unwrap()
-                                .ip()
-                        {
-                            is_local = true;
-                        }
-                    }
-
-                    if !is_local {
-                        self.my_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
-                    }
-                }
-            }
+        if let Some(endpoint) = advertisement.your_visible_wg_endpoint.as_ref() {
+            // Could be more than one
+            self.my_visible_wg_endpoint = Some(*endpoint);
         }
 
-        let mut dp = DynamicPeer {
-            wg_ip: advertisement.wg_ip,
-            local_admin_port: advertisement.local_admin_port,
-            local_wg_port: advertisement.local_wg_port,
-            public_key: advertisement.public_key.clone(),
-            name: advertisement.name.to_string(),
-            local_reachable_admin_endpoint,
-            local_reachable_wg_endpoint,
-            dp_visible_wg_endpoint,
-            gateway_for: HashSet::new(),
-            admin_port: src_addr.port(),
-            lastseen,
-        };
-        match self.peer.entry(advertisement.wg_ip) {
+        match self.all_nodes.entry(advertisement.wg_ip) {
             Entry::Occupied(mut entry) => {
-                // Check if public_key including creation time is same
-                if entry.get().public_key != advertisement.public_key {
-                    // Different public_key. Accept the one from advertisement only, if not older
-                    if entry.get().public_key.priv_key_creation_time
-                        <= advertisement.public_key.priv_key_creation_time
-                    {
-                        info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
-                        events.push(Event::UpdateWireguardConfiguration);
-
-                        // As this peer is new, send an advertisement
-                        events.push(Event::SendAdvertisement {
-                            addressed_to: AddressedTo::WireguardAddress,
-                            to: src_addr,
-                            wg_ip: dp.wg_ip,
-                        });
-                    } else {
-                        warn!(target: "advertisement", "Received advertisement with old publy key => Reject");
-                    }
-                } else {
-                    info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
-
-                    let mut need_wg_conf_update = false;
-
-                    if dp.dp_visible_wg_endpoint.is_none() {
-                        // TODO: is a no-op currently
-                        // Get endpoint from old entry
-                        dp.dp_visible_wg_endpoint = entry.get_mut().dp_visible_wg_endpoint.take();
-
-                        // if still not known, then ask wireguard
-                        if dp.dp_visible_wg_endpoint.is_none() {
-                            events.push(Event::ReadWireguardConfiguration);
-                        }
-                    }
-
-                    if dp.local_reachable_wg_endpoint.is_some() {
-                        if entry.get().local_reachable_wg_endpoint.is_none() {
-                            need_wg_conf_update = true;
-                        }
-                    } else {
-                        dp.local_reachable_wg_endpoint =
-                            entry.get_mut().local_reachable_wg_endpoint.take();
-                    }
-
-                    if need_wg_conf_update {
-                        events.push(Event::UpdateWireguardConfiguration);
-                    }
+                let (opt_new_entry, events) =
+                    entry
+                        .get_mut()
+                        .analyze_advertisement(static_config, advertisement, src_addr);
+                if let Some(new_entry) = opt_new_entry {
+                    entry.insert(new_entry);
                 }
-                entry.insert(dp);
+                events
             }
             Entry::Vacant(entry) => {
-                use AddressedTo::*;
-
+                let mut events = vec![];
                 info!(target: "advertisement", "Advertisement from new peer {}", src_addr);
+
                 events.push(Event::UpdateWireguardConfiguration);
 
                 // Answers to advertisments are only sent, if the wireguard ip is not
                 // in the list of dynamic peers and as such is new.
                 // Consequently the reply is sent over the internet and not via
                 // wireguard tunnel, because that tunnel is not yet set up.
-                let addressed_to = match advertisement.addressed_to {
-                    StaticAddress => ReplyFromStaticAddress,
-                    LocalAddress => ReplyFromLocalAddress,
-                    WireguardAddress => ReplyFromLocalAddress,
-
-                    replies => replies,
-                };
                 events.push(Event::SendAdvertisement {
-                    addressed_to,
+                    addressed_to: advertisement.addressed_to.reply(),
                     to: src_addr,
-                    wg_ip: dp.wg_ip,
+                    wg_ip: self.wg_ip,
                 });
-
-                // remove from known_nodes, if present
-                self.known_nodes.remove(&dp.wg_ip);
-
-                // store the dynamic peer
-                entry.insert(dp);
-
-                self.recalculate_routes();
                 events.push(Event::UpdateRoutes);
-            }
-        }
 
-        if let Some(peer_route_db) = self.peer_route_db.get(&advertisement.wg_ip) {
-            if peer_route_db.version != advertisement.routedb_version {
-                // need to request new route database via tunnel
-                info!(target: "routing", "Request updated route database from peer {}", advertisement.wg_ip);
-                self.peer_route_db.remove(&advertisement.wg_ip);
-                let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
-                events.push(Event::SendRouteDatabaseRequest { to: destination });
+                let dp = DynamicPeer::from_advertisement(static_config, advertisement, src_addr);
+                entry.insert(Box::new(dp));
+
+                events
             }
-        } else {
-            let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
-            info!(target: "routing", "Request new route database from peer {}", destination);
-            events.push(Event::SendRouteDatabaseRequest { to: destination });
         }
-        events
     }
     pub fn process_all_nodes_every_second(
         &mut self,

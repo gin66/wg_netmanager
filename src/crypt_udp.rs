@@ -22,8 +22,23 @@ pub enum AddressedTo {
 
     ReplyFromStaticAddress,
     ReplyFromLocalAddress,
-    ReplyFromWireguardV6Address,
     ReplyFromWireguardAddress,
+    ReplyFromWireguardV6Address,
+}
+impl AddressedTo {
+    pub fn reply(&self) -> Self {
+        use AddressedTo::*;
+        match self {
+            StaticAddress => ReplyFromStaticAddress,
+            LocalAddress => ReplyFromLocalAddress,
+            WireguardAddress => ReplyFromWireguardAddress,
+            WireguardV6Address => ReplyFromWireguardV6Address,
+            ReplyFromStaticAddress => ReplyFromStaticAddress,
+            ReplyFromLocalAddress => ReplyFromLocalAddress,
+            ReplyFromWireguardAddress => ReplyFromLocalAddress,
+            ReplyFromWireguardV6Address => ReplyFromWireguardV6Address,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -8,6 +8,7 @@ mod tests {
     use wg_netmanager::configuration::*;
     use wg_netmanager::crypt_udp::*;
     use wg_netmanager::manager::*;
+    use wg_netmanager::event::*;
 
     fn get_test_config() -> StaticConfiguration {
         StaticConfiguration {
@@ -42,7 +43,7 @@ mod tests {
 
     #[test]
     fn test_with_one_dynamic_peer() {
-        //wg_netmanager::error::set_up_logging(log::LevelFilter::Trace, None);
+        wg_netmanager::error::set_up_logging(log::LevelFilter::Trace, None);
 
         let peer_ip: Ipv4Addr = "10.1.1.2".parse().unwrap();
 
@@ -85,6 +86,13 @@ mod tests {
             mgr.analyze_advertisement(&static_config, ad, "192.168.1.1:2".parse().unwrap());
 
         trace!("{:#?}", events);
+        for evt in events {
+            match evt {
+                Event::UpdateRoutes => {
+            }
+                _ => {}
+            }
+        }
 
         assert_eq!(mgr.get_route_changes().len(), 1);
         assert_eq!(mgr.get_route_changes().len(), 0);
@@ -104,7 +112,9 @@ mod tests {
         }
 
         // now remove the peer
-        mgr.remove_dynamic_peer(&peer_ip);
+        for _ in 1..200 {
+            mgr.process_all_nodes_every_second(&static_config);
+        }
         assert_eq!(mgr.get_route_changes().len(), 1);
         assert_eq!(mgr.get_route_changes().len(), 0);
     }

@@ -153,7 +153,11 @@ impl StaticConfiguration {
         let mut lines: Vec<String> = vec![];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.my_private_key));
-        let port = self.peers.get(&self.wg_ip).map(|peer| peer.wg_port).unwrap_or(self.wg_port);
+        let port = self
+            .peers
+            .get(&self.wg_ip)
+            .map(|peer| peer.wg_port)
+            .unwrap_or(self.wg_port);
         lines.push(format!("ListenPort = {}", port));
 
         for node in manager.all_nodes.values() {
@@ -167,6 +171,9 @@ impl StaticConfiguration {
         lines.join("\n")
     }
     pub fn my_admin_port(&self) -> u16 {
-        self.peers.get(&self.wg_ip).map(|peer| peer.admin_port).unwrap_or(self.admin_port)
+        self.peers
+            .get(&self.wg_ip)
+            .map(|peer| peer.admin_port)
+            .unwrap_or(self.admin_port)
     }
 }

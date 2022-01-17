@@ -1,10 +1,10 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 use std::collections::HashSet;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 
 use log::*;
 
 use crate::configuration::{PublicKeyWithTime, PublicPeer, StaticConfiguration};
-use crate::crypt_udp::{AddressedTo, LocalContactPacket};
+use crate::crypt_udp::{AddressedTo, AdvertisementPacket, LocalContactPacket};
 use crate::event::Event;
 use crate::manager::RouteInfo;
 use crate::wg_dev::map_to_ipv6;
@@ -16,12 +16,20 @@ pub trait NetParticipant {
         false
     }
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>>;
+    fn analyze_advertisement(
+        &mut self,
+        static_config: &StaticConfiguration,
+        advertisement: AdvertisementPacket,
+        src_addr: SocketAddr,
+    ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>);
 }
 
 #[derive(Debug)]
 pub struct StaticPeer {
     static_peer: PublicPeer,
     public_key: Option<PublicKeyWithTime>,
+    known_routedb_version: Option<usize>,
+    latest_routedb_version: Option<usize>,
     gateway_for: HashSet<Ipv4Addr>,
     is_alive: bool,
     send_advertisement_seconds_count_down: usize,
@@ -32,6 +40,8 @@ impl StaticPeer {
             static_peer: (*peer).clone(),
             public_key: None,
             gateway_for: HashSet::new(),
+            known_routedb_version: None,
+            latest_routedb_version: None,
             is_alive: false,
             send_advertisement_seconds_count_down: 0,
         })
@@ -39,12 +49,14 @@ impl StaticPeer {
 }
 impl NetParticipant for StaticPeer {
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
-        self.public_key.as_ref().map(
-            |public_key| {
+        self.public_key.as_ref().map(|public_key| {
             let mut lines = vec![];
             lines.push(format!("PublicKey = {}", &public_key.key));
             lines.push(format!("AllowedIPs = {}/32", self.static_peer.wg_ip));
-            lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&self.static_peer.wg_ip)));
+            lines.push(format!(
+                "AllowedIPs = {}/128",
+                map_to_ipv6(&self.static_peer.wg_ip)
+            ));
             for ip in self.gateway_for.iter() {
                 lines.push(format!("AllowedIPs = {}/32", ip));
             }
@@ -62,6 +74,13 @@ impl NetParticipant for StaticPeer {
         if !self.is_alive {
             if self.send_advertisement_seconds_count_down == 0 {
                 self.send_advertisement_seconds_count_down = 60;
+
+                if self.known_routedb_version != self.latest_routedb_version {
+                    let destination =
+                        SocketAddrV4::new(self.static_peer.wg_ip, self.static_peer.admin_port);
+                    events.push(Event::SendRouteDatabaseRequest { to: destination });
+                }
+
                 // Resolve here to make it work for dyndns hosts
                 match self.static_peer.endpoint.to_socket_addrs() {
                     Ok(endpoints) => {
@@ -91,6 +110,61 @@ impl NetParticipant for StaticPeer {
 
         events
     }
+    fn analyze_advertisement(
+        &mut self,
+        _static_config: &StaticConfiguration,
+        advertisement: AdvertisementPacket,
+        src_addr: SocketAddr,
+    ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>) {
+        let mut events = vec![];
+
+        self.latest_routedb_version = Some(advertisement.routedb_version);
+        self.is_alive = true;
+        let mut send_advertisement = false;
+
+        if self.public_key.is_some() {
+            // Check if public_key including creation time is same
+            if self.public_key.as_ref().unwrap().key != advertisement.public_key.key {
+                // Different public_key. Accept the one from advertisement only, if not older
+                if self.public_key.as_ref().unwrap().priv_key_creation_time
+                    <= advertisement.public_key.priv_key_creation_time
+                {
+                    self.public_key = Some(advertisement.public_key);
+                    self.known_routedb_version = None;
+
+                    info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
+                    events.push(Event::UpdateWireguardConfiguration);
+
+                    // As this peer is new, send an advertisement
+                    send_advertisement = true;
+                } else {
+                    warn!(target: "advertisement", "Received advertisement with old public key => Reject");
+                }
+            } else {
+                if src_addr.ip() != self.static_peer.wg_ip {
+                    info!(target: "advertisement", "Advertisement from existing peer {} at public ip", src_addr);
+                    send_advertisement = true;
+                } else {
+                    info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
+                }
+            }
+        } else {
+            self.public_key = Some(advertisement.public_key);
+            self.known_routedb_version = None;
+            events.push(Event::UpdateWireguardConfiguration);
+            events.push(Event::UpdateRoutes);
+            // As this peer is new, send an advertisement
+            send_advertisement = true;
+        }
+        if send_advertisement {
+            events.push(Event::SendAdvertisement {
+                addressed_to: advertisement.addressed_to,
+                to: src_addr,
+                wg_ip: self.static_peer.wg_ip,
+            });
+        }
+        (None, events)
+    }
 }
 
 #[derive(Debug)]
@@ -106,25 +180,85 @@ pub struct DynamicPeer {
     pub gateway_for: HashSet<Ipv4Addr>,
     pub admin_port: u16,
     pub lastseen: u64,
+    known_routedb_version: Option<usize>,
+    latest_routedb_version: usize,
+}
+impl DynamicPeer {
+    pub fn from_advertisement(
+        static_config: &StaticConfiguration,
+        advertisement: AdvertisementPacket,
+        src_addr: SocketAddr,
+    ) -> Self {
+        let lastseen = crate::util::now();
+
+        let mut local_reachable_admin_endpoint = None;
+        let mut local_reachable_wg_endpoint = None;
+        let mut dp_visible_wg_endpoint = None;
+
+        use AddressedTo::*;
+        match &advertisement.addressed_to {
+            StaticAddress | ReplyFromStaticAddress => {}
+            LocalAddress | ReplyFromLocalAddress => {
+                local_reachable_wg_endpoint =
+                    Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
+                local_reachable_admin_endpoint = Some(src_addr);
+            }
+            WireguardV6Address | ReplyFromWireguardV6Address => {
+                dp_visible_wg_endpoint = advertisement.my_visible_wg_endpoint;
+            }
+            WireguardAddress | ReplyFromWireguardAddress => {
+                if advertisement.your_visible_wg_endpoint.is_some() {
+                    let mut is_local = false;
+
+                    for ip in static_config.ip_list.iter() {
+                        if *ip
+                            == advertisement
+                                .your_visible_wg_endpoint
+                                .as_ref()
+                                .unwrap()
+                                .ip()
+                        {
+                            is_local = true;
+                        }
+                    }
+                }
+            }
+        }
+        DynamicPeer {
+            wg_ip: advertisement.wg_ip,
+            local_admin_port: advertisement.local_admin_port,
+            local_wg_port: advertisement.local_wg_port,
+            public_key: advertisement.public_key.clone(),
+            name: advertisement.name.to_string(),
+            local_reachable_admin_endpoint,
+            local_reachable_wg_endpoint,
+            dp_visible_wg_endpoint,
+            gateway_for: HashSet::new(),
+            admin_port: src_addr.port(),
+            lastseen,
+            known_routedb_version: None,
+            latest_routedb_version: advertisement.routedb_version,
+        }
+    }
 }
 impl NetParticipant for DynamicPeer {
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
-            let mut lines = vec![];
-            lines.push(format!("PublicKey = {}", &self.public_key.key));
-            lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&self.wg_ip)));
-            for ip in self.gateway_for.iter() {
-                lines.push(format!("AllowedIPs = {}/32", ip));
-            }
-            if let Some(endpoint) = self.local_reachable_wg_endpoint.as_ref() {
-                debug!(target: "configuration", "peer {} uses local endpoint {}", self.wg_ip, endpoint);
-                debug!(target: &self.wg_ip.to_string(), "use local endpoint {}", endpoint);
-                lines.push(format!("EndPoint = {}", endpoint));
-            } else if let Some(endpoint) = self.dp_visible_wg_endpoint.as_ref() {
-                debug!(target: "configuration", "peer {} uses visible (NAT) endpoint {}", self.wg_ip, endpoint);
-                debug!(target: &self.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
-                lines.push(format!("EndPoint = {}", endpoint));
-            }
-            Some(lines)
+        let mut lines = vec![];
+        lines.push(format!("PublicKey = {}", &self.public_key.key));
+        lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&self.wg_ip)));
+        for ip in self.gateway_for.iter() {
+            lines.push(format!("AllowedIPs = {}/32", ip));
+        }
+        if let Some(endpoint) = self.local_reachable_wg_endpoint.as_ref() {
+            debug!(target: "configuration", "peer {} uses local endpoint {}", self.wg_ip, endpoint);
+            debug!(target: &self.wg_ip.to_string(), "use local endpoint {}", endpoint);
+            lines.push(format!("EndPoint = {}", endpoint));
+        } else if let Some(endpoint) = self.dp_visible_wg_endpoint.as_ref() {
+            debug!(target: "configuration", "peer {} uses visible (NAT) endpoint {}", self.wg_ip, endpoint);
+            debug!(target: &self.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
+            lines.push(format!("EndPoint = {}", endpoint));
+        }
+        Some(lines)
     }
     fn process_every_second(
         &mut self,
@@ -137,6 +271,11 @@ impl NetParticipant for DynamicPeer {
         //
         let dt = now - self.lastseen;
         if dt % 30 == 29 {
+            if self.known_routedb_version != Some(self.latest_routedb_version) {
+                let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
+                events.push(Event::SendRouteDatabaseRequest { to: destination });
+            }
+
             let destination = SocketAddr::V4(SocketAddrV4::new(self.wg_ip, self.admin_port));
             events.push(Event::SendAdvertisement {
                 addressed_to: AddressedTo::WireguardAddress,
@@ -149,6 +288,67 @@ impl NetParticipant for DynamicPeer {
     fn ok_to_delete_without_route(&self, now: u64) -> bool {
         let dt = now - self.lastseen;
         dt > 120
+    }
+    fn analyze_advertisement(
+        &mut self,
+        static_config: &StaticConfiguration,
+        advertisement: AdvertisementPacket,
+        src_addr: SocketAddr,
+    ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>) {
+        let mut events = vec![];
+
+        let latest_routedb_version = advertisement.routedb_version;
+
+        // Check if public_key including creation time is same
+        if self.public_key != advertisement.public_key {
+            // Different public_key. Accept the one from advertisement only, if not older
+            if self.public_key.priv_key_creation_time
+                <= advertisement.public_key.priv_key_creation_time
+            {
+                info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
+                self.known_routedb_version = None;
+
+                events.push(Event::UpdateWireguardConfiguration);
+
+                // As this peer is new, send an advertisement
+                events.push(Event::SendAdvertisement {
+                    addressed_to: AddressedTo::WireguardAddress,
+                    to: src_addr,
+                    wg_ip: self.wg_ip,
+                });
+            } else {
+                warn!(target: "advertisement", "Received advertisement with old publy key => Reject");
+            }
+        } else {
+            info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
+
+            //                    let mut need_wg_conf_update = false;
+            //
+            //                     if dp.dp_visible_wg_endpoint.is_none() {
+            //                         // TODO: is a no-op currently
+            //                         // Get endpoint from old entry
+            //                         dp.dp_visible_wg_endpoint = entry.get_mut().dp_visible_wg_endpoint.take();
+            //
+            //                         // if still not known, then ask wireguard
+            //                         if dp.dp_visible_wg_endpoint.is_none() {
+            //                             events.push(Event::ReadWireguardConfiguration);
+            //                         }
+            //                     }
+            //
+            //                     if dp.local_reachable_wg_endpoint.is_some() {
+            //                         if entry.get().local_reachable_wg_endpoint.is_none() {
+            //                             need_wg_conf_update = true;
+            //                         }
+            //                     } else {
+            //                         dp.local_reachable_wg_endpoint =
+            //                             self.local_reachable_wg_endpoint.take();
+            //                     }
+            //
+            //                     if need_wg_conf_update {
+            //                         events.push(Event::UpdateWireguardConfiguration);
+            //                     }
+        }
+        (None, vec![])
     }
 }
 
@@ -282,5 +482,31 @@ impl NetParticipant for Node {
     }
     fn ok_to_delete_without_route(&self, _now: u64) -> bool {
         self.known_in_s > 10
+    }
+    fn analyze_advertisement(
+        &mut self,
+        static_config: &StaticConfiguration,
+        advertisement: AdvertisementPacket,
+        src_addr: SocketAddr,
+    ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>) {
+        let mut events = vec![];
+
+        let dp = DynamicPeer::from_advertisement(static_config, advertisement, src_addr);
+
+        // As this peer is new, send an advertisement
+        info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
+        events.push(Event::SendAdvertisement {
+            addressed_to: AddressedTo::WireguardAddress,
+            to: src_addr,
+            wg_ip: dp.wg_ip,
+        });
+        events.push(Event::UpdateWireguardConfiguration);
+
+        // if still not known, then ask wireguard
+        if dp.dp_visible_wg_endpoint.is_none() {
+            events.push(Event::ReadWireguardConfiguration);
+        }
+
+        (Some(Box::new(dp)), events)
     }
 }

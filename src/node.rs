@@ -10,7 +10,30 @@ use crate::event::Event;
 use crate::manager::{RouteInfo, PeerRouteDB};
 use crate::wg_dev::map_to_ipv6;
 
+#[derive(Default, Debug)]
+pub struct RouteDBManager {
+    routedb: Option<PeerRouteDB>,
+    incoming_routedb: Option<PeerRouteDB>,
+    latest_routedb_version: Option<usize>,
+}
+impl RouteDBManager {
+    fn is_outdated(&self) -> bool {
+        self.routedb.as_ref().map(|db| db.version) != self.latest_routedb_version
+    }
+    fn latest_version(&mut self, version: usize) {
+        self.latest_routedb_version = Some(version);
+    }
+    fn invalidate(&mut self) {
+        self.routedb = None;
+        self.incoming_routedb = None;
+        self.latest_routedb_version = None;
+    }
+}
+
 pub trait NetParticipant {
+    fn routedb_manager(&mut self) -> Option<&mut RouteDBManager> {
+        None
+    }
     fn local_admin_port(&self) -> u16;
     fn is_reachable(&self) -> bool {
         false
@@ -46,11 +69,10 @@ pub trait NetParticipant {
 pub struct StaticPeer {
     static_peer: PublicPeer,
     public_key: Option<PublicKeyWithTime>,
-    known_routedb_version: Option<usize>,
-    latest_routedb_version: Option<usize>,
     gateway_for: HashSet<Ipv4Addr>,
     is_alive: bool,
     send_advertisement_seconds_count_down: usize,
+    routedb_manager: RouteDBManager,
 }
 impl StaticPeer {
     pub fn from_public_peer(peer: &PublicPeer) -> Box<dyn NetParticipant> {
@@ -58,14 +80,16 @@ impl StaticPeer {
             static_peer: (*peer).clone(),
             public_key: None,
             gateway_for: HashSet::new(),
-            known_routedb_version: None,
-            latest_routedb_version: None,
             is_alive: false,
             send_advertisement_seconds_count_down: 0,
+            routedb_manager: RouteDBManager::default(),
         })
     }
 }
 impl NetParticipant for StaticPeer {
+    fn routedb_manager(&mut self) -> Option<&mut RouteDBManager> {
+        Some(&mut self.routedb_manager)
+    }
     fn local_admin_port(&self) -> u16 {
         self.static_peer.admin_port
     }
@@ -96,7 +120,7 @@ impl NetParticipant for StaticPeer {
             if self.send_advertisement_seconds_count_down == 0 {
                 self.send_advertisement_seconds_count_down = 60;
 
-                if self.known_routedb_version != self.latest_routedb_version {
+                if self.routedb_manager.is_outdated() {
                     let destination =
                         SocketAddrV4::new(self.static_peer.wg_ip, self.static_peer.admin_port);
                     events.push(Event::SendRouteDatabaseRequest { to: destination });
@@ -139,7 +163,7 @@ impl NetParticipant for StaticPeer {
     ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>) {
         let mut events = vec![];
 
-        self.latest_routedb_version = Some(advertisement.routedb_version);
+        self.routedb_manager.latest_version(advertisement.routedb_version);
         self.is_alive = true;
         let mut send_advertisement = false;
 
@@ -151,7 +175,7 @@ impl NetParticipant for StaticPeer {
                     <= advertisement.public_key.priv_key_creation_time
                 {
                     self.public_key = Some(advertisement.public_key);
-                    self.known_routedb_version = None;
+                    self.routedb_manager.invalidate();
 
                     info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
                     events.push(Event::UpdateWireguardConfiguration);
@@ -171,7 +195,7 @@ impl NetParticipant for StaticPeer {
             }
         } else {
             self.public_key = Some(advertisement.public_key);
-            self.known_routedb_version = None;
+            self.routedb_manager.invalidate();
             events.push(Event::UpdateWireguardConfiguration);
             events.push(Event::UpdateRoutes);
             // As this peer is new, send an advertisement
@@ -206,8 +230,7 @@ pub struct DynamicPeer {
     pub gateway_for: HashSet<Ipv4Addr>,
     pub admin_port: u16,
     pub lastseen: u64,
-    routedb: Option<PeerRouteDB>,
-    latest_routedb_version: usize,
+    routedb_manager: RouteDBManager,
 }
 impl DynamicPeer {
     pub fn from_advertisement(
@@ -250,6 +273,8 @@ impl DynamicPeer {
                 }
             }
         }
+        let mut routedb_manager = RouteDBManager::default();
+        routedb_manager.latest_version(advertisement.routedb_version);
         DynamicPeer {
             wg_ip: advertisement.wg_ip,
             local_admin_port: advertisement.local_admin_port,
@@ -262,12 +287,14 @@ impl DynamicPeer {
             gateway_for: HashSet::new(),
             admin_port: src_addr.port(),
             lastseen,
-            routedb: None,
-            latest_routedb_version: advertisement.routedb_version,
+            routedb_manager,
         }
     }
 }
 impl NetParticipant for DynamicPeer {
+    fn routedb_manager(&mut self) -> Option<&mut RouteDBManager> {
+        Some(&mut self.routedb_manager)
+    }
     fn visible_wg_endpoint(&self) -> Option<SocketAddr> {
         self.dp_visible_wg_endpoint
     }
@@ -306,7 +333,7 @@ impl NetParticipant for DynamicPeer {
         //
         let dt = now - self.lastseen;
         if dt % 30 == 29 {
-            if self.routedb.as_ref().map(|db| db.version) != Some(self.latest_routedb_version) {
+            if self.routedb_manager.is_outdated() {
                 let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
                 events.push(Event::SendRouteDatabaseRequest { to: destination });
             }
@@ -341,7 +368,7 @@ impl NetParticipant for DynamicPeer {
                 <= advertisement.public_key.priv_key_creation_time
             {
                 info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
-                self.routedb = None;
+                self.routedb_manager.invalidate();
 
                 events.push(Event::UpdateWireguardConfiguration);
 

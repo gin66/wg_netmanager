@@ -98,11 +98,6 @@ impl NetworkManager {
         }
     }
 
-    pub fn remove_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
-        self.all_nodes.remove(peer_ip);
-        self.recalculate_routes();
-    }
-
     pub fn get_route_changes(&mut self) -> Vec<RouteChange> {
         self.recalculate_routes();
         let mut routes = vec![];
@@ -188,7 +183,6 @@ impl NetworkManager {
                 debug!(target: &wg_ip.to_string(), "is dead => remove");
                 debug!(target: "dead_peer", "Found dead peer {}", wg_ip);
                 self.all_nodes.remove(&wg_ip);
-                self.remove_dynamic_peer(&wg_ip);
             }
         }
 

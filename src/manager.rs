@@ -279,9 +279,6 @@ impl NetworkManager {
 
                 self.recalculate_routes();
                 events.push(Event::UpdateRoutes);
-
-                // indirectly inform about route database update
-                events.push(Event::SendPingToAllDynamicPeers);
             }
         }
 
@@ -306,6 +303,7 @@ impl NetworkManager {
     ) -> Vec<Event> {
         let mut events = vec![];
         let mut node_to_delete = vec![];
+        let now = crate::util::now();
         for (node_wg_ip, node) in self.all_nodes.iter_mut() {
             if !self.route_db.route_for.contains_key(node_wg_ip) {
                 // have no route to this peer
@@ -314,7 +312,7 @@ impl NetworkManager {
                     continue;
                 }
             }
-            let mut new_events = node.process_every_second(static_config);
+            let mut new_events = node.process_every_second(now, static_config);
             events.append(&mut new_events);
         }
 
@@ -598,21 +596,6 @@ impl NetworkManager {
             self.fifo_dead.remove(0);
         }
         dead_peers
-    }
-    pub fn check_ping_timeouts(&mut self, limit: u64) -> HashSet<(Ipv4Addr, u16)> {
-        let mut ping_peers = HashSet::new();
-        let now = crate::util::now();
-        while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
-            if let Some(peer) = self.peer.get(*wg_ip) {
-                let dt = now - peer.lastseen;
-                if dt < limit {
-                    break;
-                }
-                ping_peers.insert((**wg_ip, peer.admin_port));
-            }
-            self.fifo_ping.remove(0);
-        }
-        ping_peers
     }
     pub fn current_wireguard_configuration(
         &mut self,

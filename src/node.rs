@@ -9,7 +9,8 @@ use crate::manager::RouteInfo;
 use crate::wg_dev::map_to_ipv6;
 
 pub trait NetParticipant {
-    fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event>;
+    fn process_every_second(&mut self, now: u64, static_config: &StaticConfiguration)
+        -> Vec<Event>;
     fn ok_to_delete_without_route(&self) -> bool {
         false
     }
@@ -31,7 +32,11 @@ impl StaticPeer {
     }
 }
 impl NetParticipant for StaticPeer {
-    fn process_every_second(&mut self, _static_config: &StaticConfiguration) -> Vec<Event> {
+    fn process_every_second(
+        &mut self,
+        _now: u64,
+        _static_config: &StaticConfiguration,
+    ) -> Vec<Event> {
         let mut events = vec![];
 
         if !self.is_alive {
@@ -53,7 +58,10 @@ impl NetParticipant for StaticPeer {
                     Err(e) => {
                         // An error here is not dramatic. Just push out a warning and
                         // that's it
-                        warn!("Cannot get endpoint ip(s) for {}: {:?}", self.peer.endpoint, e);
+                        warn!(
+                            "Cannot get endpoint ip(s) for {}: {:?}",
+                            self.peer.endpoint, e
+                        );
                     }
                 }
             } else {
@@ -79,8 +87,25 @@ pub struct DynamicPeer {
     pub lastseen: u64,
 }
 impl NetParticipant for DynamicPeer {
-    fn process_every_second(&mut self, _static_config: &StaticConfiguration) -> Vec<Event> {
-        vec![]
+    fn process_every_second(
+        &mut self,
+        now: u64,
+        _static_config: &StaticConfiguration,
+    ) -> Vec<Event> {
+        let mut events = vec![];
+
+        // Pings are sent out only via the wireguard interface.
+        //
+        let dt = now - self.lastseen;
+        if dt % 30 == 29 {
+            let destination = SocketAddr::V4(SocketAddrV4::new(self.wg_ip, self.admin_port));
+            events.push(Event::SendAdvertisement {
+                addressed_to: AddressedTo::WireguardAddress,
+                to: destination,
+                wg_ip: self.wg_ip,
+            });
+        }
+        events
     }
 }
 
@@ -124,7 +149,11 @@ impl Node {
     }
 }
 impl NetParticipant for Node {
-    fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
+    fn process_every_second(
+        &mut self,
+        _now: u64,
+        static_config: &StaticConfiguration,
+    ) -> Vec<Event> {
         let mut events = vec![];
 
         let pk_available = if self.public_key.is_some() {

@@ -6,7 +6,6 @@ use log::*;
 
 use crate::arch_def::Architecture;
 use crate::configuration::*;
-use crate::crypt_udp::AddressedTo;
 use crate::crypt_udp::CryptUdp;
 use crate::crypt_udp::UdpPacket;
 use crate::error::*;
@@ -209,10 +208,6 @@ fn main_loop(
                     // every 15s
                     tx.send(Event::CheckAndRemoveDeadDynamicPeers).unwrap();
                 }
-                if tick_cnt % 5 == 0 {
-                    // every 20s
-                    tx.send(Event::SendPingToAllDynamicPeers).unwrap();
-                }
                 if tick_cnt % 30 == 2 {
                     // every 30s
                     network_manager.stats();
@@ -231,20 +226,6 @@ fn main_loop(
                 }
 
                 tick_cnt += 1;
-            }
-            Ok(Event::SendPingToAllDynamicPeers) => {
-                // Pings are sent out only via the wireguard interface.
-                //
-                let ping_peers = network_manager.check_ping_timeouts(10); // should be < half of dead peer timeout
-                for (wg_ip, admin_port) in ping_peers {
-                    let destination = SocketAddr::V4(SocketAddrV4::new(wg_ip, admin_port));
-                    tx.send(Event::SendAdvertisement {
-                        addressed_to: AddressedTo::WireguardAddress,
-                        to: destination,
-                        wg_ip,
-                    })
-                    .unwrap();
-                }
             }
             Ok(Event::Udp(udp_packet, src_addr)) => {
                 let src_addr = match src_addr {

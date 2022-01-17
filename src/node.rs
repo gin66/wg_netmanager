@@ -11,7 +11,7 @@ use crate::wg_dev::map_to_ipv6;
 pub trait NetParticipant {
     fn process_every_second(&mut self, now: u64, static_config: &StaticConfiguration)
         -> Vec<Event>;
-    fn ok_to_delete_without_route(&self) -> bool {
+    fn ok_to_delete_without_route(&self, now: u64) -> bool {
         false
     }
 }
@@ -106,6 +106,10 @@ impl NetParticipant for DynamicPeer {
             });
         }
         events
+    }
+    fn ok_to_delete_without_route(&self, now: u64) -> bool {
+        let dt = now - self.lastseen;
+        dt > 120
     }
 }
 
@@ -223,7 +227,7 @@ impl NetParticipant for Node {
 
         events
     }
-    fn ok_to_delete_without_route(&self) -> bool {
+    fn ok_to_delete_without_route(&self, now: u64) -> bool {
         self.known_in_s > 10
     }
 }

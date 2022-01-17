@@ -204,10 +204,6 @@ fn main_loop(
             Ok(Event::TimerTick1s) => {
                 tui_app.draw()?;
 
-                if tick_cnt % 15 == 1 {
-                    // every 15s
-                    tx.send(Event::CheckAndRemoveDeadDynamicPeers).unwrap();
-                }
                 if tick_cnt % 30 == 2 {
                     // every 30s
                     network_manager.stats();
@@ -350,22 +346,6 @@ fn main_loop(
                 crypt_socket_v4
                     .send_to(&buf, SocketAddr::V4(destination))
                     .ok();
-            }
-            Ok(Event::CheckAndRemoveDeadDynamicPeers) => {
-                network_manager.output();
-                let dead_peers = network_manager.check_timeouts(120);
-                if !dead_peers.is_empty() {
-                    info!(target: "dead_peer", "Dead peers found {}", dead_peers.len());
-                }
-                if !dead_peers.is_empty() {
-                    for wg_ip in dead_peers {
-                        debug!(target: &wg_ip.to_string(), "is dead => remove");
-                        debug!(target: "dead_peer", "Found dead peer {}", wg_ip);
-                        network_manager.remove_dynamic_peer(&wg_ip);
-                    }
-                    tx.send(Event::UpdateWireguardConfiguration).unwrap();
-                    tx.send(Event::UpdateRoutes).unwrap();
-                }
             }
             Ok(Event::UpdateWireguardConfiguration) => {
                 info!("Update peers");

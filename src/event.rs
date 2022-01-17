@@ -25,7 +25,6 @@ pub enum Event {
     SendLocalContact {
         to: SocketAddrV4,
     },
-    CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,
     TimerTick1s,
     TuiApp(TuiAppEvent),

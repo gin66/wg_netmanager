@@ -23,7 +23,6 @@
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 
 use log::*;
@@ -80,8 +79,6 @@ pub struct NetworkManager {
     pending_route_changes: Vec<RouteChange>,
     pub known_nodes: HashMap<Ipv4Addr, Node>,
     peer: HashMap<Ipv4Addr, DynamicPeer>,
-    fifo_dead: Vec<Ipv4Addr>,
-    fifo_ping: Vec<Ipv4Addr>,
 
     pub all_nodes: HashMap<Ipv4Addr, Box<dyn NetParticipant>>,
 }
@@ -104,8 +101,6 @@ impl NetworkManager {
             known_nodes: HashMap::new(),
             all_nodes,
             peer: HashMap::new(),
-            fifo_dead: vec![],
-            fifo_ping: vec![],
         }
     }
 
@@ -141,10 +136,6 @@ impl NetworkManager {
     ) -> Vec<Event> {
         let mut events = vec![];
 
-        self.fifo_dead.retain(|ip| *ip != advertisement.wg_ip);
-        self.fifo_dead.retain(|ip| *ip != advertisement.wg_ip);
-        self.fifo_dead.push(advertisement.wg_ip);
-        self.fifo_ping.push(advertisement.wg_ip);
         let lastseen = crate::util::now();
 
         let mut local_reachable_admin_endpoint = None;
@@ -307,7 +298,7 @@ impl NetworkManager {
         for (node_wg_ip, node) in self.all_nodes.iter_mut() {
             if !self.route_db.route_for.contains_key(node_wg_ip) {
                 // have no route to this peer
-                if node.ok_to_delete_without_route() {
+                if node.ok_to_delete_without_route(now) {
                     node_to_delete.push(*node_wg_ip);
                     continue;
                 }
@@ -316,8 +307,16 @@ impl NetworkManager {
             events.append(&mut new_events);
         }
 
-        for wg_ip in node_to_delete {
-            self.all_nodes.remove(&wg_ip);
+        if !node_to_delete.is_empty() {
+            events.push(Event::UpdateWireguardConfiguration);
+            events.push(Event::UpdateRoutes);
+
+            for wg_ip in node_to_delete {
+                debug!(target: &wg_ip.to_string(), "is dead => remove");
+                debug!(target: "dead_peer", "Found dead peer {}", wg_ip);
+                self.all_nodes.remove(&wg_ip);
+                self.remove_dynamic_peer(&wg_ip);
+            }
         }
 
         events
@@ -581,22 +580,6 @@ impl NetworkManager {
             debug!(target: "active_peers", "{:?}", peer);
         }
     }
-    pub fn check_timeouts(&mut self, limit: u64) -> HashSet<Ipv4Addr> {
-        let mut dead_peers = HashSet::new();
-        let now = crate::util::now();
-        while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
-            if let Some(peer) = self.peer.get(*wg_ip) {
-                let dt = now - peer.lastseen;
-                trace!(target: "dead_peer", "Peer {} last seen {} s before, limit = {}. fifo_dead = {:?}", wg_ip, dt, limit, self.fifo_dead);
-                if dt < limit {
-                    break;
-                }
-                dead_peers.insert(**wg_ip);
-            }
-            self.fifo_dead.remove(0);
-        }
-        dead_peers
-    }
     pub fn current_wireguard_configuration(
         &mut self,
         mut pubkey_to_endpoint: HashMap<String, SocketAddr>,
@@ -604,7 +587,6 @@ impl NetworkManager {
         for dynamic_peer in self.peer.values_mut() {
             if let Some(endpoint) = pubkey_to_endpoint.remove(&dynamic_peer.public_key.key) {
                 dynamic_peer.dp_visible_wg_endpoint = Some(endpoint);
-                // The dp_visible_admin port may be different, so do not derive it
             }
         }
     }

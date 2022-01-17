@@ -202,7 +202,11 @@ fn main() -> BoxResult<()> {
                 return Err(format!("Permission denied for {}", network_config).into());
             }
             std::io::ErrorKind::NotFound => {
-                return Err(format!("Cannot find required network configuration: {}", network_config).into());
+                return Err(format!(
+                    "Cannot find required network configuration: {}",
+                    network_config
+                )
+                .into());
             }
             _ => return Err(Box::new(e)),
         },

@@ -1,12 +1,12 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 
 use log::*;
 
-use crate::configuration::{PublicKeyWithTime, StaticConfiguration, PublicPeer};
+use crate::configuration::{PublicKeyWithTime, PublicPeer, StaticConfiguration};
 use crate::crypt_udp::{AddressedTo, LocalContactPacket};
 use crate::event::Event;
-use crate::wg_dev::map_to_ipv6;
 use crate::manager::RouteInfo;
+use crate::wg_dev::map_to_ipv6;
 
 pub trait NetParticipant {
     fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event>;
@@ -17,18 +17,51 @@ pub trait NetParticipant {
 
 #[derive(Debug)]
 pub struct StaticPeer {
-    pub peer: PublicPeer,
+    peer: PublicPeer,
+    is_alive: bool,
+    send_advertisement_seconds_count_down: usize,
 }
 impl StaticPeer {
     pub fn from_public_peer(peer: &PublicPeer) -> Box<dyn NetParticipant> {
         Box::new(StaticPeer {
-            peer: (*peer).clone()
+            peer: (*peer).clone(),
+            is_alive: false,
+            send_advertisement_seconds_count_down: 0,
         })
     }
 }
 impl NetParticipant for StaticPeer {
-    fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
-        vec![]
+    fn process_every_second(&mut self, _static_config: &StaticConfiguration) -> Vec<Event> {
+        let mut events = vec![];
+
+        if !self.is_alive {
+            if self.send_advertisement_seconds_count_down == 0 {
+                self.send_advertisement_seconds_count_down = 60;
+                // Resolve here to make it work for dyndns hosts
+                match self.peer.endpoint.to_socket_addrs() {
+                    Ok(endpoints) => {
+                        trace!("ENDPOINTS: {:#?}", endpoints);
+                        for sa in endpoints {
+                            let destination = SocketAddr::new(sa.ip(), self.peer.admin_port);
+                            events.push(Event::SendAdvertisement {
+                                addressed_to: AddressedTo::StaticAddress,
+                                to: destination,
+                                wg_ip: self.peer.wg_ip,
+                            });
+                        }
+                    }
+                    Err(e) => {
+                        // An error here is not dramatic. Just push out a warning and
+                        // that's it
+                        warn!("Cannot get endpoint ip(s) for {}: {:?}", self.peer.endpoint, e);
+                    }
+                }
+            } else {
+                self.send_advertisement_seconds_count_down -= 1;
+            }
+        }
+
+        events
     }
 }
 
@@ -46,7 +79,7 @@ pub struct DynamicPeer {
     pub lastseen: u64,
 }
 impl NetParticipant for DynamicPeer {
-    fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
+    fn process_every_second(&mut self, _static_config: &StaticConfiguration) -> Vec<Event> {
         vec![]
     }
 }
@@ -165,4 +198,3 @@ impl NetParticipant for Node {
         self.known_in_s > 10
     }
 }
-

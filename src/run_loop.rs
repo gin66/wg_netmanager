@@ -1,4 +1,4 @@
-use std::net::{IpAddr, SocketAddr, SocketAddrV4, ToSocketAddrs};
+use std::net::{IpAddr, SocketAddr, SocketAddrV4};
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::time;
 
@@ -11,8 +11,8 @@ use crate::crypt_udp::CryptUdp;
 use crate::crypt_udp::UdpPacket;
 use crate::error::*;
 use crate::event::Event;
-use crate::node::*;
 use crate::manager::*;
+use crate::node::*;
 use crate::tui_display::TuiApp;
 use crate::wg_dev::*;
 use crate::Arch;
@@ -186,7 +186,6 @@ fn main_loop(
 
     // set up initial wireguard configuration without peers
     tx.send(Event::UpdateWireguardConfiguration).unwrap();
-    tx.send(Event::SendAdvertisementToPublicPeers).unwrap();
 
     //let mut timed_events: Vec<Vec<Event>> = vec![];
 
@@ -218,10 +217,6 @@ fn main_loop(
                     // every 30s
                     network_manager.stats();
                 }
-                if tick_cnt % 60 == 3 {
-                    // every 60s
-                    tx.send(Event::SendAdvertisementToPublicPeers).unwrap();
-                }
 
                 //if !timed_events.is_empty() {
                 //    let events = timed_events.remove(0);
@@ -229,11 +224,6 @@ fn main_loop(
                 //        tx.send(evt).unwrap();
                 //    }
                 //}
-
-                let events = network_manager.process_new_nodes_every_second(static_config);
-                for evt in events.into_iter() {
-                    tx.send(evt).unwrap();
-                }
 
                 let events = network_manager.process_all_nodes_every_second(static_config);
                 for evt in events.into_iter() {
@@ -254,30 +244,6 @@ fn main_loop(
                         wg_ip,
                     })
                     .unwrap();
-                }
-            }
-            Ok(Event::SendAdvertisementToPublicPeers) => {
-                // These advertisements are sent to the known internet address as defined in the config file.
-                // As all udp packets are encrypted, this should not be an issue.
-                //
-                for peer in static_config.peers.values() {
-                    if !network_manager.knows_peer(&peer.wg_ip) {
-                        // ensure not to send to myself
-                        if peer.wg_ip != static_config.wg_ip {
-                            // Resolve here to make it work for dyndns hosts
-                            let endpoints = peer.endpoint.to_socket_addrs()?;
-                            trace!("ENDPOINTS: {:#?}", endpoints);
-                            for sa in endpoints {
-                                let destination = SocketAddr::new(sa.ip(), peer.admin_port);
-                                tx.send(Event::SendAdvertisement {
-                                    addressed_to: AddressedTo::StaticAddress,
-                                    to: destination,
-                                    wg_ip: peer.wg_ip,
-                                })
-                                .unwrap();
-                            }
-                        }
-                    }
                 }
             }
             Ok(Event::Udp(udp_packet, src_addr)) => {
@@ -451,12 +417,6 @@ fn main_loop(
                     }
                 }
                 tx.send(Event::UpdateWireguardConfiguration).unwrap();
-
-                // all routes have been updated. So process new nodes (not ideal solution here)
-                let events = network_manager.process_new_nodes_every_second(static_config);
-                for evt in events {
-                    tx.send(evt).unwrap();
-                }
             }
             Ok(Event::TuiApp(evt)) => {
                 tui_app.process_event(evt);

@@ -88,10 +88,12 @@ pub struct NetworkManager {
 
 impl NetworkManager {
     pub fn new(static_config: &StaticConfiguration) -> Self {
-        let all_nodes = static_config.peers
-                .iter()
-                .map(|(wg_ip,peer)| (*wg_ip, StaticPeer::from_public_peer(peer)))
-                .collect::<HashMap<Ipv4Addr, Box<dyn NetParticipant>>>();
+        let all_nodes = static_config
+            .peers
+            .iter()
+            .filter(|(wg_ip, _)| **wg_ip != static_config.wg_ip)
+            .map(|(wg_ip, peer)| (*wg_ip, StaticPeer::from_public_peer(peer)))
+            .collect::<HashMap<Ipv4Addr, Box<dyn NetParticipant>>>();
 
         NetworkManager {
             wg_ip: static_config.wg_ip,
@@ -318,30 +320,6 @@ impl NetworkManager {
 
         for wg_ip in node_to_delete {
             self.all_nodes.remove(&wg_ip);
-        }
-
-        events
-    }
-    pub fn process_new_nodes_every_second(
-        &mut self,
-        static_config: &StaticConfiguration,
-    ) -> Vec<Event> {
-        let mut events = vec![];
-        let mut node_to_delete = vec![];
-        for node in self.known_nodes.values_mut() {
-            if !self.route_db.route_for.contains_key(&node.wg_ip) {
-                // have no route to this peer
-                if node.ok_to_delete_without_route() {
-                    node_to_delete.push(node.wg_ip);
-                    continue;
-                }
-            }
-            let mut new_events = node.process_every_second(static_config);
-            events.append(&mut new_events);
-        }
-
-        for wg_ip in node_to_delete {
-            self.known_nodes.remove(&wg_ip);
         }
 
         events

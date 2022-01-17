@@ -78,7 +78,6 @@ pub struct NetworkManager {
 
     pending_route_changes: Vec<RouteChange>,
     pub known_nodes: HashMap<Ipv4Addr, Node>,
-    peer: HashMap<Ipv4Addr, DynamicPeer>,
 
     pub all_nodes: HashMap<Ipv4Addr, Box<dyn NetParticipant>>,
 }
@@ -100,13 +99,11 @@ impl NetworkManager {
             pending_route_changes: vec![],
             known_nodes: HashMap::new(),
             all_nodes,
-            peer: HashMap::new(),
         }
     }
 
     pub fn remove_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
-        self.peer.remove(peer_ip);
-        self.peer_route_db.remove(peer_ip);
+        self.all_nodes.remove(peer_ip);
         self.recalculate_routes();
     }
 
@@ -120,14 +117,7 @@ impl NetworkManager {
         self.route_db.version
     }
     pub fn stats(&self) {
-        trace!(
-            "Manager: {} peers, {} in network",
-            self.peer.len(),
-            self.route_db.route_for.len()
-        );
-    }
-    pub fn peer_iter(&self) -> std::collections::hash_map::Values<Ipv4Addr, DynamicPeer> {
-        self.peer.values()
+        trace!("Manager: {} nodes in network", self.all_nodes.len(),);
     }
     pub fn analyze_advertisement(
         &mut self,
@@ -177,19 +167,19 @@ impl NetworkManager {
     }
     pub fn process_all_nodes_every_second(
         &mut self,
+        now: u64,
         static_config: &StaticConfiguration,
     ) -> Vec<Event> {
         let mut events = vec![];
         let mut node_to_delete = vec![];
-        let now = crate::util::now();
         for (node_wg_ip, node) in self.all_nodes.iter_mut() {
-            if !self.route_db.route_for.contains_key(node_wg_ip) {
+        //    if !self.route_db.route_for.contains_key(node_wg_ip) {
                 // have no route to this peer
                 if node.ok_to_delete_without_route(now) {
                     node_to_delete.push(*node_wg_ip);
                     continue;
                 }
-            }
+        //    }
             let mut new_events = node.process_every_second(now, static_config);
             events.append(&mut new_events);
         }
@@ -292,79 +282,79 @@ impl NetworkManager {
         let mut new_routes: HashMap<Ipv4Addr, RouteInfo> = HashMap::new();
 
         // Dynamic peers are ALWAYS reachable without a gateway
-        for dp in self.peer.values() {
-            trace!(target: "routing", "Include direct path to dynamic peer to new routes: {}", dp.wg_ip);
+        for (wg_ip, node) in self.all_nodes.iter() {
+            trace!(target: "routing", "Include direct path to dynamic peer to new routes: {}", wg_ip);
             let ri = RouteInfo {
-                to: dp.wg_ip,
-                local_admin_port: dp.local_admin_port,
+                to: *wg_ip,
+                local_admin_port: node.local_admin_port(),
                 hop_cnt: 0,
                 gateway: None,
             };
-            new_routes.insert(dp.wg_ip, ri);
+            new_routes.insert(*wg_ip, ri);
         }
-        for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
-            if peer_route_db.nr_entries == peer_route_db.route_for.len() {
-                // is valid database for peer
-                trace!(target: "routing", "consider valid database of {}: {:#?}", wg_ip, peer_route_db.route_for);
-                for ri in peer_route_db.route_for.values() {
-                    // Ignore routes to myself
-                    if ri.to == self.wg_ip {
-                        trace!(target: "routing", "Route to myself => ignore");
-                        continue;
-                    }
-                    // Ignore routes to my dynamic peers
-                    if self.peer.contains_key(&ri.to) {
-                        trace!(target: "routing", "Route to any of my peers => ignore");
-                        continue;
-                    }
-                    let mut hop_cnt = 1;
-                    if let Some(gateway) = ri.gateway.as_ref() {
-                        hop_cnt = ri.hop_cnt + 1;
-
-                        // Ignore routes to myself as gateway
-                        if *gateway == self.wg_ip {
-                            trace!(target: "routing", "Route to myself as gateway => ignore");
-                            continue;
-                        }
-                        if self.peer.contains_key(gateway) {
-                            trace!(target: "routing", "Route using any of my peers as gateway => ignore");
-                            continue;
-                        }
-                        if self.peer_route_db.contains_key(gateway) {
-                            error!(target: "routing", "Route using any of my peers as gateway => ignore (should not come here)");
-                            continue;
-                        }
-                    }
-                    // to-host can be reached via wg_ip
-                    trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
-                    let ri_new = RouteInfo {
-                        to: ri.to,
-                        local_admin_port: ri.local_admin_port,
-                        hop_cnt,
-                        gateway: Some(*wg_ip),
-                    };
-                    match new_routes.entry(ri.to) {
-                        Entry::Vacant(e) => {
-                            e.insert(ri_new);
-                        }
-                        Entry::Occupied(mut e) => {
-                            let current = e.get_mut();
-                            if current.hop_cnt > ri_new.hop_cnt {
-                                // new route is better, so replace
-                                *current = ri_new;
-                            }
-                        }
-                    }
-                    if let Entry::Vacant(e) = self.known_nodes.entry(ri.to) {
-                        info!(target: "probing", "detected a new node {} via {:?}", ri.to, ri.gateway);
-                        let node = Node::from(ri);
-                        e.insert(node);
-                    }
-                }
-            } else {
-                warn!(target: "routing", "incomplete database from {} => ignore", wg_ip);
-            }
-        }
+        //        for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
+        //            if peer_route_db.nr_entries == peer_route_db.route_for.len() {
+        //                // is valid database for peer
+        //                trace!(target: "routing", "consider valid database of {}: {:#?}", wg_ip, peer_route_db.route_for);
+        //                for ri in peer_route_db.route_for.values() {
+        //                    // Ignore routes to myself
+        //                    if ri.to == self.wg_ip {
+        //                        trace!(target: "routing", "Route to myself => ignore");
+        //                        continue;
+        //                    }
+        //                    // Ignore routes to my dynamic peers
+        //                    if self.peer.contains_key(&ri.to) {
+        //                        trace!(target: "routing", "Route to any of my peers => ignore");
+        //                        continue;
+        //                    }
+        //                    let mut hop_cnt = 1;
+        //                    if let Some(gateway) = ri.gateway.as_ref() {
+        //                        hop_cnt = ri.hop_cnt + 1;
+        //
+        //                        // Ignore routes to myself as gateway
+        //                        if *gateway == self.wg_ip {
+        //                            trace!(target: "routing", "Route to myself as gateway => ignore");
+        //                            continue;
+        //                        }
+        //                        if self.peer.contains_key(gateway) {
+        //                            trace!(target: "routing", "Route using any of my peers as gateway => ignore");
+        //                            continue;
+        //                        }
+        //                        if self.peer_route_db.contains_key(gateway) {
+        //                            error!(target: "routing", "Route using any of my peers as gateway => ignore (should not come here)");
+        //                            continue;
+        //                        }
+        //                    }
+        //                    // to-host can be reached via wg_ip
+        //                    trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
+        //                    let ri_new = RouteInfo {
+        //                        to: ri.to,
+        //                        local_admin_port: ri.local_admin_port,
+        //                        hop_cnt,
+        //                        gateway: Some(*wg_ip),
+        //                    };
+        //                    match new_routes.entry(ri.to) {
+        //                        Entry::Vacant(e) => {
+        //                            e.insert(ri_new);
+        //                        }
+        //                        Entry::Occupied(mut e) => {
+        //                            let current = e.get_mut();
+        //                            if current.hop_cnt > ri_new.hop_cnt {
+        //                                // new route is better, so replace
+        //                                *current = ri_new;
+        //                            }
+        //                        }
+        //                    }
+        //                    if let Entry::Vacant(e) = self.known_nodes.entry(ri.to) {
+        //                        info!(target: "probing", "detected a new node {} via {:?}", ri.to, ri.gateway);
+        //                        let node = Node::from(ri);
+        //                        e.insert(node);
+        //                    }
+        //                }
+        //            } else {
+        //                warn!(target: "routing", "incomplete database from {} => ignore", wg_ip);
+        //            }
+        //        }
 
         for entry in new_routes.iter() {
             debug!(target: "routing", "new routes' entry: {:?}", entry);
@@ -456,25 +446,23 @@ impl NetworkManager {
 
         ips
     }
-    pub fn dynamic_peer_for(&mut self, wg_ip: &Ipv4Addr) -> Option<&DynamicPeer> {
-        self.peer.get(wg_ip)
+    pub fn node_for(&mut self, wg_ip: &Ipv4Addr) -> Option<&Box<dyn NetParticipant>> {
+        self.all_nodes.get(wg_ip)
     }
     pub fn knows_peer(&mut self, wg_ip: &Ipv4Addr) -> bool {
-        self.peer.contains_key(wg_ip)
+        self.all_nodes.contains_key(wg_ip)
     }
     pub fn output(&self) {
-        for peer in self.peer.values() {
-            debug!(target: "active_peers", "{:?}", peer);
+        for wg_ip in self.all_nodes.keys() {
+            debug!(target: "nodes", "{:?}", wg_ip);
         }
     }
     pub fn current_wireguard_configuration(
         &mut self,
         mut pubkey_to_endpoint: HashMap<String, SocketAddr>,
     ) {
-        for dynamic_peer in self.peer.values_mut() {
-            if let Some(endpoint) = pubkey_to_endpoint.remove(&dynamic_peer.public_key.key) {
-                dynamic_peer.dp_visible_wg_endpoint = Some(endpoint);
-            }
+        for node in self.all_nodes.values_mut() {
+            node.update_from_wireguard_configuration(&mut pubkey_to_endpoint);
         }
     }
 }

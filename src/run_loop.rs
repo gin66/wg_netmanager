@@ -207,7 +207,8 @@ fn main_loop(
                     network_manager.stats();
                 }
 
-                let events = network_manager.process_all_nodes_every_second(static_config);
+                let now = crate::util::now();
+                let events = network_manager.process_all_nodes_every_second(now, static_config);
                 for evt in events.into_iter() {
                     tx.send(evt).unwrap();
                 }
@@ -280,12 +281,12 @@ fn main_loop(
                 let routedb_version = network_manager.db_version();
                 let my_visible_wg_endpoint =
                     network_manager.my_visible_wg_endpoint.as_ref().copied();
-                let opt_dp: Option<&DynamicPeer> = network_manager.dynamic_peer_for(&wg_ip);
+                let opt_node = network_manager.node_for(&wg_ip);
                 let advertisement = UdpPacket::advertisement_from_config(
                     static_config,
                     routedb_version,
                     addressed_to,
-                    opt_dp,
+                    opt_node,
                     my_visible_wg_endpoint,
                 );
                 let buf = rmp_serde::to_vec(&advertisement).unwrap();

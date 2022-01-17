@@ -83,7 +83,7 @@ impl UdpPacket {
         static_config: &StaticConfiguration,
         routedb_version: usize,
         addressed_to: AddressedTo,
-        to_dynamic_peer: Option<&DynamicPeer>,
+        to_node: Option<&Box<dyn NetParticipant>>,
         my_visible_wg_endpoint: Option<SocketAddr>,
     ) -> Self {
         UdpPacket::Advertisement(AdvertisementPacket {
@@ -93,7 +93,7 @@ impl UdpPacket {
             local_admin_port: static_config.admin_port,
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
-            your_visible_wg_endpoint: to_dynamic_peer.and_then(|dp| dp.dp_visible_wg_endpoint),
+            your_visible_wg_endpoint: to_node.and_then(|node| node.visible_wg_endpoint()),
             my_visible_wg_endpoint,
             routedb_version,
         })

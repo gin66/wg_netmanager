@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
 
@@ -10,6 +11,16 @@ use crate::manager::RouteInfo;
 use crate::wg_dev::map_to_ipv6;
 
 pub trait NetParticipant {
+    fn local_admin_port(&self) -> u16;
+    fn is_reachable(&self) -> bool {
+        false
+    }
+    fn via_gateway(&self) -> Option<Ipv4Addr> {
+        None
+    }
+    fn visible_wg_endpoint(&self) -> Option<SocketAddr> {
+        None
+    }
     fn process_every_second(&mut self, now: u64, static_config: &StaticConfiguration)
         -> Vec<Event>;
     fn ok_to_delete_without_route(&self, _now: u64) -> bool {
@@ -22,6 +33,10 @@ pub trait NetParticipant {
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
     ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>);
+    fn update_from_wireguard_configuration(
+        &mut self,
+        pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
+    );
 }
 
 #[derive(Debug)]
@@ -48,6 +63,9 @@ impl StaticPeer {
     }
 }
 impl NetParticipant for StaticPeer {
+    fn local_admin_port(&self) -> u16 {
+        self.static_peer.admin_port
+    }
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
         self.public_key.as_ref().map(|public_key| {
             let mut lines = vec![];
@@ -165,6 +183,11 @@ impl NetParticipant for StaticPeer {
         }
         (None, events)
     }
+    fn update_from_wireguard_configuration(
+        &mut self,
+        pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
+    ) {
+    }
 }
 
 #[derive(Debug)]
@@ -242,6 +265,15 @@ impl DynamicPeer {
     }
 }
 impl NetParticipant for DynamicPeer {
+    fn visible_wg_endpoint(&self) -> Option<SocketAddr> {
+        self.dp_visible_wg_endpoint
+    }
+    fn local_admin_port(&self) -> u16 {
+        self.local_admin_port
+    }
+    fn is_reachable(&self) -> bool {
+        true
+    }
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
         let mut lines = vec![];
         lines.push(format!("PublicKey = {}", &self.public_key.key));
@@ -349,6 +381,14 @@ impl NetParticipant for DynamicPeer {
             //                     }
         }
         (None, vec![])
+    }
+    fn update_from_wireguard_configuration(
+        &mut self,
+        pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
+    ) {
+        if let Some(endpoint) = pubkey_to_endpoint.remove(&self.public_key.key) {
+            self.dp_visible_wg_endpoint = Some(endpoint);
+        }
     }
 }
 
@@ -508,5 +548,18 @@ impl NetParticipant for Node {
         }
 
         (Some(Box::new(dp)), events)
+    }
+    fn update_from_wireguard_configuration(
+        &mut self,
+        pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
+    ) {
+        if let Some(public_key) = self.public_key.as_ref() {
+            if let Some(endpoint) = pubkey_to_endpoint.remove(&public_key.key) {
+                self.visible_endpoint = Some(endpoint);
+            }
+        }
+    }
+    fn local_admin_port(&self) -> u16 {
+        self.admin_port
     }
 }

@@ -113,7 +113,7 @@ mod tests {
         // now remove the peer
         let now = wg_netmanager::util::now();
         for i in 1..200 {
-            mgr.process_all_nodes_every_second(now+i, &static_config);
+            mgr.process_all_nodes_every_second(now + i, &static_config);
         }
 
         assert_eq!(mgr.get_route_changes().len(), 1);

@@ -96,7 +96,6 @@ impl WireguardDevice for WireguardDeviceLinux {
         //let kernel_unicast = netlink_sys::SocketAddr::new(0, 0);
         //let socket = netlink_sys::Socket::new(netlink_sys::protocols::NETLINK_AUDIT)?;
 
-
         debug!("Create device via ip link add");
         let mut result = self.execute_command(
             vec!["ip", "link", "add", &self.device_name, "type", "wireguard"],

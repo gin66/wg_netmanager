@@ -7,7 +7,7 @@ use log::*;
 use crate::configuration::{PublicKeyWithTime, PublicPeer, StaticConfiguration};
 use crate::crypt_udp::{AddressedTo, AdvertisementPacket, LocalContactPacket};
 use crate::event::Event;
-use crate::manager::{RouteInfo, PeerRouteDB};
+use crate::manager::{PeerRouteDB, RouteInfo};
 use crate::wg_dev::map_to_ipv6;
 
 #[derive(Default, Debug)]
@@ -116,15 +116,29 @@ impl Node for StaticPeer {
     ) -> Vec<Event> {
         let mut events = vec![];
 
-        if !self.is_alive {
+        if self.is_alive {
             if self.send_advertisement_seconds_count_down == 0 {
                 self.send_advertisement_seconds_count_down = 60;
 
+                let destination =
+                    SocketAddrV4::new(self.static_peer.wg_ip, self.static_peer.admin_port);
                 if self.routedb_manager.is_outdated() {
-                    let destination =
-                        SocketAddrV4::new(self.static_peer.wg_ip, self.static_peer.admin_port);
                     events.push(Event::SendRouteDatabaseRequest { to: destination });
                 }
+
+                let destination = SocketAddr::V4(destination);
+
+                events.push(Event::SendAdvertisement {
+                    addressed_to: AddressedTo::WireguardAddress,
+                    to: destination,
+                    wg_ip: self.static_peer.wg_ip,
+                });
+            } else {
+                self.send_advertisement_seconds_count_down -= 1;
+            }
+        } else {
+            if self.send_advertisement_seconds_count_down == 0 {
+                self.send_advertisement_seconds_count_down = 60;
 
                 // Resolve here to make it work for dyndns hosts
                 match self.static_peer.endpoint.to_socket_addrs() {
@@ -163,7 +177,8 @@ impl Node for StaticPeer {
     ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
 
-        self.routedb_manager.latest_version(advertisement.routedb_version);
+        self.routedb_manager
+            .latest_version(advertisement.routedb_version);
         self.is_alive = true;
         let mut send_advertisement = false;
 

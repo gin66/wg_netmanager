@@ -164,13 +164,13 @@ impl NetworkManager {
         let mut events = vec![];
         let mut node_to_delete = vec![];
         for (node_wg_ip, node) in self.all_nodes.iter_mut() {
-        //    if !self.route_db.route_for.contains_key(node_wg_ip) {
-                // have no route to this peer
-                if node.ok_to_delete_without_route(now) {
-                    node_to_delete.push(*node_wg_ip);
-                    continue;
-                }
-        //    }
+            //    if !self.route_db.route_for.contains_key(node_wg_ip) {
+            // have no route to this peer
+            if node.ok_to_delete_without_route(now) {
+                node_to_delete.push(*node_wg_ip);
+                continue;
+            }
+            //    }
             let mut new_events = node.process_every_second(now, static_config);
             events.append(&mut new_events);
         }

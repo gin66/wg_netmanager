@@ -423,7 +423,7 @@ impl NetParticipant for DynamicPeer {
 }
 
 #[derive(Debug)]
-pub struct Node {
+pub struct DistantNode {
     is_static_peer: Option<bool>,
     pub wg_ip: Ipv4Addr,
     admin_port: u16,
@@ -437,9 +437,9 @@ pub struct Node {
     can_send_to_visible_endpoint: bool,
     pub visible_endpoint: Option<SocketAddr>,
 }
-impl Node {
+impl DistantNode {
     pub fn from(ri: &RouteInfo) -> Self {
-        Node {
+        DistantNode {
             is_static_peer: None,
             wg_ip: ri.to,
             admin_port: ri.local_admin_port,
@@ -461,7 +461,7 @@ impl Node {
         self.public_key = Some(local.public_key);
     }
 }
-impl NetParticipant for Node {
+impl NetParticipant for DistantNode {
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
         self.public_key.as_ref().map(
             |public_key| {

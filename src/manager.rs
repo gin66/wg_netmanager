@@ -337,7 +337,7 @@ impl NetworkManager {
         //                    }
         //                    if let Entry::Vacant(e) = self.known_nodes.entry(ri.to) {
         //                        info!(target: "probing", "detected a new node {} via {:?}", ri.to, ri.gateway);
-        //                        let node = Node::from(ri);
+        //                        let node = DistantNode::from(ri);
         //                        e.insert(node);
         //                    }
         //                }

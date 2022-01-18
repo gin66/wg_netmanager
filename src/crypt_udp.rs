@@ -83,7 +83,7 @@ impl UdpPacket {
         static_config: &StaticConfiguration,
         routedb_version: usize,
         addressed_to: AddressedTo,
-        to_node: Option<&Box<dyn NetParticipant>>,
+        to_node: Option<&Box<dyn Node>>,
         my_visible_wg_endpoint: Option<SocketAddr>,
     ) -> Self {
         UdpPacket::Advertisement(AdvertisementPacket {

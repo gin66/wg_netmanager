@@ -30,7 +30,7 @@ impl RouteDBManager {
     }
 }
 
-pub trait NetParticipant {
+pub trait Node {
     fn routedb_manager(&mut self) -> Option<&mut RouteDBManager> {
         None
     }
@@ -55,7 +55,7 @@ pub trait NetParticipant {
         static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
-    ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>);
+    ) -> (Option<Box<dyn Node>>, Vec<Event>);
     fn update_from_wireguard_configuration(
         &mut self,
         pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
@@ -75,7 +75,7 @@ pub struct StaticPeer {
     routedb_manager: RouteDBManager,
 }
 impl StaticPeer {
-    pub fn from_public_peer(peer: &PublicPeer) -> Box<dyn NetParticipant> {
+    pub fn from_public_peer(peer: &PublicPeer) -> Box<dyn Node> {
         Box::new(StaticPeer {
             static_peer: (*peer).clone(),
             public_key: None,
@@ -86,7 +86,7 @@ impl StaticPeer {
         })
     }
 }
-impl NetParticipant for StaticPeer {
+impl Node for StaticPeer {
     fn routedb_manager(&mut self) -> Option<&mut RouteDBManager> {
         Some(&mut self.routedb_manager)
     }
@@ -160,7 +160,7 @@ impl NetParticipant for StaticPeer {
         _static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
-    ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>) {
+    ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
 
         self.routedb_manager.latest_version(advertisement.routedb_version);
@@ -291,7 +291,7 @@ impl DynamicPeer {
         }
     }
 }
-impl NetParticipant for DynamicPeer {
+impl Node for DynamicPeer {
     fn routedb_manager(&mut self) -> Option<&mut RouteDBManager> {
         Some(&mut self.routedb_manager)
     }
@@ -356,7 +356,7 @@ impl NetParticipant for DynamicPeer {
         static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
-    ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>) {
+    ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
 
         let latest_routedb_version = advertisement.routedb_version;
@@ -461,7 +461,7 @@ impl DistantNode {
         self.public_key = Some(local.public_key);
     }
 }
-impl NetParticipant for DistantNode {
+impl Node for DistantNode {
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
         self.public_key.as_ref().map(
             |public_key| {
@@ -558,7 +558,7 @@ impl NetParticipant for DistantNode {
         static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
-    ) -> (Option<Box<dyn NetParticipant>>, Vec<Event>) {
+    ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
 
         let dp = DynamicPeer::from_advertisement(static_config, advertisement, src_addr);

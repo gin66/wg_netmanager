@@ -76,7 +76,7 @@ pub struct NetworkManager {
     route_db: RouteDB,
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
     pending_route_changes: Vec<RouteChange>,
-    pub all_nodes: HashMap<Ipv4Addr, Box<dyn NetParticipant>>,
+    pub all_nodes: HashMap<Ipv4Addr, Box<dyn Node>>,
 }
 
 impl NetworkManager {
@@ -86,7 +86,7 @@ impl NetworkManager {
             .iter()
             .filter(|(wg_ip, _)| **wg_ip != static_config.wg_ip)
             .map(|(wg_ip, peer)| (*wg_ip, StaticPeer::from_public_peer(peer)))
-            .collect::<HashMap<Ipv4Addr, Box<dyn NetParticipant>>>();
+            .collect::<HashMap<Ipv4Addr, Box<dyn Node>>>();
 
         NetworkManager {
             wg_ip: static_config.wg_ip,
@@ -436,7 +436,7 @@ impl NetworkManager {
 
         ips
     }
-    pub fn node_for(&mut self, wg_ip: &Ipv4Addr) -> Option<&Box<dyn NetParticipant>> {
+    pub fn node_for(&mut self, wg_ip: &Ipv4Addr) -> Option<&Box<dyn Node>> {
         self.all_nodes.get(wg_ip)
     }
     pub fn knows_peer(&mut self, wg_ip: &Ipv4Addr) -> bool {

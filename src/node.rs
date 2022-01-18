@@ -113,12 +113,22 @@ impl Node for StaticPeer {
             lines
         })
     }
+    fn is_reachable(&self) -> bool {
+        self.is_alive
+    }
     fn process_every_second(
         &mut self,
-        _now: u64,
+        now: u64,
         _static_config: &StaticConfiguration,
     ) -> Vec<Event> {
         let mut events = vec![];
+
+        if self.is_alive {
+            if now - self.lastseen > 240 {
+                // seems to be dead
+                self.is_alive = false;
+            }
+        }
 
         if self.is_alive {
             // If StaticPeer is alive, then send all communications via the tunnel.

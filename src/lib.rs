@@ -3,6 +3,7 @@ pub mod crypt_udp;
 pub mod error;
 pub mod event;
 pub mod manager;
+pub mod node;
 pub mod run_loop;
 pub mod tui_display;
 pub mod util;

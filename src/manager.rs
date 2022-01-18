@@ -23,8 +23,7 @@
 
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::{Ipv4Addr, SocketAddr};
 
 use log::*;
 use serde::{Deserialize, Serialize};
@@ -32,7 +31,7 @@ use serde::{Deserialize, Serialize};
 use crate::configuration::*;
 use crate::crypt_udp::*;
 use crate::event::Event;
-use crate::wg_dev::map_to_ipv6;
+use crate::node::*;
 
 #[derive(Debug)]
 pub enum RouteChange {
@@ -52,150 +51,23 @@ pub enum RouteChange {
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RouteInfo {
-    to: Ipv4Addr,
-    local_admin_port: u16,
+    pub to: Ipv4Addr,
+    pub local_admin_port: u16,
     hop_cnt: usize,
     gateway: Option<Ipv4Addr>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct RouteDB {
     version: usize,
     route_for: HashMap<Ipv4Addr, RouteInfo>,
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct PeerRouteDB {
-    version: usize,
+    pub version: usize,
     nr_entries: usize,
     route_for: HashMap<Ipv4Addr, RouteInfo>,
-}
-
-#[derive(Debug)]
-pub struct DynamicPeer {
-    pub public_key: PublicKeyWithTime,
-    pub local_wg_port: u16,
-    pub local_admin_port: u16,
-    pub wg_ip: Ipv4Addr,
-    pub name: String,
-    pub local_reachable_wg_endpoint: Option<SocketAddr>,
-    pub local_reachable_admin_endpoint: Option<SocketAddr>,
-    pub dp_visible_wg_endpoint: Option<SocketAddr>,
-    pub admin_port: u16,
-    pub lastseen: u64,
-}
-
-#[derive(Debug)]
-pub struct Node {
-    is_static_peer: Option<bool>,
-    pub wg_ip: Ipv4Addr,
-    admin_port: u16,
-    //hop_cnt: usize,
-    //gateway: Option<Ipv4Addr>,
-    pub public_key: Option<PublicKeyWithTime>,
-    known_in_s: usize,
-    local_ip_list: Option<Vec<IpAddr>>,
-    local_admin_port: Option<u16>,
-    send_count: usize,
-    can_send_to_visible_endpoint: bool,
-    pub visible_endpoint: Option<SocketAddr>,
-}
-impl Node {
-    fn from(ri: &RouteInfo) -> Self {
-        Node {
-            is_static_peer: None,
-            wg_ip: ri.to,
-            admin_port: ri.local_admin_port,
-            //hop_cnt: ri.hop_cnt,
-            //gateway: ri.gateway,
-            public_key: None,
-            known_in_s: 0,
-            local_ip_list: None,
-            local_admin_port: None,
-            send_count: 0,
-            can_send_to_visible_endpoint: false,
-            visible_endpoint: None,
-        }
-    }
-    fn process_every_second(&mut self, static_config: &StaticConfiguration) -> Vec<Event> {
-        let mut events = vec![];
-
-        let pk_available = if self.public_key.is_some() {
-            ", public key available"
-        } else {
-            ""
-        };
-        trace!(target: "nodes", "Alive node: {:?} for {} s {}", self.wg_ip, self.known_in_s, pk_available);
-        self.known_in_s += 1;
-
-        if self.is_static_peer.is_none() {
-            self.is_static_peer = Some(static_config.peers.contains_key(&self.wg_ip));
-        }
-
-        if self.is_static_peer == Some(true) {
-            // nothing to do for a static peer
-            //
-            // static peers will be polled regularly until direct connection has been successfully
-            // established.
-            return events;
-        }
-
-        if self.local_ip_list.is_none()
-            || self.public_key.is_none()
-            || self.visible_endpoint.is_none()
-        {
-            if self.known_in_s % 60 == 0 || self.known_in_s < 5 {
-                // Send request for local contact
-                let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
-                events.push(Event::SendLocalContactRequest { to: destination });
-            }
-        } else if let Some(admin_port) = self.local_admin_port.as_ref() {
-            // All ok. so constantly send advertisement to the Ipv6 address
-            events.push(Event::SendAdvertisement {
-                addressed_to: AddressedTo::WireguardV6Address,
-                to: SocketAddr::new(IpAddr::V6(map_to_ipv6(&self.wg_ip)), *admin_port),
-                wg_ip: self.wg_ip,
-            });
-        }
-
-        if self.send_count < 100 {
-            if let Some(ip_list) = self.local_ip_list.as_ref() {
-                if let Some(admin_port) = self.local_admin_port.as_ref() {
-                    self.send_count += 1;
-                    for ip in ip_list.iter() {
-                        if let IpAddr::V4(ipv4) = ip {
-                            if *ipv4 == self.wg_ip {
-                                continue;
-                            }
-                            events.push(Event::SendAdvertisement {
-                                addressed_to: AddressedTo::LocalAddress,
-                                to: SocketAddr::new(*ip, *admin_port),
-                                wg_ip: self.wg_ip,
-                            });
-                        }
-                    }
-                }
-            }
-        }
-
-        let can_send = self.public_key.is_some() && self.visible_endpoint.is_some();
-
-        if can_send && !self.can_send_to_visible_endpoint {
-            self.can_send_to_visible_endpoint = true;
-            events.push(Event::UpdateWireguardConfiguration);
-        }
-
-        events
-    }
-    fn process_local_contact(&mut self, local: LocalContactPacket) {
-        self.local_ip_list = Some(local.local_ip_list);
-        self.local_admin_port = Some(local.local_admin_port);
-        self.visible_endpoint = local.my_visible_wg_endpoint;
-        self.public_key = Some(local.public_key);
-    }
-    fn ok_to_delete_without_route(&self) -> bool {
-        self.known_in_s > 10
-    }
 }
 
 pub struct NetworkManager {
@@ -203,37 +75,31 @@ pub struct NetworkManager {
     pub my_visible_wg_endpoint: Option<SocketAddr>,
     route_db: RouteDB,
     peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
-
     pending_route_changes: Vec<RouteChange>,
-    pub known_nodes: HashMap<Ipv4Addr, Node>,
-    peer: HashMap<Ipv4Addr, DynamicPeer>,
-    fifo_dead: Vec<Ipv4Addr>,
-    fifo_ping: Vec<Ipv4Addr>,
+    pub all_nodes: HashMap<Ipv4Addr, Box<dyn Node>>,
 }
 
 impl NetworkManager {
-    pub fn new(wg_ip: Ipv4Addr) -> Self {
+    pub fn new(static_config: &StaticConfiguration) -> Self {
+        let all_nodes = static_config
+            .peers
+            .iter()
+            .filter(|(wg_ip, _)| **wg_ip != static_config.wg_ip)
+            .map(|(wg_ip, peer)| (*wg_ip, StaticPeer::from_public_peer(peer)))
+            .collect::<HashMap<Ipv4Addr, Box<dyn Node>>>();
+
         NetworkManager {
-            wg_ip,
-            //all_nodes: HashMap::new(),
+            wg_ip: static_config.wg_ip,
             my_visible_wg_endpoint: None,
             route_db: RouteDB::default(),
             peer_route_db: HashMap::new(),
             pending_route_changes: vec![],
-            known_nodes: HashMap::new(),
-            peer: HashMap::new(),
-            fifo_dead: vec![],
-            fifo_ping: vec![],
+            all_nodes,
         }
     }
 
-    pub fn remove_dynamic_peer(&mut self, peer_ip: &Ipv4Addr) {
-        self.peer.remove(peer_ip);
-        self.peer_route_db.remove(peer_ip);
-        self.recalculate_routes();
-    }
-
     pub fn get_route_changes(&mut self) -> Vec<RouteChange> {
+        self.recalculate_routes();
         let mut routes = vec![];
         routes.append(&mut self.pending_route_changes);
         routes
@@ -242,14 +108,7 @@ impl NetworkManager {
         self.route_db.version
     }
     pub fn stats(&self) {
-        trace!(
-            "Manager: {} peers, {} in network",
-            self.peer.len(),
-            self.route_db.route_for.len()
-        );
-    }
-    pub fn peer_iter(&self) -> std::collections::hash_map::Values<Ipv4Addr, DynamicPeer> {
-        self.peer.values()
+        trace!("Manager: {} nodes in network", self.all_nodes.len(),);
     }
     pub fn analyze_advertisement(
         &mut self,
@@ -257,187 +116,74 @@ impl NetworkManager {
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
     ) -> Vec<Event> {
-        let mut events = vec![];
-
-        self.fifo_dead.retain(|ip| *ip != advertisement.wg_ip);
-        self.fifo_dead.retain(|ip| *ip != advertisement.wg_ip);
-        self.fifo_dead.push(advertisement.wg_ip);
-        self.fifo_ping.push(advertisement.wg_ip);
-        let lastseen = crate::util::now();
-
-        let mut local_reachable_admin_endpoint = None;
-        let mut local_reachable_wg_endpoint = None;
-        let mut dp_visible_wg_endpoint = None;
-
-        use AddressedTo::*;
-        match &advertisement.addressed_to {
-            StaticAddress | ReplyFromStaticAddress => {}
-            LocalAddress | ReplyFromLocalAddress => {
-                local_reachable_wg_endpoint =
-                    Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
-                local_reachable_admin_endpoint = Some(src_addr);
-            }
-            WireguardV6Address | ReplyFromWireguardV6Address => {
-                dp_visible_wg_endpoint = advertisement.my_visible_wg_endpoint;
-            }
-            WireguardAddress | ReplyFromWireguardAddress => {
-                if advertisement.your_visible_wg_endpoint.is_some() {
-                    let mut is_local = false;
-
-                    for ip in static_config.ip_list.iter() {
-                        if *ip
-                            == advertisement
-                                .your_visible_wg_endpoint
-                                .as_ref()
-                                .unwrap()
-                                .ip()
-                        {
-                            is_local = true;
-                        }
-                    }
-
-                    if !is_local {
-                        self.my_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
-                    }
-                }
-            }
+        if let Some(endpoint) = advertisement.your_visible_wg_endpoint.as_ref() {
+            // Could be more than one
+            self.my_visible_wg_endpoint = Some(*endpoint);
         }
 
-        let mut dp = DynamicPeer {
-            wg_ip: advertisement.wg_ip,
-            local_admin_port: advertisement.local_admin_port,
-            local_wg_port: advertisement.local_wg_port,
-            public_key: advertisement.public_key.clone(),
-            name: advertisement.name.to_string(),
-            local_reachable_admin_endpoint,
-            local_reachable_wg_endpoint,
-            dp_visible_wg_endpoint,
-            admin_port: src_addr.port(),
-            lastseen,
-        };
-        match self.peer.entry(advertisement.wg_ip) {
+        match self.all_nodes.entry(advertisement.wg_ip) {
             Entry::Occupied(mut entry) => {
-                // Check if public_key including creation time is same
-                if entry.get().public_key != advertisement.public_key {
-                    // Different public_key. Accept the one from advertisement only, if not older
-                    if entry.get().public_key.priv_key_creation_time
-                        <= advertisement.public_key.priv_key_creation_time
-                    {
-                        info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
-                        events.push(Event::UpdateWireguardConfiguration);
-
-                        // As this peer is new, send an advertisement
-                        events.push(Event::SendAdvertisement {
-                            addressed_to: AddressedTo::WireguardAddress,
-                            to: src_addr,
-                            wg_ip: dp.wg_ip,
-                        });
-                    } else {
-                        warn!(target: "advertisement", "Received advertisement with old publy key => Reject");
-                    }
-                } else {
-                    info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
-
-                    let mut need_wg_conf_update = false;
-
-                    if dp.dp_visible_wg_endpoint.is_none() {
-                        // TODO: is a no-op currently
-                        // Get endpoint from old entry
-                        dp.dp_visible_wg_endpoint = entry.get_mut().dp_visible_wg_endpoint.take();
-
-                        // if still not known, then ask wireguard
-                        if dp.dp_visible_wg_endpoint.is_none() {
-                            events.push(Event::ReadWireguardConfiguration);
-                        }
-                    }
-
-                    if dp.local_reachable_wg_endpoint.is_some() {
-                        if entry.get().local_reachable_wg_endpoint.is_none() {
-                            need_wg_conf_update = true;
-                        }
-                    } else {
-                        dp.local_reachable_wg_endpoint =
-                            entry.get_mut().local_reachable_wg_endpoint.take();
-                    }
-
-                    if need_wg_conf_update {
-                        events.push(Event::UpdateWireguardConfiguration);
-                    }
+                let (opt_new_entry, events) =
+                    entry
+                        .get_mut()
+                        .analyze_advertisement(static_config, advertisement, src_addr);
+                if let Some(new_entry) = opt_new_entry {
+                    entry.insert(new_entry);
                 }
-                entry.insert(dp);
+                events
             }
             Entry::Vacant(entry) => {
-                use AddressedTo::*;
-
+                let mut events = vec![];
                 info!(target: "advertisement", "Advertisement from new peer {}", src_addr);
+
                 events.push(Event::UpdateWireguardConfiguration);
 
                 // Answers to advertisments are only sent, if the wireguard ip is not
                 // in the list of dynamic peers and as such is new.
                 // Consequently the reply is sent over the internet and not via
                 // wireguard tunnel, because that tunnel is not yet set up.
-                let addressed_to = match advertisement.addressed_to {
-                    StaticAddress => ReplyFromStaticAddress,
-                    LocalAddress => ReplyFromLocalAddress,
-                    WireguardAddress => ReplyFromLocalAddress,
-
-                    replies => replies,
-                };
                 events.push(Event::SendAdvertisement {
-                    addressed_to,
+                    addressed_to: advertisement.addressed_to.reply(),
                     to: src_addr,
-                    wg_ip: dp.wg_ip,
+                    wg_ip: self.wg_ip,
                 });
-
-                // remove from known_nodes, if present
-                self.known_nodes.remove(&dp.wg_ip);
-
-                // store the dynamic peer
-                entry.insert(dp);
-
-                self.recalculate_routes();
                 events.push(Event::UpdateRoutes);
 
-                // indirectly inform about route database update
-                events.push(Event::SendPingToAllDynamicPeers);
-            }
-        }
+                let dp = DynamicPeer::from_advertisement(static_config, advertisement, src_addr);
+                entry.insert(Box::new(dp));
 
-        if let Some(peer_route_db) = self.peer_route_db.get(&advertisement.wg_ip) {
-            if peer_route_db.version != advertisement.routedb_version {
-                // need to request new route database via tunnel
-                info!(target: "routing", "Request updated route database from peer {}", advertisement.wg_ip);
-                self.peer_route_db.remove(&advertisement.wg_ip);
-                let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
-                events.push(Event::SendRouteDatabaseRequest { to: destination });
+                events
             }
-        } else {
-            let destination = SocketAddrV4::new(advertisement.wg_ip, src_addr.port());
-            info!(target: "routing", "Request new route database from peer {}", destination);
-            events.push(Event::SendRouteDatabaseRequest { to: destination });
         }
-        events
     }
-    pub fn process_new_nodes_every_second(
+    pub fn process_all_nodes_every_second(
         &mut self,
+        now: u64,
         static_config: &StaticConfiguration,
     ) -> Vec<Event> {
         let mut events = vec![];
         let mut node_to_delete = vec![];
-        for node in self.known_nodes.values_mut() {
-            if !self.route_db.route_for.contains_key(&node.wg_ip) {
-                // have no route to this peer
-                if node.ok_to_delete_without_route() {
-                    node_to_delete.push(node.wg_ip);
-                    continue;
-                }
+        for (node_wg_ip, node) in self.all_nodes.iter_mut() {
+            //    if !self.route_db.route_for.contains_key(node_wg_ip) {
+            // have no route to this peer
+            if node.ok_to_delete_without_route(now) {
+                node_to_delete.push(*node_wg_ip);
+                continue;
             }
-            let mut new_events = node.process_every_second(static_config);
+            //    }
+            let mut new_events = node.process_every_second(now, static_config);
             events.append(&mut new_events);
         }
 
-        for wg_ip in node_to_delete {
-            self.known_nodes.remove(&wg_ip);
+        if !node_to_delete.is_empty() {
+            events.push(Event::UpdateWireguardConfiguration);
+            events.push(Event::UpdateRoutes);
+
+            for wg_ip in node_to_delete {
+                debug!(target: &wg_ip.to_string(), "is dead => remove");
+                debug!(target: "dead_peer", "Found dead peer {}", wg_ip);
+                self.all_nodes.remove(&wg_ip);
+            }
         }
 
         events
@@ -514,7 +260,7 @@ impl NetworkManager {
         // Send advertisement to all local addresses
         debug!(target: &local.wg_ip.to_string(), "LocalContact: {:#?}", local);
         let wg_ip = local.wg_ip;
-        if let Some(node) = self.known_nodes.get_mut(&wg_ip) {
+        if let Some(node) = self.all_nodes.get_mut(&wg_ip) {
             node.process_local_contact(local);
         }
     }
@@ -526,79 +272,79 @@ impl NetworkManager {
         let mut new_routes: HashMap<Ipv4Addr, RouteInfo> = HashMap::new();
 
         // Dynamic peers are ALWAYS reachable without a gateway
-        for dp in self.peer.values() {
-            trace!(target: "routing", "Include direct path to dynamic peer to new routes: {}", dp.wg_ip);
+        for (wg_ip, node) in self.all_nodes.iter() {
+            trace!(target: "routing", "Include direct path to dynamic peer to new routes: {}", wg_ip);
             let ri = RouteInfo {
-                to: dp.wg_ip,
-                local_admin_port: dp.local_admin_port,
+                to: *wg_ip,
+                local_admin_port: node.local_admin_port(),
                 hop_cnt: 0,
                 gateway: None,
             };
-            new_routes.insert(dp.wg_ip, ri);
+            new_routes.insert(*wg_ip, ri);
         }
-        for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
-            if peer_route_db.nr_entries == peer_route_db.route_for.len() {
-                // is valid database for peer
-                trace!(target: "routing", "consider valid database of {}: {:#?}", wg_ip, peer_route_db.route_for);
-                for ri in peer_route_db.route_for.values() {
-                    // Ignore routes to myself
-                    if ri.to == self.wg_ip {
-                        trace!(target: "routing", "Route to myself => ignore");
-                        continue;
-                    }
-                    // Ignore routes to my dynamic peers
-                    if self.peer.contains_key(&ri.to) {
-                        trace!(target: "routing", "Route to any of my peers => ignore");
-                        continue;
-                    }
-                    let mut hop_cnt = 1;
-                    if let Some(gateway) = ri.gateway.as_ref() {
-                        hop_cnt = ri.hop_cnt + 1;
-
-                        // Ignore routes to myself as gateway
-                        if *gateway == self.wg_ip {
-                            trace!(target: "routing", "Route to myself as gateway => ignore");
-                            continue;
-                        }
-                        if self.peer.contains_key(gateway) {
-                            trace!(target: "routing", "Route using any of my peers as gateway => ignore");
-                            continue;
-                        }
-                        if self.peer_route_db.contains_key(gateway) {
-                            error!(target: "routing", "Route using any of my peers as gateway => ignore (should not come here)");
-                            continue;
-                        }
-                    }
-                    // to-host can be reached via wg_ip
-                    trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
-                    let ri_new = RouteInfo {
-                        to: ri.to,
-                        local_admin_port: ri.local_admin_port,
-                        hop_cnt,
-                        gateway: Some(*wg_ip),
-                    };
-                    match new_routes.entry(ri.to) {
-                        Entry::Vacant(e) => {
-                            e.insert(ri_new);
-                        }
-                        Entry::Occupied(mut e) => {
-                            let current = e.get_mut();
-                            if current.hop_cnt > ri_new.hop_cnt {
-                                // new route is better, so replace
-                                *current = ri_new;
-                            }
-                        }
-                    }
-                    if let Entry::Vacant(e) = self.known_nodes.entry(ri.to) {
-                        info!(target: "probing", "detected a new node {} via {:?}", ri.to, ri.gateway);
-                        let node = Node::from(ri);
-                        e.insert(node);
-                    }
-                }
-            } else {
-                warn!(target: "routing", "incomplete database from {} => ignore", wg_ip);
-            }
-        }
+        //        for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
+        //            if peer_route_db.nr_entries == peer_route_db.route_for.len() {
+        //                // is valid database for peer
+        //                trace!(target: "routing", "consider valid database of {}: {:#?}", wg_ip, peer_route_db.route_for);
+        //                for ri in peer_route_db.route_for.values() {
+        //                    // Ignore routes to myself
+        //                    if ri.to == self.wg_ip {
+        //                        trace!(target: "routing", "Route to myself => ignore");
+        //                        continue;
+        //                    }
+        //                    // Ignore routes to my dynamic peers
+        //                    if self.peer.contains_key(&ri.to) {
+        //                        trace!(target: "routing", "Route to any of my peers => ignore");
+        //                        continue;
+        //                    }
+        //                    let mut hop_cnt = 1;
+        //                    if let Some(gateway) = ri.gateway.as_ref() {
+        //                        hop_cnt = ri.hop_cnt + 1;
+        //
+        //                        // Ignore routes to myself as gateway
+        //                        if *gateway == self.wg_ip {
+        //                            trace!(target: "routing", "Route to myself as gateway => ignore");
+        //                            continue;
+        //                        }
+        //                        if self.peer.contains_key(gateway) {
+        //                            trace!(target: "routing", "Route using any of my peers as gateway => ignore");
+        //                            continue;
+        //                        }
+        //                        if self.peer_route_db.contains_key(gateway) {
+        //                            error!(target: "routing", "Route using any of my peers as gateway => ignore (should not come here)");
+        //                            continue;
+        //                        }
+        //                    }
+        //                    // to-host can be reached via wg_ip
+        //                    trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
+        //                    let ri_new = RouteInfo {
+        //                        to: ri.to,
+        //                        local_admin_port: ri.local_admin_port,
+        //                        hop_cnt,
+        //                        gateway: Some(*wg_ip),
+        //                    };
+        //                    match new_routes.entry(ri.to) {
+        //                        Entry::Vacant(e) => {
+        //                            e.insert(ri_new);
+        //                        }
+        //                        Entry::Occupied(mut e) => {
+        //                            let current = e.get_mut();
+        //                            if current.hop_cnt > ri_new.hop_cnt {
+        //                                // new route is better, so replace
+        //                                *current = ri_new;
+        //                            }
+        //                        }
+        //                    }
+        //                    if let Entry::Vacant(e) = self.known_nodes.entry(ri.to) {
+        //                        info!(target: "probing", "detected a new node {} via {:?}", ri.to, ri.gateway);
+        //                        let node = DistantNode::from(ri);
+        //                        e.insert(node);
+        //                    }
+        //                }
+        //            } else {
+        //                warn!(target: "routing", "incomplete database from {} => ignore", wg_ip);
+        //            }
+        //        }
 
         for entry in new_routes.iter() {
             debug!(target: "routing", "new routes' entry: {:?}", entry);
@@ -622,7 +368,7 @@ impl NetworkManager {
                 to_be_deleted.push(ri.to);
 
                 // and delete from the known_nodes.
-                self.known_nodes.remove(&ri.to);
+                //self.known_nodes.remove(&ri.to);
             } else {
                 trace!(target: "routing", "unchanged route {:?}", ri);
             }
@@ -690,57 +436,23 @@ impl NetworkManager {
 
         ips
     }
-    pub fn dynamic_peer_for(&mut self, wg_ip: &Ipv4Addr) -> Option<&DynamicPeer> {
-        self.peer.get(wg_ip)
+    pub fn node_for(&mut self, wg_ip: &Ipv4Addr) -> Option<&Box<dyn Node>> {
+        self.all_nodes.get(wg_ip)
     }
     pub fn knows_peer(&mut self, wg_ip: &Ipv4Addr) -> bool {
-        self.peer.contains_key(wg_ip)
+        self.all_nodes.contains_key(wg_ip)
     }
     pub fn output(&self) {
-        for peer in self.peer.values() {
-            debug!(target: "active_peers", "{:?}", peer);
+        for wg_ip in self.all_nodes.keys() {
+            debug!(target: "nodes", "{:?}", wg_ip);
         }
-    }
-    pub fn check_timeouts(&mut self, limit: u64) -> HashSet<Ipv4Addr> {
-        let mut dead_peers = HashSet::new();
-        let now = crate::util::now();
-        while let Some(wg_ip) = self.fifo_dead.first().as_ref() {
-            if let Some(peer) = self.peer.get(*wg_ip) {
-                let dt = now - peer.lastseen;
-                trace!(target: "dead_peer", "Peer {} last seen {} s before, limit = {}. fifo_dead = {:?}", wg_ip, dt, limit, self.fifo_dead);
-                if dt < limit {
-                    break;
-                }
-                dead_peers.insert(**wg_ip);
-            }
-            self.fifo_dead.remove(0);
-        }
-        dead_peers
-    }
-    pub fn check_ping_timeouts(&mut self, limit: u64) -> HashSet<(Ipv4Addr, u16)> {
-        let mut ping_peers = HashSet::new();
-        let now = crate::util::now();
-        while let Some(wg_ip) = self.fifo_ping.first().as_ref() {
-            if let Some(peer) = self.peer.get(*wg_ip) {
-                let dt = now - peer.lastseen;
-                if dt < limit {
-                    break;
-                }
-                ping_peers.insert((**wg_ip, peer.admin_port));
-            }
-            self.fifo_ping.remove(0);
-        }
-        ping_peers
     }
     pub fn current_wireguard_configuration(
         &mut self,
         mut pubkey_to_endpoint: HashMap<String, SocketAddr>,
     ) {
-        for dynamic_peer in self.peer.values_mut() {
-            if let Some(endpoint) = pubkey_to_endpoint.remove(&dynamic_peer.public_key.key) {
-                dynamic_peer.dp_visible_wg_endpoint = Some(endpoint);
-                // The dp_visible_admin port may be different, so do not derive it
-            }
+        for node in self.all_nodes.values_mut() {
+            node.update_from_wireguard_configuration(&mut pubkey_to_endpoint);
         }
     }
 }

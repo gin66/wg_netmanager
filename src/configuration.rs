@@ -1,11 +1,10 @@
 use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr};
 
-use log::*;
+//use log::*;
 use serde::{Deserialize, Serialize};
 
 use crate::manager::*;
-use crate::wg_dev::map_to_ipv6;
 
 #[derive(Serialize, Deserialize, Clone, Debug, Default, PartialEq)]
 pub struct PublicKeyWithTime {
@@ -13,7 +12,7 @@ pub struct PublicKeyWithTime {
     pub priv_key_creation_time: u64,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PublicPeer {
     pub endpoint: String,
     pub wg_port: u16,
@@ -150,68 +149,31 @@ impl StaticConfiguration {
     pub fn builder() -> StaticConfigurationBuilder {
         StaticConfigurationBuilder::new()
     }
-    pub fn is_listener(&self) -> bool {
-        self.peers.contains_key(&self.wg_ip)
-    }
-    pub fn as_conf_as_peer(&self, manager: &NetworkManager) -> String {
+    pub fn to_wg_configuration(&self, manager: &NetworkManager) -> String {
         let mut lines: Vec<String> = vec![];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.my_private_key));
-        let port = if let Some(peer) = self.peers.get(&self.wg_ip) {
-            peer.wg_port
-        } else {
-            self.wg_port
-        };
+        let port = self
+            .peers
+            .get(&self.wg_ip)
+            .map(|peer| peer.wg_port)
+            .unwrap_or(self.wg_port);
         lines.push(format!("ListenPort = {}", port));
-        lines.push("".to_string());
 
-        for peer in manager.peer_iter() {
-            lines.push("[Peer]".to_string());
-            lines.push(format!("PublicKey = {}", &peer.public_key.key));
-            lines.push(format!("AllowedIPs = {}/32", peer.wg_ip));
-            lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&peer.wg_ip)));
-            let ips = manager.get_ips_for_peer(peer.wg_ip);
-            for ip in ips {
-                lines.push(format!("AllowedIPs = {}/32", ip));
-            }
-            if let Some(static_peer) = self.peers.get(&peer.wg_ip) {
-                debug!(target: "configuration", "peer {} uses static endpoint {}", peer.wg_ip, static_peer.endpoint);
-                debug!(target: &peer.wg_ip.to_string(), "use static endpoint {}", static_peer.endpoint);
-                lines.push(format!("EndPoint = {}", static_peer.endpoint));
-            } else if let Some(endpoint) = peer.local_reachable_wg_endpoint.as_ref() {
-                debug!(target: "configuration", "peer {} uses local endpoint {}", peer.wg_ip, endpoint);
-                debug!(target: &peer.wg_ip.to_string(), "use local endpoint {}", endpoint);
-                lines.push(format!("EndPoint = {}", endpoint));
-            } else if let Some(endpoint) = peer.dp_visible_wg_endpoint.as_ref() {
-                debug!(target: "configuration", "peer {} uses visible (NAT) endpoint {}", peer.wg_ip, endpoint);
-                debug!(target: &peer.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
-                lines.push(format!("EndPoint = {}", endpoint));
-                // lines.push("PersistentKeepalive = 5".to_string());
-            }
-            lines.push("".to_string());
-        }
-
-        for node in manager.known_nodes.values() {
-            if let Some(public_key) = node.public_key.as_ref() {
-                lines.push("[Peer]".to_string());
-                lines.push(format!("PublicKey = {}", &public_key.key));
-                lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&node.wg_ip)));
-                if let Some(endpoint) = node.visible_endpoint {
-                    debug!(target: "configuration", "node {} uses visible (NAT) endpoint {}", node.wg_ip, endpoint);
-                    debug!(target: &node.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
-                    lines.push(format!("EndPoint = {}", endpoint));
-                    // lines.push("PersistentKeepalive = 5".to_string());
-                }
+        for node in manager.all_nodes.values() {
+            if let Some(mut peer_lines) = node.peer_wireguard_configuration() {
                 lines.push("".to_string());
+                lines.push("[Peer]".to_string());
+                lines.append(&mut peer_lines);
             }
         }
+
         lines.join("\n")
     }
     pub fn my_admin_port(&self) -> u16 {
-        if let Some(peer) = self.peers.get(&self.wg_ip) {
-            peer.admin_port
-        } else {
-            self.admin_port
-        }
+        self.peers
+            .get(&self.wg_ip)
+            .map(|peer| peer.admin_port)
+            .unwrap_or(self.admin_port)
     }
 }

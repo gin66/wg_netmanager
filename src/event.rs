@@ -13,8 +13,6 @@ pub enum Event {
         to: SocketAddr,
         wg_ip: Ipv4Addr,
     },
-    SendAdvertisementToPublicPeers,
-    SendPingToAllDynamicPeers,
     SendRouteDatabaseRequest {
         to: SocketAddrV4,
     },
@@ -27,7 +25,6 @@ pub enum Event {
     SendLocalContact {
         to: SocketAddrV4,
     },
-    CheckAndRemoveDeadDynamicPeers,
     UpdateRoutes,
     TimerTick1s,
     TuiApp(TuiAppEvent),

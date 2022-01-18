@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::configuration::*;
 use crate::error::*;
 use crate::manager::*;
+use crate::node::*;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AddressedTo {
@@ -21,8 +22,23 @@ pub enum AddressedTo {
 
     ReplyFromStaticAddress,
     ReplyFromLocalAddress,
-    ReplyFromWireguardV6Address,
     ReplyFromWireguardAddress,
+    ReplyFromWireguardV6Address,
+}
+impl AddressedTo {
+    pub fn reply(&self) -> Self {
+        use AddressedTo::*;
+        match self {
+            StaticAddress => ReplyFromStaticAddress,
+            LocalAddress => ReplyFromLocalAddress,
+            WireguardAddress => ReplyFromWireguardAddress,
+            WireguardV6Address => ReplyFromWireguardV6Address,
+            ReplyFromStaticAddress => ReplyFromStaticAddress,
+            ReplyFromLocalAddress => ReplyFromLocalAddress,
+            ReplyFromWireguardAddress => ReplyFromLocalAddress,
+            ReplyFromWireguardV6Address => ReplyFromWireguardV6Address,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -67,7 +83,7 @@ impl UdpPacket {
         static_config: &StaticConfiguration,
         routedb_version: usize,
         addressed_to: AddressedTo,
-        to_dynamic_peer: Option<&DynamicPeer>,
+        to_node: Option<&Box<dyn Node>>,
         my_visible_wg_endpoint: Option<SocketAddr>,
     ) -> Self {
         UdpPacket::Advertisement(AdvertisementPacket {
@@ -77,7 +93,7 @@ impl UdpPacket {
             local_admin_port: static_config.admin_port,
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
-            your_visible_wg_endpoint: to_dynamic_peer.and_then(|dp| dp.dp_visible_wg_endpoint),
+            your_visible_wg_endpoint: to_node.and_then(|node| node.visible_wg_endpoint()),
             my_visible_wg_endpoint,
             routedb_version,
         })

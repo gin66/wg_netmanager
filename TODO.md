@@ -13,10 +13,11 @@ Todos:
 * Add legacy mode for traditional wireguard clients
 * Replace lots of unwrap() with friendly error code
 * Reduce ip-load (how?) for keep alive packages
-* Maasure the connection speed to select the gateway based on this citeria
-* Refactor code and combine node/dynamic peer into one structure. Simply NetManager and run loop
+* Measure the connection speed to select the gateway based on this citeria
+* use netlink_sys/netlink_packet-wireguard/netlink-packet-route to remove need for ip/wg shell calls
 
 DONE:
+* Refactor code and combine node/dynamic peer into one structure. Simply NetManager and run loop
 * rename bring_up() to create_device()
 * routing
 * share info about visible endpoint/admin udp port

@@ -11,7 +11,6 @@ use crate::crypt_udp::UdpPacket;
 use crate::error::*;
 use crate::event::Event;
 use crate::manager::*;
-use crate::node::*;
 use crate::tui_display::TuiApp;
 use crate::wg_dev::*;
 use crate::Arch;

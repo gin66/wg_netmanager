@@ -17,7 +17,7 @@ Todos:
 * Add option to set a static route to loopback to prevent leakage of packets to default gateway 
 * How to detect a net.ipv6.bindv6only=1 system
 * Reduce ip-load (how?) for keep alive packages
-
+* use netlink_sys/netlink_packet-wireguard/netlink-packet-route to remove need for ip/wg shell calls
 
 DONE:
 * rename bring_up() to create_device()

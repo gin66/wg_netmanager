@@ -123,10 +123,13 @@ impl NetworkManager {
 
         match self.all_nodes.entry(advertisement.wg_ip) {
             Entry::Occupied(mut entry) => {
-                let (opt_new_entry, events) =
-                    entry
-                        .get_mut()
-                        .analyze_advertisement(static_config, advertisement, src_addr);
+                let now = crate::util::now();
+                let (opt_new_entry, events) = entry.get_mut().analyze_advertisement(
+                    now,
+                    static_config,
+                    advertisement,
+                    src_addr,
+                );
                 if let Some(new_entry) = opt_new_entry {
                     entry.insert(new_entry);
                 }

@@ -52,6 +52,7 @@ pub trait Node {
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>>;
     fn analyze_advertisement(
         &mut self,
+        now: u64,
         static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
@@ -71,6 +72,7 @@ pub struct StaticPeer {
     public_key: Option<PublicKeyWithTime>,
     gateway_for: HashSet<Ipv4Addr>,
     is_alive: bool,
+    lastseen: u64,
     send_advertisement_seconds_count_down: usize,
     routedb_manager: RouteDBManager,
 }
@@ -81,6 +83,7 @@ impl StaticPeer {
             public_key: None,
             gateway_for: HashSet::new(),
             is_alive: false,
+            lastseen: 0,
             send_advertisement_seconds_count_down: 0,
             routedb_manager: RouteDBManager::default(),
         })
@@ -94,6 +97,7 @@ impl Node for StaticPeer {
         self.static_peer.admin_port
     }
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
+        // Not considered here is, if the StaticPeer is not directly reachable.
         self.public_key.as_ref().map(|public_key| {
             let mut lines = vec![];
             lines.push(format!("PublicKey = {}", &public_key.key));
@@ -117,34 +121,41 @@ impl Node for StaticPeer {
         let mut events = vec![];
 
         if self.is_alive {
+            // If StaticPeer is alive, then send all communications via the tunnel.
+            // Not considered here is, if the StaticPeer is not directly reachable.
             if self.send_advertisement_seconds_count_down == 0 {
                 self.send_advertisement_seconds_count_down = 60;
 
                 let destination =
                     SocketAddrV4::new(self.static_peer.wg_ip, self.static_peer.admin_port);
+
+                // if the local copy is not matching with latest info from StaticPeer,
+                // then request an update.
                 if self.routedb_manager.is_outdated() {
                     events.push(Event::SendRouteDatabaseRequest { to: destination });
                 }
 
                 let destination = SocketAddr::V4(destination);
 
+                // Every 60s send an advertisement to the wireguard address
                 events.push(Event::SendAdvertisement {
                     addressed_to: AddressedTo::WireguardAddress,
                     to: destination,
                     wg_ip: self.static_peer.wg_ip,
                 });
-            } else {
-                self.send_advertisement_seconds_count_down -= 1;
             }
         } else {
+            // If static peer is not alive, send evey 60s an advertisement
+            // to the known endpoint
             if self.send_advertisement_seconds_count_down == 0 {
                 self.send_advertisement_seconds_count_down = 60;
 
-                // Resolve here to make it work for dyndns hosts
+                // Resolve here the hostname (if not an IP) to make it work for dyndns hosts
                 match self.static_peer.endpoint.to_socket_addrs() {
                     Ok(endpoints) => {
                         trace!("ENDPOINTS: {:#?}", endpoints);
                         for sa in endpoints {
+                            // send to the endpoint with the admin_port as target
                             let destination = SocketAddr::new(sa.ip(), self.static_peer.admin_port);
                             events.push(Event::SendAdvertisement {
                                 addressed_to: AddressedTo::StaticAddress,
@@ -154,34 +165,38 @@ impl Node for StaticPeer {
                         }
                     }
                     Err(e) => {
-                        // An error here is not dramatic. Just push out a warning and
-                        // that's it
+                        // An error here is not dramatic, perhaps DNS is not reachable in the
+                        // moment. Just push out a warning and that's it
                         warn!(
                             "Cannot get endpoint ip(s) for {}: {:?}",
                             self.static_peer.endpoint, e
                         );
                     }
                 }
-            } else {
-                self.send_advertisement_seconds_count_down -= 1;
             }
+            self.send_advertisement_seconds_count_down -= 1;
         }
 
         events
     }
     fn analyze_advertisement(
         &mut self,
+        now: u64,
         _static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
     ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
 
+        // advertisement has been received. Store the advertised routedb_version
         self.routedb_manager
             .latest_version(advertisement.routedb_version);
-        self.is_alive = true;
-        let mut send_advertisement = false;
 
+        // and the StaticPeer is actually alive
+        self.is_alive = true;
+        self.lastseen = now;
+
+        let mut reply_advertisement = false;
         if self.public_key.is_some() {
             // Check if public_key including creation time is same
             if self.public_key.as_ref().unwrap().key != advertisement.public_key.key {
@@ -196,29 +211,37 @@ impl Node for StaticPeer {
                     events.push(Event::UpdateWireguardConfiguration);
 
                     // As this peer is new, send an advertisement
-                    send_advertisement = true;
+                    reply_advertisement = true;
                 } else {
                     warn!(target: "advertisement", "Received advertisement with old public key => Reject");
                 }
             } else {
+                // identical public key. So check, if the advertisement has been sent via the
+                // tunnel
                 if src_addr.ip() != self.static_peer.wg_ip {
-                    info!(target: "advertisement", "Advertisement from existing peer {} at public ip", src_addr);
-                    send_advertisement = true;
+                    // No. So the StaticPeer cannot send directly, then return the advertisement,
+                    // if this is not already a reply
+                    if !advertisement.addressed_to.is_reply() {
+                        info!(target: "advertisement", "Advertisement from existing peer {} at public ip", src_addr);
+                        reply_advertisement = true;
+                    }
                 } else {
+                    // has come via tunnel, so nothing else to do
                     info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
                 }
             }
         } else {
+            // first time to see the StaticPeer
             self.public_key = Some(advertisement.public_key);
             self.routedb_manager.invalidate();
             events.push(Event::UpdateWireguardConfiguration);
             events.push(Event::UpdateRoutes);
             // As this peer is new, send an advertisement
-            send_advertisement = true;
+            reply_advertisement = true;
         }
-        if send_advertisement {
+        if reply_advertisement {
             events.push(Event::SendAdvertisement {
-                addressed_to: advertisement.addressed_to,
+                addressed_to: advertisement.addressed_to.reply(),
                 to: src_addr,
                 wg_ip: self.static_peer.wg_ip,
             });
@@ -229,6 +252,7 @@ impl Node for StaticPeer {
         &mut self,
         pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
     ) {
+        // Nothing to be done here for the moment
     }
 }
 
@@ -368,6 +392,7 @@ impl Node for DynamicPeer {
     }
     fn analyze_advertisement(
         &mut self,
+        now: u64,
         static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
@@ -570,6 +595,7 @@ impl Node for DistantNode {
     }
     fn analyze_advertisement(
         &mut self,
+        now: u64,
         static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,

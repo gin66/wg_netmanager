@@ -39,6 +39,19 @@ impl AddressedTo {
             ReplyFromWireguardV6Address => ReplyFromWireguardV6Address,
         }
     }
+    pub fn is_reply(&self) -> bool {
+        use AddressedTo::*;
+        match self {
+            StaticAddress => false,
+            LocalAddress => false,
+            WireguardAddress => false,
+            WireguardV6Address => false,
+            ReplyFromStaticAddress => true,
+            ReplyFromLocalAddress => true,
+            ReplyFromWireguardAddress => true,
+            ReplyFromWireguardV6Address => true,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

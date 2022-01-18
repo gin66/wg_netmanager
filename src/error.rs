@@ -29,7 +29,7 @@ pub fn set_up_logging(log_filter: log::LevelFilter, opt_fname: Option<String>) -
         .error(Color::Red)
         .warn(Color::Yellow)
         // we actually don't need to specify the color for debug and info, they are white by default
-        .info(Color::White)
+        .info(Color::Green)
         .debug(Color::Blue)
         // depending on the terminals color scheme, this is the same as the background color
         .trace(Color::BrightBlack);

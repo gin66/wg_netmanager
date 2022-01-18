@@ -122,7 +122,6 @@ impl Node for StaticPeer {
         _static_config: &StaticConfiguration,
     ) -> Vec<Event> {
         let mut events = vec![];
-
         if self.is_alive {
             if now - self.lastseen > 240 {
                 // seems to be dead
@@ -184,8 +183,8 @@ impl Node for StaticPeer {
                     }
                 }
             }
-            self.send_advertisement_seconds_count_down -= 1;
         }
+        self.send_advertisement_seconds_count_down -= 1;
 
         events
     }

@@ -112,6 +112,7 @@ impl NetworkManager {
     }
     pub fn analyze_advertisement(
         &mut self,
+        now: u64,
         static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
@@ -152,7 +153,8 @@ impl NetworkManager {
                 });
                 events.push(Event::UpdateRoutes);
 
-                let dp = DynamicPeer::from_advertisement(static_config, advertisement, src_addr);
+                let dp =
+                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr);
                 entry.insert(Box::new(dp));
 
                 events

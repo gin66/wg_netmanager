@@ -231,7 +231,9 @@ fn main_loop(
                 match udp_packet {
                     Advertisement(ad) => {
                         debug!(target: &ad.wg_ip.to_string(), "Received advertisement from {:?}", src_addr);
-                        events = network_manager.analyze_advertisement(static_config, ad, src_addr);
+                        let now = crate::util::now();
+                        events =
+                            network_manager.analyze_advertisement(now, static_config, ad, src_addr);
                     }
                     RouteDatabaseRequest => match src_addr {
                         SocketAddr::V4(destination) => {

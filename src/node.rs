@@ -100,12 +100,11 @@ impl Node for StaticPeer {
         // Not considered here is, if the StaticPeer is not directly reachable.
         self.public_key.as_ref().map(|public_key| {
             let mut lines = vec![];
+            let wg_ip = self.static_peer.wg_ip;
+            let wg_ipv6 = map_to_ipv6(&wg_ip);
             lines.push(format!("PublicKey = {}", &public_key.key));
-            lines.push(format!("AllowedIPs = {}/32", self.static_peer.wg_ip));
-            lines.push(format!(
-                "AllowedIPs = {}/128",
-                map_to_ipv6(&self.static_peer.wg_ip)
-            ));
+            lines.push(format!("AllowedIPs = {}/32", wg_ip));
+            lines.push(format!("AllowedIPs = {}/128", wg_ipv6));
             for ip in self.gateway_for.iter() {
                 lines.push(format!("AllowedIPs = {}/32", ip));
             }
@@ -154,7 +153,7 @@ impl Node for StaticPeer {
                 });
             }
         } else {
-            // If static peer is not alive, send evey 60s an advertisement
+            // If static peer is not alive, send every 60s an advertisement
             // to the known endpoint
             if self.send_advertisement_seconds_count_down == 0 {
                 self.send_advertisement_seconds_count_down = 60;
@@ -201,7 +200,7 @@ impl Node for StaticPeer {
         self.routedb_manager
             .latest_version(advertisement.routedb_version);
 
-        // and the StaticPeer is actually alive
+        // btw the StaticPeer is actually alive
         self.is_alive = true;
         self.lastseen = now;
 
@@ -282,11 +281,12 @@ pub struct DynamicPeer {
 }
 impl DynamicPeer {
     pub fn from_advertisement(
+        now: u64,
         static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
     ) -> Self {
-        let lastseen = crate::util::now();
+        let lastseen = now;
 
         let mut local_reachable_admin_endpoint = None;
         let mut local_reachable_wg_endpoint = None;
@@ -611,7 +611,7 @@ impl Node for DistantNode {
     ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
 
-        let dp = DynamicPeer::from_advertisement(static_config, advertisement, src_addr);
+        let dp = DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr);
 
         // As this peer is new, send an advertisement
         info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);

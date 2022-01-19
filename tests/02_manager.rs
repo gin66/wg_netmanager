@@ -82,8 +82,10 @@ mod tests {
             my_visible_wg_endpoint: Some("192.168.1.2:1".parse().unwrap()),
             routedb_version: 0,
         };
+        let now = wg_netmanager::util::now();
+
         let events =
-            mgr.analyze_advertisement(&static_config, ad, "192.168.1.1:2".parse().unwrap());
+            mgr.analyze_advertisement(now, &static_config, ad, "192.168.1.1:2".parse().unwrap());
 
         trace!("{:#?}", events);
         for evt in events {
@@ -111,7 +113,6 @@ mod tests {
         }
 
         // now remove the peer
-        let now = wg_netmanager::util::now();
         for i in 1..200 {
             mgr.process_all_nodes_every_second(now + i, &static_config);
         }

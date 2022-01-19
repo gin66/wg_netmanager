@@ -187,9 +187,8 @@ fn main_loop(
 
     let mut tick_cnt = 0;
     loop {
-        trace!(target: "loop", "Main loop");
         let evt = rx.recv();
-        trace!(target: "loop", "{:?}", evt);
+        //trace!(target: "loop", "{:?}", evt);
         match evt {
             Err(e) => {
                 error!("Receive error: {:?}", e);

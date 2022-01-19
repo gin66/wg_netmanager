@@ -231,7 +231,7 @@ impl NetworkManager {
                     self.peer_route_db.insert(req.sender, peer_route_db);
                 } else {
                     // Received packet with wrong version info
-                    warn!(target: "routing", "Mismatch of route db versioni, so partial db is dropped");
+                    warn!(target: "routing", "Mismatch of route db version, so partial db is dropped");
                 }
             } else {
                 warn!(target: "routing", "Another packet for complete database received, so strange db is dropped");

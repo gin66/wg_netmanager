@@ -451,31 +451,34 @@ impl Node for DynamicPeer {
             self.routedb_manager
                 .latest_version(advertisement.routedb_version);
 
-            //                    let mut need_wg_conf_update = false;
-            //
-            //                     if dp.dp_visible_wg_endpoint.is_none() {
-            //                         // TODO: is a no-op currently
-            //                         // Get endpoint from old entry
-            //                         dp.dp_visible_wg_endpoint = entry.get_mut().dp_visible_wg_endpoint.take();
-            //
-            //                         // if still not known, then ask wireguard
-            //                         if dp.dp_visible_wg_endpoint.is_none() {
-            //                             events.push(Event::ReadWireguardConfiguration);
-            //                         }
-            //                     }
-            //
-            //                     if dp.local_reachable_wg_endpoint.is_some() {
-            //                         if entry.get().local_reachable_wg_endpoint.is_none() {
-            //                             need_wg_conf_update = true;
-            //                         }
-            //                     } else {
-            //                         dp.local_reachable_wg_endpoint =
-            //                             self.local_reachable_wg_endpoint.take();
-            //                     }
-            //
-            //                     if need_wg_conf_update {
-            //                         events.push(Event::UpdateWireguardConfiguration);
-            //                     }
+            use crate::crypt_udp::AddressedTo::*;
+            match advertisement.addressed_to {
+                StaticAddress | LocalAddress | ReplyFromStaticAddress | ReplyFromLocalAddress => {
+                    // For whatever reason the peer sends not via the tunnel.
+                    // Was the connection dropped or endpoint is not correct ?
+                    warn!(target: "advertisement", "has not been sent via tunnel");
+                }
+                WireguardAddress
+                | WireguardV6Address
+                | ReplyFromWireguardAddress
+                | ReplyFromWireguardV6Address => {
+                    // tunnel is ok. So check for visible wg endpoints
+                    if self.dp_visible_wg_endpoint.is_none() {
+                        // This should be done only once and only for non local peers,
+                        // otherwise the existing public one will be overwritten
+                        warn!(target: "advertisement", "need more work");
+                        events.push(Event::ReadWireguardConfiguration);
+                    }
+
+                    if self.local_reachable_wg_endpoint.is_none()
+                        && advertisement.your_visible_wg_endpoint.is_some()
+                    {
+                        events.push(Event::UpdateWireguardConfiguration);
+                        self.local_reachable_wg_endpoint =
+                            advertisement.your_visible_wg_endpoint;
+                    }
+                }
+            }
         }
         (None, vec![])
     }

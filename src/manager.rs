@@ -441,8 +441,8 @@ impl NetworkManager {
 
         ips
     }
-    pub fn node_for(&mut self, wg_ip: &Ipv4Addr) -> Option<&Box<dyn Node>> {
-        self.all_nodes.get(wg_ip)
+    pub fn node_for(&mut self, wg_ip: &Ipv4Addr) -> Option<&dyn Node> {
+        self.all_nodes.get(wg_ip).map(|n| n.as_ref())
     }
     pub fn knows_peer(&mut self, wg_ip: &Ipv4Addr) -> bool {
         self.all_nodes.contains_key(wg_ip)

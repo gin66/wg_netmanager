@@ -61,7 +61,7 @@ pub trait Node {
         &mut self,
         pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
     );
-    fn process_local_contact(&mut self, local: LocalContactPacket) {
+    fn process_local_contact(&mut self, _local: LocalContactPacket) {
         warn!("process_local_contact: not implemented");
     }
 }
@@ -121,11 +121,9 @@ impl Node for StaticPeer {
         _static_config: &StaticConfiguration,
     ) -> Vec<Event> {
         let mut events = vec![];
-        if self.is_alive {
-            if now - self.lastseen > 240 {
-                // seems to be dead
-                self.is_alive = false;
-            }
+        if self.is_alive && now - self.lastseen > 240 {
+            // seems to be dead
+            self.is_alive = false;
         }
 
         if self.is_alive {
@@ -258,7 +256,7 @@ impl Node for StaticPeer {
     }
     fn update_from_wireguard_configuration(
         &mut self,
-        pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
+        _pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
     ) {
         // Nothing to be done here for the moment
     }
@@ -286,39 +284,50 @@ impl DynamicPeer {
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
     ) -> Self {
-        let lastseen = now;
-
         let mut local_reachable_admin_endpoint = None;
         let mut local_reachable_wg_endpoint = None;
         let mut dp_visible_wg_endpoint = None;
 
         use AddressedTo::*;
         match &advertisement.addressed_to {
-            StaticAddress | ReplyFromStaticAddress => {}
-            LocalAddress | ReplyFromLocalAddress => {
-                local_reachable_wg_endpoint =
-                    Some(SocketAddr::new(src_addr.ip(), advertisement.local_wg_port));
-                local_reachable_admin_endpoint = Some(src_addr);
+            StaticAddress => {
+                // seems the peer thinks, I am a static node.
+                // so the info in the advertisement is not of interest.
             }
-            WireguardV6Address | ReplyFromWireguardV6Address => {
-                dp_visible_wg_endpoint = advertisement.my_visible_wg_endpoint;
-            }
-            WireguardAddress | ReplyFromWireguardAddress => {
-                if advertisement.your_visible_wg_endpoint.is_some() {
+            ReplyFromStaticAddress => {
+                // The peer is a static node. So the defined endpoint can be used.
+                // But the static peer gives us info about our visible address.
+                // If this is not a "local" address, then this is after a firewall
+                // and can be used for NAT traversal for other node. So store this info
+                if let Some(visible_endpoint) = advertisement.your_visible_wg_endpoint.as_ref() {
                     let mut is_local = false;
 
                     for ip in static_config.ip_list.iter() {
-                        if *ip
-                            == advertisement
-                                .your_visible_wg_endpoint
-                                .as_ref()
-                                .unwrap()
-                                .ip()
-                        {
+                        if *ip == visible_endpoint.ip() {
                             is_local = true;
+                            break;
                         }
                     }
+                    if !is_local {
+                        dp_visible_wg_endpoint = Some(*visible_endpoint);
+                    }
                 }
+            }
+            LocalAddress | ReplyFromLocalAddress => {
+                // The peer and myself are talking in the same subnet.
+                // So the peer's endpoint can be determined.
+                let endpoint = SocketAddr::new(src_addr.ip(), advertisement.local_wg_port);
+                local_reachable_wg_endpoint = Some(endpoint);
+                local_reachable_admin_endpoint = Some(src_addr);
+            }
+            WireguardV6Address | ReplyFromWireguardV6Address => {
+                // Apparently NAT traversal was successful and we are in contact.
+                // dp_visible_wg_endpoint = advertisement.my_visible_wg_endpoint;
+                // As soon as the peer is registered as DynamicPeer, the route will be adjusted
+                // accordingly
+            }
+            WireguardAddress | ReplyFromWireguardAddress => {
+                // This should happen only after successful NAT traversal
             }
         }
         let mut routedb_manager = RouteDBManager::default();
@@ -328,13 +337,13 @@ impl DynamicPeer {
             local_admin_port: advertisement.local_admin_port,
             local_wg_port: advertisement.local_wg_port,
             public_key: advertisement.public_key.clone(),
-            name: advertisement.name.to_string(),
+            name: advertisement.name,
             local_reachable_admin_endpoint,
             local_reachable_wg_endpoint,
             dp_visible_wg_endpoint,
             gateway_for: HashSet::new(),
             admin_port: src_addr.port(),
-            lastseen,
+            lastseen: now,
             routedb_manager,
         }
     }
@@ -377,15 +386,15 @@ impl Node for DynamicPeer {
     ) -> Vec<Event> {
         let mut events = vec![];
 
-        // Pings are sent out only via the wireguard interface.
-        //
         let dt = now - self.lastseen;
         if dt % 30 == 29 {
+            // Request routedb update, if outdated
             if self.routedb_manager.is_outdated() {
                 let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
                 events.push(Event::SendRouteDatabaseRequest { to: destination });
             }
 
+            // Pings are sent out only via the wireguard interface.
             let destination = SocketAddr::V4(SocketAddrV4::new(self.wg_ip, self.admin_port));
             events.push(Event::SendAdvertisement {
                 addressed_to: AddressedTo::WireguardAddress,
@@ -408,8 +417,6 @@ impl Node for DynamicPeer {
     ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
 
-        let latest_routedb_version = advertisement.routedb_version;
-
         // Check if public_key including creation time is same
         if self.public_key != advertisement.public_key {
             // Different public_key. Accept the one from advertisement only, if not older
@@ -417,21 +424,32 @@ impl Node for DynamicPeer {
                 <= advertisement.public_key.priv_key_creation_time
             {
                 info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
-                self.routedb_manager.invalidate();
-
-                events.push(Event::UpdateWireguardConfiguration);
 
                 // As this peer is new, send an advertisement
+                info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
                 events.push(Event::SendAdvertisement {
-                    addressed_to: AddressedTo::WireguardAddress,
+                    addressed_to: advertisement.addressed_to.reply(),
                     to: src_addr,
-                    wg_ip: self.wg_ip,
+                    wg_ip: advertisement.wg_ip,
                 });
+
+                // new public key to be added to wireguard - eventually still without endpoint
+                events.push(Event::UpdateWireguardConfiguration);
+
+                // and replace myself together with route update
+                events.push(Event::UpdateRoutes);
+
+                let dp =
+                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr);
+                return (Some(Box::new(dp)), events);
             } else {
-                warn!(target: "advertisement", "Received advertisement with old publy key => Reject");
+                warn!(target: "advertisement", "Received advertisement with old public key => Reject");
             }
         } else {
             info!(target: "advertisement", "Advertisement from existing peer {}", src_addr);
+
+            self.routedb_manager
+                .latest_version(advertisement.routedb_version);
 
             //                    let mut need_wg_conf_update = false;
             //

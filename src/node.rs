@@ -33,8 +33,8 @@ pub struct RouteDBManager {
 }
 impl RouteDBManager {
     fn is_outdated(&self) -> bool {
-        self.latest_routedb_version.is_none() ||
-        self.routedb.as_ref().map(|db| db.version) != self.latest_routedb_version
+        self.latest_routedb_version.is_none()
+            || self.routedb.as_ref().map(|db| db.version) != self.latest_routedb_version
     }
     fn latest_version(&mut self, version: usize) {
         self.latest_routedb_version = Some(version);
@@ -126,8 +126,7 @@ pub trait Node {
     fn get_gateway(&self) -> Option<Ipv4Addr> {
         None
     }
-    fn set_gateway(&mut self, _gateway: Option<Ipv4Addr>) {
-    }
+    fn set_gateway(&mut self, _gateway: Option<Ipv4Addr>) {}
     fn get_gateway_for(&mut self) -> Option<&mut HashSet<Ipv4Addr>> {
         None
     }
@@ -260,11 +259,11 @@ impl Node for StaticPeer {
                     wg_ip: self.static_peer.wg_ip,
                 });
             }
-            if now % 10 == 0 && self.routedb_manager.is_outdated() { 
+            if now % 10 == 0 && self.routedb_manager.is_outdated() {
                 // if the local copy is not matching with latest info from StaticPeer,
                 // then request an update.
                 let destination =
-                        SocketAddrV4::new(self.static_peer.wg_ip, self.static_peer.admin_port);
+                    SocketAddrV4::new(self.static_peer.wg_ip, self.static_peer.admin_port);
                 events.push(Event::SendRouteDatabaseRequest { to: destination });
             }
         } else {
@@ -649,6 +648,7 @@ impl DistantNode {
 }
 impl Node for DistantNode {
     fn process_local_contact(&mut self, local: LocalContactPacket) {
+        debug!(target: &self.wg_ip.to_string(), "Received local contact packet");
         self.local_ip_list = Some(local.local_ip_list);
         self.local_admin_port = Some(local.local_admin_port);
         self.visible_endpoint = local.my_visible_wg_endpoint;
@@ -686,6 +686,7 @@ impl Node for DistantNode {
             || self.public_key.is_none()
             || self.visible_endpoint.is_none()
         {
+            // have no data received or is not complete, so ask again
             if self.known_in_s % 60 == 0 || self.known_in_s < 5 {
                 // Send request for local contact
                 trace!(target: "nodes", "Alive node: {:?} for {} s {}", self.wg_ip, self.known_in_s, pk_available);
@@ -693,10 +694,7 @@ impl Node for DistantNode {
                 events.push(Event::SendLocalContactRequest { to: destination });
             }
         }
-
-        else if self.send_count < 10 {
-            // Try to reach via tunnel to ipv6 address
-
+        if self.send_count < 10 {
             // Try to reach local ip
             if let Some(ip_list) = self.local_ip_list.as_ref() {
                 if let Some(admin_port) = self.local_admin_port.as_ref() {
@@ -717,22 +715,25 @@ impl Node for DistantNode {
                 }
             }
         }
-        if now % 60 < 5 {
-            // TODO: Try to reach visible endpoint via wg
-            let wg_ipv6 = map_to_ipv6(&self.wg_ip);
-            let destination = SocketAddr::V6(SocketAddrV6::new(wg_ipv6, self.admin_port,0 ,0));
-            events.push(Event::SendAdvertisement {
-                addressed_to: AddressedTo::WireguardV6Address,
-                to: destination,
-                wg_ip: self.wg_ip,
-            });
-        }
-
         let can_send = self.public_key.is_some() && self.visible_endpoint.is_some();
 
-        if can_send && !self.can_send_to_visible_endpoint {
-            self.can_send_to_visible_endpoint = true;
-            events.push(Event::UpdateWireguardConfiguration);
+        if can_send {
+            if !self.can_send_to_visible_endpoint {
+                self.can_send_to_visible_endpoint = true;
+                events.push(Event::UpdateWireguardConfiguration);
+            }
+
+            if now % 60 < 5 {
+                // TODO: Try to reach visible endpoint via wg ipv6
+                info!(target: &self.wg_ip.to_string(), "try to reach distant node via NAT traversal");
+                let wg_ipv6 = map_to_ipv6(&self.wg_ip);
+                let destination = SocketAddr::V6(SocketAddrV6::new(wg_ipv6, self.admin_port, 0, 0));
+                events.push(Event::SendAdvertisement {
+                    addressed_to: AddressedTo::WireguardV6Address,
+                    to: destination,
+                    wg_ip: self.wg_ip,
+                });
+            }
         }
 
         events

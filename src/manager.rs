@@ -261,7 +261,7 @@ impl NetworkManager {
                     if !self.all_nodes.contains_key(&ri.to) {
                         info!(target: "probing", "detected a new node {} via {:?}", ri.to, ri.gateway);
                         let node = DistantNode::from(ri);
-                        new_nodes.push((ri.to,node));
+                        new_nodes.push((ri.to, node));
                     }
                 }
             }
@@ -293,10 +293,9 @@ impl NetworkManager {
         }
 
         // remove all distant nodes without a route
-        self.all_nodes.retain(|wg_ip,node| 
-            !node.is_distant_node() || new_routes.contains_key(wg_ip)
-            );
-        
+        self.all_nodes
+            .retain(|wg_ip, node| !node.is_distant_node() || new_routes.contains_key(wg_ip));
+
         // So update route_db and mark changes
         //
         // first routes to be deleted

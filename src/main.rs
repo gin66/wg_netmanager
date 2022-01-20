@@ -134,6 +134,7 @@ fn main() -> BoxResult<()> {
     let use_tui = matches.is_present("tui");
 
     let mut opt_peer_conf: Option<Yaml> = None;
+    // unwrap() is ok here due to the default value in clap
     let peer_config = matches.value_of("peer_config").unwrap();
     match File::open(peer_config) {
         Ok(mut file) => {
@@ -217,27 +218,47 @@ fn main() -> BoxResult<()> {
     let use_existing_interface = get_option_bool(&matches, &opt_peer_conf, "existingInterface");
     let interface = get_option_string(&matches, &opt_peer_conf, "wgInterface")?;
     let wg_ip_string = get_option_string(&matches, &opt_peer_conf, "wgIp")?;
-    let wg_ip: Ipv4Addr = wg_ip_string.parse().unwrap();
-    let wg_port: u16 = matches.value_of("wireguard_port").unwrap().parse().unwrap();
-    let admin_port: u16 = matches.value_of("admin_port").unwrap().parse().unwrap();
+    let wg_ip: Ipv4Addr = wg_ip_string.parse()?;
+
+    // Due to default values in clap, the unwraps() before parse() are ok
+    let wg_port: u16 = matches.value_of("wireguard_port").unwrap().parse()?;
+    let admin_port: u16 = matches.value_of("admin_port").unwrap().parse()?;
 
     let network = &network_conf["network"];
-    let shared_key = base64::decode(&network["sharedKey"].as_str().unwrap()).unwrap();
-    let subnet: ipnet::Ipv4Net = network["subnet"].as_str().unwrap().parse().unwrap();
+    let shared_key = base64::decode(
+        &network["sharedKey"]
+            .as_str()
+            .ok_or("sharedKey is not defined or not a string")?,
+    )?;
+    let subnet: ipnet::Ipv4Net = network["subnet"]
+        .as_str()
+        .ok_or("subnet is not defined or not a string")?
+        .parse()?;
 
     if !subnet.contains(&wg_ip) {
-        return Err(format!("{} is outside of {}", wg_ip, subnet).into());
+        return Err(format!("{} is outside of subnet {}", wg_ip, subnet).into());
     }
 
     let mut peers: HashMap<Ipv4Addr, PublicPeer> = HashMap::new();
-    for p in network_conf["peers"].as_vec().unwrap() {
+    for p in network_conf["peers"]
+        .as_vec()
+        .ok_or("no peers defined in config file")?
+    {
         info!("STATIC PEER: {:#?}", p);
-        let endpoint = p["endPoint"].as_str().unwrap().to_string();
+        let endpoint = p["endPoint"]
+            .as_str()
+            .ok_or("no endpoint defined")?
+            .to_string();
         let mut flds = endpoint.split(':').collect::<Vec<_>>();
-        let port_str = flds.pop().unwrap();
-        let wg_port = (*port_str).parse::<u16>().unwrap();
-        let admin_port = p["adminPort"].as_i64().unwrap() as u16;
-        let wg_ip: Ipv4Addr = p["wgIp"].as_str().unwrap().parse().unwrap();
+        let port_str = flds.pop().ok_or("endpoint should be <hostname/ip:port>")?;
+        let wg_port = (*port_str).parse::<u16>()?;
+        let admin_port = p["adminPort"]
+            .as_i64()
+            .ok_or("Cannot parse adminPort as integer")? as u16;
+        let wg_ip: Ipv4Addr = p["wgIp"]
+            .as_str()
+            .ok_or("wgIp not defined or not a string")?
+            .parse()?;
         let pp = PublicPeer {
             endpoint,
             admin_port,

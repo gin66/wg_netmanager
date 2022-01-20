@@ -3,20 +3,18 @@ Todos:
 * add command line option to generate a new config 
 * warn about readbility of config file if not -r--------
 * check availability of used shell commands (ip/wg)
-* include boringtun, if kernel does not provide wireguard interface
-	or https://git.zx2c4.com/wireguard-rs (more official)
 * find a solution for sudo
 * add dns
 * avoid syncconf with identical configuration (can happen if several nodes are added at once)
 * Support https://github.com/FlyveHest/wg-friendly-peer-names
 * Add mobile client type: is connection initiator. not reachable from outside
 * Add legacy mode for traditional wireguard clients
-* Replace lots of unwrap() with friendly error code
 * Reduce ip-load (how?) for keep alive packages
 * Measure the connection speed to select the gateway based on this citeria
 * use netlink_sys/netlink_packet-wireguard/netlink-packet-route to remove need for ip/wg shell calls
 
 DONE:
+* Replace lots of unwrap() with friendly error code
 * Refactor code and combine node/dynamic peer into one structure. Simply NetManager and run loop
 * rename bring_up() to create_device()
 * routing
@@ -47,17 +45,20 @@ DONE:
 * Add time to udp packet and check time window to mitigate replay attack
 
 LOW PRIORITY:
+* include boringtun, if kernel does not provide wireguard interface
+	or https://git.zx2c4.com/wireguard-rs (more official)
 * How to detect a net.ipv6.bindv6only=1 system
 * Add option to set a static route to loopback to prevent leakage of packets to default gateway 
 * Try to use a SIP-router and remove the need for a static server
 * exchange info about new public listeners and update config-file
-* allow the possibility to read config from stdin.
   This would allow to ssh in a machine and start wg_manager without storing the shared key on the filesystem
 * provide a REST interface, so by ssh'ing in any machine it is possibly to retrieve a ascii qrcode and use this as log in for pure wireguard client
 * more endpoints per peer
 * make video with watch wg showconf per vps
 
 OBSOLETE:
+* allow the possibility to read config from stdin.
+  => use /dev/stdin as filename under linux
 * eliminate the need to specify two listen ports (one could be sufficient with appropriate scheme)
   => Need two
 * rename publicIp to e.g. visibleHost or reachableHost

@@ -26,7 +26,6 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, SocketAddr};
 
 use log::*;
-use serde::{Deserialize, Serialize};
 
 use crate::configuration::*;
 use crate::crypt_udp::*;
@@ -49,24 +48,9 @@ pub enum RouteChange {
     },
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct RouteInfo {
-    pub to: Ipv4Addr,
-    pub local_admin_port: u16,
-    hop_cnt: usize,
-    gateway: Option<Ipv4Addr>,
-}
-
 #[derive(Default, Debug)]
 pub struct RouteDB {
     version: usize,
-    route_for: HashMap<Ipv4Addr, RouteInfo>,
-}
-
-#[derive(Default, Debug)]
-pub struct PeerRouteDB {
-    pub version: usize,
-    nr_entries: usize,
     route_for: HashMap<Ipv4Addr, RouteInfo>,
 }
 
@@ -74,8 +58,6 @@ pub struct NetworkManager {
     wg_ip: Ipv4Addr,
     pub my_visible_wg_endpoint: Option<SocketAddr>,
     route_db: RouteDB,
-    peer_route_db: HashMap<Ipv4Addr, PeerRouteDB>,
-    pending_route_changes: Vec<RouteChange>,
     pub all_nodes: HashMap<Ipv4Addr, Box<dyn Node>>,
 }
 
@@ -92,18 +74,10 @@ impl NetworkManager {
             wg_ip: static_config.wg_ip,
             my_visible_wg_endpoint: None,
             route_db: RouteDB::default(),
-            peer_route_db: HashMap::new(),
-            pending_route_changes: vec![],
             all_nodes,
         }
     }
 
-    pub fn get_route_changes(&mut self) -> Vec<RouteChange> {
-        self.recalculate_routes();
-        let mut routes = vec![];
-        routes.append(&mut self.pending_route_changes);
-        routes
-    }
     pub fn db_version(&self) -> usize {
         self.route_db.version
     }
@@ -206,60 +180,12 @@ impl NetworkManager {
         );
         vec![p]
     }
-    pub fn process_route_database(&mut self, req: RouteDatabasePacket) -> Vec<Event> {
-        let mut need_routes_update = false;
-        let mut events = vec![];
+    pub fn process_route_database(&mut self, req: RouteDatabasePacket) -> Option<Vec<Event>> {
         debug!(target: "routing", "RouteDatabase: {:#?}", req.known_routes);
 
-        // After requesting route database, then the old one has been deleted.
-        // The database will be received in one to many udp packages.
-        //
-        if let Some(mut peer_route_db) = self.peer_route_db.remove(&req.sender) {
-            // route database exist and must not be complete
-            //
-            if req.nr_entries != peer_route_db.nr_entries {
-                if req.routedb_version == peer_route_db.version {
-                    // All ok, got more entries for the database
-                    for ri in req.known_routes {
-                        peer_route_db.route_for.insert(ri.to, ri);
-                    }
-
-                    // Check, if the database is complete
-                    need_routes_update = req.nr_entries == peer_route_db.route_for.len();
-
-                    // put back the route_db into the peer_route_db
-                    self.peer_route_db.insert(req.sender, peer_route_db);
-                } else {
-                    // Received packet with wrong version info
-                    warn!(target: "routing", "Mismatch of route db version, so partial db is dropped");
-                }
-            } else {
-                warn!(target: "routing", "Another packet for complete database received, so strange db is dropped");
-            }
-        } else {
-            // First packet of a new route_db. So just store it
-            let routes = req
-                .known_routes
-                .iter()
-                .map(|e| (e.to, e.clone()))
-                .collect::<HashMap<Ipv4Addr, RouteInfo>>();
-            let peer_route_db = PeerRouteDB {
-                version: req.routedb_version,
-                nr_entries: req.nr_entries,
-                route_for: routes,
-            };
-
-            // Perhaps the database is already complete ?
-            need_routes_update = req.nr_entries == peer_route_db.route_for.len();
-
-            // Store the route_db into the peer_route_db
-            self.peer_route_db.insert(req.sender, peer_route_db);
-        }
-        if need_routes_update {
-            self.recalculate_routes();
-            events.push(Event::UpdateRoutes);
-        }
-        events
+        self.all_nodes
+            .get_mut(&req.sender)
+            .and_then(|node| node.process_route_database(req))
     }
     pub fn process_local_contact(&mut self, local: LocalContactPacket) {
         // Send advertisement to all local addresses
@@ -269,16 +195,16 @@ impl NetworkManager {
             node.process_local_contact(local);
         }
     }
-    fn recalculate_routes(&mut self) {
+    pub fn get_route_changes(&mut self) -> Vec<RouteChange> {
+        let mut route_changes = vec![];
         trace!(target: "routing", "Recalculate routes");
-        // Use as input:
-        //    list of peers (being alive)
-        //    peer route_db, if valid
         let mut new_routes: HashMap<Ipv4Addr, RouteInfo> = HashMap::new();
 
-        // Dynamic peers are ALWAYS reachable without a gateway
         for (wg_ip, node) in self.all_nodes.iter() {
-            trace!(target: "routing", "Include direct path to dynamic peer to new routes: {}", wg_ip);
+            if node.is_distant_node() {
+                continue;
+            }
+            trace!(target: "routing", "Include direct path to static/dynamic peer to new routes: {}", wg_ip);
             let ri = RouteInfo {
                 to: *wg_ip,
                 local_admin_port: node.local_admin_port(),
@@ -287,69 +213,62 @@ impl NetworkManager {
             };
             new_routes.insert(*wg_ip, ri);
         }
-        //        for (wg_ip, peer_route_db) in self.peer_route_db.iter() {
-        //            if peer_route_db.nr_entries == peer_route_db.route_for.len() {
-        //                // is valid database for peer
-        //                trace!(target: "routing", "consider valid database of {}: {:#?}", wg_ip, peer_route_db.route_for);
-        //                for ri in peer_route_db.route_for.values() {
-        //                    // Ignore routes to myself
-        //                    if ri.to == self.wg_ip {
-        //                        trace!(target: "routing", "Route to myself => ignore");
-        //                        continue;
-        //                    }
-        //                    // Ignore routes to my dynamic peers
-        //                    if self.peer.contains_key(&ri.to) {
-        //                        trace!(target: "routing", "Route to any of my peers => ignore");
-        //                        continue;
-        //                    }
-        //                    let mut hop_cnt = 1;
-        //                    if let Some(gateway) = ri.gateway.as_ref() {
-        //                        hop_cnt = ri.hop_cnt + 1;
-        //
-        //                        // Ignore routes to myself as gateway
-        //                        if *gateway == self.wg_ip {
-        //                            trace!(target: "routing", "Route to myself as gateway => ignore");
-        //                            continue;
-        //                        }
-        //                        if self.peer.contains_key(gateway) {
-        //                            trace!(target: "routing", "Route using any of my peers as gateway => ignore");
-        //                            continue;
-        //                        }
-        //                        if self.peer_route_db.contains_key(gateway) {
-        //                            error!(target: "routing", "Route using any of my peers as gateway => ignore (should not come here)");
-        //                            continue;
-        //                        }
-        //                    }
-        //                    // to-host can be reached via wg_ip
-        //                    trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
-        //                    let ri_new = RouteInfo {
-        //                        to: ri.to,
-        //                        local_admin_port: ri.local_admin_port,
-        //                        hop_cnt,
-        //                        gateway: Some(*wg_ip),
-        //                    };
-        //                    match new_routes.entry(ri.to) {
-        //                        Entry::Vacant(e) => {
-        //                            e.insert(ri_new);
-        //                        }
-        //                        Entry::Occupied(mut e) => {
-        //                            let current = e.get_mut();
-        //                            if current.hop_cnt > ri_new.hop_cnt {
-        //                                // new route is better, so replace
-        //                                *current = ri_new;
-        //                            }
-        //                        }
-        //                    }
-        //                    if let Entry::Vacant(e) = self.known_nodes.entry(ri.to) {
-        //                        info!(target: "probing", "detected a new node {} via {:?}", ri.to, ri.gateway);
-        //                        let node = DistantNode::from(ri);
-        //                        e.insert(node);
-        //                    }
-        //                }
-        //            } else {
-        //                warn!(target: "routing", "incomplete database from {} => ignore", wg_ip);
-        //            }
-        //        }
+        // Then add all indirect routes from the node's routedb
+
+        let mut new_nodes = vec![];
+        for (wg_ip, node) in self.all_nodes.iter() {
+            if let Some(routedb) = node.routedb_manager().and_then(|mgr| mgr.routedb.as_ref()) {
+                for ri in routedb.route_for.values() {
+                    if ri.to == self.wg_ip {
+                        trace!(target: "routing", "Route to myself => ignore");
+                        continue;
+                    }
+                    let mut hop_cnt = 1;
+                    if let Some(gateway) = ri.gateway.as_ref() {
+                        // Ignore routes to myself as gateway
+                        if *gateway == self.wg_ip {
+                            trace!(target: "routing", "Route to myself as gateway => ignore");
+                            continue;
+                        }
+                        if self.all_nodes.get(gateway).map(|n| n.is_distant_node()) != Some(true) {
+                            trace!(target: "routing", "Route using any of my peers as gateway => ignore");
+                            continue;
+                        }
+
+                        hop_cnt = ri.hop_cnt + 1;
+                    }
+
+                    // to-host can be reached via wg_ip
+                    trace!(target: "routing", "Include to routes: {} via {:?} and hop_cnt {}", ri.to, wg_ip, hop_cnt);
+                    let ri_new = RouteInfo {
+                        to: ri.to,
+                        local_admin_port: ri.local_admin_port,
+                        hop_cnt,
+                        gateway: Some(*wg_ip),
+                    };
+                    match new_routes.entry(ri.to) {
+                        Entry::Vacant(e) => {
+                            e.insert(ri_new);
+                        }
+                        Entry::Occupied(mut e) => {
+                            let current = e.get_mut();
+                            if current.hop_cnt > ri_new.hop_cnt {
+                                // new route is better, so replace
+                                *current = ri_new;
+                            }
+                        }
+                    }
+                    if !self.all_nodes.contains_key(&ri.to) {
+                        info!(target: "probing", "detected a new node {} via {:?}", ri.to, ri.gateway);
+                        let node = DistantNode::from(ri);
+                        new_nodes.push((ri.to,node));
+                    }
+                }
+            }
+        }
+        for (wg_ip, node) in new_nodes {
+            self.all_nodes.insert(wg_ip, Box::new(node));
+        }
 
         for entry in new_routes.iter() {
             debug!(target: "routing", "new routes' entry: {:?}", entry);
@@ -358,14 +277,34 @@ impl NetworkManager {
             debug!(target: "routing", "Existing route: {:?}", ri);
         }
 
-        // new_routes is built. So update route_db and mark changes
+        // new_routes is built. Update gateway info of all nodes
+        for (wg_ip, node) in self.all_nodes.iter_mut() {
+            let gateway = new_routes.get(wg_ip).and_then(|ri| ri.gateway);
+            node.set_gateway(gateway);
+            node.clear_gateway_for();
+        }
+        for ri in new_routes.values() {
+            if let Some(gateway) = ri.gateway.as_ref() {
+                if let Some(node) = self.all_nodes.get_mut(gateway) {
+                    warn!("gateway for {} {}", ri.to, gateway);
+                    node.add_gateway_for(ri.to);
+                }
+            }
+        }
+
+        // remove all distant nodes without a route
+        self.all_nodes.retain(|wg_ip,node| 
+            !node.is_distant_node() || new_routes.contains_key(wg_ip)
+            );
+        
+        // So update route_db and mark changes
         //
         // first routes to be deleted
         let mut to_be_deleted = vec![];
         for ri in self.route_db.route_for.values_mut() {
             if !new_routes.contains_key(&ri.to) {
                 trace!(target: "routing", "del route {:?}", ri);
-                self.pending_route_changes.push(RouteChange::DelRoute {
+                route_changes.push(RouteChange::DelRoute {
                     to: ri.to,
                     gateway: ri.gateway,
                 });
@@ -388,7 +327,7 @@ impl NetworkManager {
                 Entry::Vacant(e) => {
                     // new node with route
                     trace!(target: "routing", "is new route {} via {:?}", to, ri.gateway);
-                    self.pending_route_changes.push(RouteChange::AddRoute {
+                    route_changes.push(RouteChange::AddRoute {
                         to,
                         gateway: ri.gateway,
                     });
@@ -407,7 +346,7 @@ impl NetworkManager {
                     // update route
                     if e.get().to != ri.to || e.get().gateway != ri.gateway {
                         trace!(target: "routing", "replace existing route {}", to);
-                        self.pending_route_changes.push(RouteChange::ReplaceRoute {
+                        route_changes.push(RouteChange::ReplaceRoute {
                             to,
                             gateway: ri.gateway,
                         });
@@ -420,15 +359,16 @@ impl NetworkManager {
                     }
                 }
             }
-            trace!(target: "routing", "route changes: {}", self.pending_route_changes.len());
+            trace!(target: "routing", "route changes: {}", route_changes.len());
         }
-        if !self.pending_route_changes.is_empty() {
-            trace!(target: "routing", "{} route changes", self.pending_route_changes.len());
-            for change in self.pending_route_changes.iter() {
+        if !route_changes.is_empty() {
+            trace!(target: "routing", "{} route changes", route_changes.len());
+            for change in route_changes.iter() {
                 trace!(target: "routing", "route changes {:?}", change);
             }
             self.route_db.version += 1;
         }
+        route_changes
     }
     pub fn get_ips_for_peer(&self, peer: Ipv4Addr) -> Vec<Ipv4Addr> {
         let mut ips = vec![];

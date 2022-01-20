@@ -248,7 +248,9 @@ fn main_loop(
                     RouteDatabase(db) => {
                         info!(target: "routing", "RouteDatabase from {}", src_addr);
                         debug!(target: &src_addr.ip().to_string(), "Received route database, version = {}", db.routedb_version);
-                        events = network_manager.process_route_database(db);
+                        events = network_manager
+                            .process_route_database(db)
+                            .unwrap_or_default();
                     }
                     LocalContactRequest => match src_addr {
                         SocketAddr::V4(destination) => {

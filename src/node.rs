@@ -1,23 +1,39 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, ToSocketAddrs};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
 
 use log::*;
+use serde::{Deserialize, Serialize};
 
 use crate::configuration::{PublicKeyWithTime, PublicPeer, StaticConfiguration};
-use crate::crypt_udp::{AddressedTo, AdvertisementPacket, LocalContactPacket};
+use crate::crypt_udp::{AddressedTo, AdvertisementPacket, LocalContactPacket, RouteDatabasePacket};
 use crate::event::Event;
-use crate::manager::{PeerRouteDB, RouteInfo};
 use crate::wg_dev::map_to_ipv6;
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct RouteInfo {
+    pub to: Ipv4Addr,
+    pub local_admin_port: u16,
+    pub hop_cnt: usize,
+    pub gateway: Option<Ipv4Addr>,
+}
+
+#[derive(Default, Debug)]
+pub struct PeerRouteDB {
+    pub version: usize,
+    nr_entries: usize,
+    pub route_for: HashMap<Ipv4Addr, RouteInfo>,
+}
 
 #[derive(Default, Debug)]
 pub struct RouteDBManager {
-    routedb: Option<PeerRouteDB>,
+    pub routedb: Option<PeerRouteDB>,
     incoming_routedb: Option<PeerRouteDB>,
     latest_routedb_version: Option<usize>,
 }
 impl RouteDBManager {
     fn is_outdated(&self) -> bool {
+        self.latest_routedb_version.is_none() ||
         self.routedb.as_ref().map(|db| db.version) != self.latest_routedb_version
     }
     fn latest_version(&mut self, version: usize) {
@@ -28,17 +44,111 @@ impl RouteDBManager {
         self.incoming_routedb = None;
         self.latest_routedb_version = None;
     }
+    pub fn process_route_database(&mut self, req: RouteDatabasePacket) -> Vec<Event> {
+        let mut need_routes_update = false;
+        let mut events = vec![];
+        debug!(target: "routing", "RouteDatabase: {:#?}", req.known_routes);
+
+        // The database will be received in one to many udp packages.
+        //
+        if let Some(mut incoming_routedb) = self.incoming_routedb.take() {
+            // route database exist and must not be complete
+            //
+            if req.nr_entries != incoming_routedb.nr_entries {
+                if req.routedb_version == incoming_routedb.version {
+                    // All ok, got more entries for the database
+                    for ri in req.known_routes {
+                        incoming_routedb.route_for.insert(ri.to, ri);
+                    }
+
+                    // Check, if the database is complete
+                    if req.nr_entries == incoming_routedb.route_for.len() {
+                        need_routes_update = true;
+                        self.routedb = Some(incoming_routedb);
+                    } else {
+                        // put back the route_db into the incoming_routedb
+                        self.incoming_routedb = Some(incoming_routedb);
+                    }
+                } else {
+                    // Received packet with wrong version info
+                    warn!(target: "routing", "Mismatch of route db version, so partial db is dropped");
+                }
+            } else {
+                warn!(target: "routing", "Another packet for complete database received, so strange db is dropped");
+            }
+        } else {
+            // First packet of a new route_db. So just store it
+            let routes = req
+                .known_routes
+                .iter()
+                .map(|e| (e.to, e.clone()))
+                .collect::<HashMap<Ipv4Addr, RouteInfo>>();
+            let incoming_routedb = PeerRouteDB {
+                version: req.routedb_version,
+                nr_entries: req.nr_entries,
+                route_for: routes,
+            };
+
+            // Perhaps the database is already complete ?
+            if req.nr_entries == incoming_routedb.route_for.len() {
+                need_routes_update = true;
+                self.routedb = Some(incoming_routedb);
+            } else {
+                // put back the route_db into the incoming_routedb
+                self.incoming_routedb = Some(incoming_routedb);
+            }
+        }
+        if need_routes_update {
+            events.push(Event::UpdateRoutes);
+        }
+        events
+    }
 }
 
 pub trait Node {
-    fn routedb_manager(&mut self) -> Option<&mut RouteDBManager> {
+    fn routedb_manager(&self) -> Option<&RouteDBManager> {
         None
+    }
+    fn routedb_manager_mut(&mut self) -> Option<&mut RouteDBManager> {
+        None
+    }
+    fn process_route_database(&mut self, req: RouteDatabasePacket) -> Option<Vec<Event>> {
+        self.routedb_manager_mut()
+            .map(|db| db.process_route_database(req))
     }
     fn local_admin_port(&self) -> u16;
     fn is_reachable(&self) -> bool {
         false
     }
-    fn via_gateway(&self) -> Option<Ipv4Addr> {
+    fn is_distant_node(&self) -> bool {
+        false
+    }
+    fn get_gateway(&self) -> Option<Ipv4Addr> {
+        None
+    }
+    fn set_gateway(&mut self, _gateway: Option<Ipv4Addr>) {
+    }
+    fn get_gateway_for(&mut self) -> Option<&mut HashSet<Ipv4Addr>> {
+        None
+    }
+    fn clear_gateway_for(&mut self) {
+        if let Some(gf) = self.get_gateway_for() {
+            gf.clear();
+        }
+    }
+    fn add_gateway_for(&mut self, node: Ipv4Addr) {
+        if let Some(gf) = self.get_gateway_for() {
+            gf.insert(node);
+        }
+    }
+
+    fn get_route_info(&self) -> Option<RouteInfo> {
+        // let ri = RouteInfo {
+        //     to: *wg_ip,
+        //     local_admin_port: node.local_admin_port(),
+        //     hop_cnt: 0,
+        //     gateway: node.via_gateway(),
+        // };
         None
     }
     fn visible_wg_endpoint(&self) -> Option<SocketAddr> {
@@ -90,8 +200,14 @@ impl StaticPeer {
     }
 }
 impl Node for StaticPeer {
-    fn routedb_manager(&mut self) -> Option<&mut RouteDBManager> {
+    fn routedb_manager(&self) -> Option<&RouteDBManager> {
+        Some(&self.routedb_manager)
+    }
+    fn routedb_manager_mut(&mut self) -> Option<&mut RouteDBManager> {
         Some(&mut self.routedb_manager)
+    }
+    fn get_gateway_for(&mut self) -> Option<&mut HashSet<Ipv4Addr>> {
+        Some(&mut self.gateway_for)
     }
     fn local_admin_port(&self) -> u16 {
         self.static_peer.admin_port
@@ -135,12 +251,6 @@ impl Node for StaticPeer {
                 let destination =
                     SocketAddrV4::new(self.static_peer.wg_ip, self.static_peer.admin_port);
 
-                // if the local copy is not matching with latest info from StaticPeer,
-                // then request an update.
-                if self.routedb_manager.is_outdated() {
-                    events.push(Event::SendRouteDatabaseRequest { to: destination });
-                }
-
                 let destination = SocketAddr::V4(destination);
 
                 // Every 60s send an advertisement to the wireguard address
@@ -149,6 +259,13 @@ impl Node for StaticPeer {
                     to: destination,
                     wg_ip: self.static_peer.wg_ip,
                 });
+            }
+            if now % 10 == 0 && self.routedb_manager.is_outdated() { 
+                // if the local copy is not matching with latest info from StaticPeer,
+                // then request an update.
+                let destination =
+                        SocketAddrV4::new(self.static_peer.wg_ip, self.static_peer.admin_port);
+                events.push(Event::SendRouteDatabaseRequest { to: destination });
             }
         } else {
             // If static peer is not alive, send every 60s an advertisement
@@ -349,8 +466,14 @@ impl DynamicPeer {
     }
 }
 impl Node for DynamicPeer {
-    fn routedb_manager(&mut self) -> Option<&mut RouteDBManager> {
+    fn routedb_manager(&self) -> Option<&RouteDBManager> {
+        Some(&self.routedb_manager)
+    }
+    fn routedb_manager_mut(&mut self) -> Option<&mut RouteDBManager> {
         Some(&mut self.routedb_manager)
+    }
+    fn get_gateway_for(&mut self) -> Option<&mut HashSet<Ipv4Addr>> {
+        Some(&mut self.gateway_for)
     }
     fn visible_wg_endpoint(&self) -> Option<SocketAddr> {
         self.dp_visible_wg_endpoint
@@ -474,8 +597,7 @@ impl Node for DynamicPeer {
                         && advertisement.your_visible_wg_endpoint.is_some()
                     {
                         events.push(Event::UpdateWireguardConfiguration);
-                        self.local_reachable_wg_endpoint =
-                            advertisement.your_visible_wg_endpoint;
+                        self.local_reachable_wg_endpoint = advertisement.your_visible_wg_endpoint;
                     }
                 }
             }
@@ -494,7 +616,6 @@ impl Node for DynamicPeer {
 
 #[derive(Debug)]
 pub struct DistantNode {
-    is_static_peer: Option<bool>,
     pub wg_ip: Ipv4Addr,
     admin_port: u16,
     //hop_cnt: usize,
@@ -506,11 +627,11 @@ pub struct DistantNode {
     send_count: usize,
     can_send_to_visible_endpoint: bool,
     pub visible_endpoint: Option<SocketAddr>,
+    gateway: Option<Ipv4Addr>,
 }
 impl DistantNode {
     pub fn from(ri: &RouteInfo) -> Self {
         DistantNode {
-            is_static_peer: None,
             wg_ip: ri.to,
             admin_port: ri.local_admin_port,
             //hop_cnt: ri.hop_cnt,
@@ -522,16 +643,17 @@ impl DistantNode {
             send_count: 0,
             can_send_to_visible_endpoint: false,
             visible_endpoint: None,
+            gateway: None,
         }
     }
-    pub fn process_local_contact(&mut self, local: LocalContactPacket) {
+}
+impl Node for DistantNode {
+    fn process_local_contact(&mut self, local: LocalContactPacket) {
         self.local_ip_list = Some(local.local_ip_list);
         self.local_admin_port = Some(local.local_admin_port);
         self.visible_endpoint = local.my_visible_wg_endpoint;
         self.public_key = Some(local.public_key);
     }
-}
-impl Node for DistantNode {
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
         self.public_key.as_ref().map(
             |public_key| {
@@ -548,8 +670,8 @@ impl Node for DistantNode {
     }
     fn process_every_second(
         &mut self,
-        _now: u64,
-        static_config: &StaticConfiguration,
+        now: u64,
+        _static_config: &StaticConfiguration,
     ) -> Vec<Event> {
         let mut events = vec![];
 
@@ -558,20 +680,7 @@ impl Node for DistantNode {
         } else {
             ""
         };
-        trace!(target: "nodes", "Alive node: {:?} for {} s {}", self.wg_ip, self.known_in_s, pk_available);
         self.known_in_s += 1;
-
-        if self.is_static_peer.is_none() {
-            self.is_static_peer = Some(static_config.peers.contains_key(&self.wg_ip));
-        }
-
-        if self.is_static_peer == Some(true) {
-            // nothing to do for a static peer
-            //
-            // static peers will be polled regularly until direct connection has been successfully
-            // established.
-            return events;
-        }
 
         if self.local_ip_list.is_none()
             || self.public_key.is_none()
@@ -579,36 +688,44 @@ impl Node for DistantNode {
         {
             if self.known_in_s % 60 == 0 || self.known_in_s < 5 {
                 // Send request for local contact
+                trace!(target: "nodes", "Alive node: {:?} for {} s {}", self.wg_ip, self.known_in_s, pk_available);
                 let destination = SocketAddrV4::new(self.wg_ip, self.admin_port);
                 events.push(Event::SendLocalContactRequest { to: destination });
             }
-        } else if let Some(admin_port) = self.local_admin_port.as_ref() {
-            // All ok. so constantly send advertisement to the Ipv6 address
-            events.push(Event::SendAdvertisement {
-                addressed_to: AddressedTo::WireguardV6Address,
-                to: SocketAddr::new(IpAddr::V6(map_to_ipv6(&self.wg_ip)), *admin_port),
-                wg_ip: self.wg_ip,
-            });
         }
 
-        if self.send_count < 100 {
+        else if self.send_count < 10 {
+            // Try to reach via tunnel to ipv6 address
+
+            // Try to reach local ip
             if let Some(ip_list) = self.local_ip_list.as_ref() {
                 if let Some(admin_port) = self.local_admin_port.as_ref() {
                     self.send_count += 1;
+                    info!(target: &self.wg_ip.to_string(), "try to reach distant node via local subnet {}/10",self.send_count);
                     for ip in ip_list.iter() {
                         if let IpAddr::V4(ipv4) = ip {
                             if *ipv4 == self.wg_ip {
                                 continue;
                             }
-                            events.push(Event::SendAdvertisement {
-                                addressed_to: AddressedTo::LocalAddress,
-                                to: SocketAddr::new(*ip, *admin_port),
-                                wg_ip: self.wg_ip,
-                            });
                         }
+                        events.push(Event::SendAdvertisement {
+                            addressed_to: AddressedTo::LocalAddress,
+                            to: SocketAddr::new(*ip, *admin_port),
+                            wg_ip: self.wg_ip,
+                        });
                     }
                 }
             }
+        }
+        if now % 60 < 5 {
+            // TODO: Try to reach visible endpoint via wg
+            let wg_ipv6 = map_to_ipv6(&self.wg_ip);
+            let destination = SocketAddr::V6(SocketAddrV6::new(wg_ipv6, self.admin_port,0 ,0));
+            events.push(Event::SendAdvertisement {
+                addressed_to: AddressedTo::WireguardV6Address,
+                to: destination,
+                wg_ip: self.wg_ip,
+            });
         }
 
         let can_send = self.public_key.is_some() && self.visible_endpoint.is_some();
@@ -621,7 +738,8 @@ impl Node for DistantNode {
         events
     }
     fn ok_to_delete_without_route(&self, _now: u64) -> bool {
-        self.known_in_s > 10
+        // only delete, if dropped from routing table
+        false
     }
     fn analyze_advertisement(
         &mut self,
@@ -662,5 +780,14 @@ impl Node for DistantNode {
     }
     fn local_admin_port(&self) -> u16 {
         self.admin_port
+    }
+    fn is_distant_node(&self) -> bool {
+        true
+    }
+    fn get_gateway(&self) -> Option<Ipv4Addr> {
+        self.gateway
+    }
+    fn set_gateway(&mut self, gateway: Option<Ipv4Addr>) {
+        self.gateway = gateway;
     }
 }

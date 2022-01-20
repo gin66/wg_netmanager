@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::configuration::*;
 use crate::error::*;
-use crate::manager::*;
 use crate::node::*;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -295,7 +294,7 @@ impl CryptUdp {
                 debug!("UDP TIMESTAMP {}", dt);
             }
             if dt > 10 {
-                error!(target:"udp","time mismatch");
+                error!(target:"udp","time mismatch {} seconds", dt);
                 strerror("time mismatch")?;
             }
 

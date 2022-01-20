@@ -538,6 +538,7 @@ impl Node for DynamicPeer {
         src_addr: SocketAddr,
     ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
+        self.lastseen = now;
 
         // Check if public_key including creation time is same
         if self.public_key != advertisement.public_key {

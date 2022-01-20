@@ -486,7 +486,7 @@ impl Node for DynamicPeer {
     fn peer_wireguard_configuration(&self) -> Option<Vec<String>> {
         let mut lines = vec![];
         lines.push(format!("PublicKey = {}", &self.public_key.key));
-        lines.push(format!("AllowedIPs = {}/32", wg_ip));
+        lines.push(format!("AllowedIPs = {}/32", self.wg_ip));
         lines.push(format!("AllowedIPs = {}/128", map_to_ipv6(&self.wg_ip)));
         for ip in self.gateway_for.iter() {
             lines.push(format!("AllowedIPs = {}/32", ip));

@@ -87,7 +87,7 @@ pub fn run(
                             tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
                         }
                         Err(e) => {
-                            error!("Error in json decode: {:?}", e);
+                            error!("Error in decode: {:?}", e);
                         }
                     }
                 }
@@ -114,7 +114,7 @@ pub fn run(
                             tx_clone.send(Event::Udp(udp_packet, src_addr)).unwrap();
                         }
                         Err(e) => {
-                            error!("Error in json decode: {:?}", e);
+                            error!("Error in decode: {:?}", e);
                         }
                     }
                 }

@@ -39,7 +39,6 @@ fn get_option_string(
     Err(format!("Configuration option <{}> is not defined", option_name).into())
 }
 
-
 fn main() -> BoxResult<()> {
     let matches = App::new("Wireguard Network Manager")
         .version(env!("CARGO_PKG_VERSION"))

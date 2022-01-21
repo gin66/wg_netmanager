@@ -31,18 +31,14 @@ pub fn v6_strip_interface(sa: &str) -> BoxResult<String> {
     let flds = sa.split('%').collect::<Vec<_>>();
     if flds.len() == 1 {
         Ok(flds[0].to_string())
-    }
-    else if flds.len() == 2 {
+    } else if flds.len() == 2 {
         let rem = flds[1].split(']').collect::<Vec<_>>();
         if rem.len() == 2 {
-            Ok(format!("{}]{}",flds[0],rem[1]))
-        }
-        else {
+            Ok(format!("{}]{}", flds[0], rem[1]))
+        } else {
             Err(format!("invalid address: {}", sa).into())
         }
-    }
-    else {
+    } else {
         Err(format!("invalid address: {}", sa).into())
     }
 }
-

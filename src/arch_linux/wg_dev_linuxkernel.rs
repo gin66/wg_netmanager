@@ -257,9 +257,12 @@ impl WireguardDevice for WireguardDeviceLinux {
         for peer_ini in ini.section_all(Some("Peer")) {
             if let Some(endpoint) = peer_ini.get("Endpoint") {
                 if let Some(pub_key) = peer_ini.get("PublicKey") {
-                    let sock_addr: SocketAddr = endpoint.parse().unwrap();
-                    trace!("{} is endpoint of {}", sock_addr, pub_key);
-                    pubkey_to_endpoint.insert(pub_key.to_string(), sock_addr);
+                    if let Ok(sa) = v6_strip_interface(endpoint) {
+                        if let Ok(sock_addr) = sa.parse::<SocketAddr>() {
+                            trace!("{} is endpoint of {}", sock_addr, pub_key);
+                            pubkey_to_endpoint.insert(pub_key.to_string(), sock_addr);
+                        }
+                    }
                 }
             }
         }

@@ -25,3 +25,24 @@ pub fn map_to_ipv6(ipv4: &Ipv4Addr) -> Ipv6Addr {
     segments[0] = 0xfd00;
     Ipv6Addr::from(segments)
 }
+
+// wireguard returns an address like this and the %-part has to be removed:[fe80::3bac:744c:f807:a5a2%br-wan]:50001
+pub fn v6_strip_interface(sa: &str) -> BoxResult<String> {
+    let flds = sa.split('%').collect::<Vec<_>>();
+    if flds.len() == 1 {
+        Ok(flds[0].to_string())
+    }
+    else if flds.len() == 2 {
+        let rem = flds[1].split(']').collect::<Vec<_>>();
+        if rem.len() == 2 {
+            Ok(format!("{}]{}",flds[0],rem[1]))
+        }
+        else {
+            Err(format!("invalid address: {}", sa).into())
+        }
+    }
+    else {
+        Err(format!("invalid address: {}", sa).into())
+    }
+}
+

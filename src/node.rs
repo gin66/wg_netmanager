@@ -171,7 +171,7 @@ pub trait Node {
         pubkey_to_endpoint: &mut HashMap<String, SocketAddr>,
     );
     fn process_local_contact(&mut self, _local: LocalContactPacket) {
-        warn!("process_local_contact: not implemented");
+        warn!("process_local_contact: unexpected for StaticPeer and DynamicPeer");
     }
 }
 
@@ -379,12 +379,55 @@ impl Node for StaticPeer {
 }
 
 #[derive(Debug)]
+pub enum ConnectionType {
+    Static {
+        endpoint: SocketAddr,
+        admin_endpoint: SocketAddr,
+    },
+    Local {
+        endpoint: SocketAddr,
+        admin_endpoint: SocketAddr,
+    },
+    Dynamic {
+        endpoint: Option<SocketAddr>,
+    },
+    Unknown
+}
+impl ConnectionType {
+    fn endpoint(&self) -> Option<SocketAddr> {
+        match self {
+            ConnectionType::Static { endpoint, .. } =>  Some(*endpoint),
+            ConnectionType::Local { endpoint, .. } =>  Some(*endpoint),
+            ConnectionType::Dynamic { endpoint } => *endpoint,
+            ConnectionType::Unknown => None
+        }
+    }
+    fn as_str(&self) -> & 'static str {
+        match self {
+            ConnectionType::Static {  .. } =>  {
+                "static"
+            },
+            ConnectionType::Local { .. } =>  {
+                "local"
+            },
+            ConnectionType::Dynamic { .. } => {
+                "dynamic"
+            },
+            ConnectionType::Unknown => {
+                "unknown"
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct DynamicPeer {
     pub public_key: PublicKeyWithTime,
     pub local_wg_port: u16,
     pub local_admin_port: u16,
     pub wg_ip: Ipv4Addr,
     pub name: String,
+    pub connection: ConnectionType,
     pub local_reachable_wg_endpoint: Option<SocketAddr>,
     pub local_reachable_admin_endpoint: Option<SocketAddr>,
     pub dp_visible_wg_endpoint: Option<SocketAddr>,
@@ -400,6 +443,7 @@ impl DynamicPeer {
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
     ) -> Self {
+        let connection: ConnectionType;
         let mut local_reachable_admin_endpoint = None;
         let mut local_reachable_wg_endpoint = None;
         let mut dp_visible_wg_endpoint = None;
@@ -408,10 +452,19 @@ impl DynamicPeer {
         match &advertisement.addressed_to {
             StaticAddress => {
                 // seems the peer thinks, I am a static node.
-                // so the info in the advertisement is not of interest.
+                warn!("needs more work");
+                connection = ConnectionType::Unknown;
             }
             ReplyFromStaticAddress => {
                 // The peer is a static node. So the defined endpoint can be used.
+                if let Some(static_peer) = static_config.peers.get(&advertisement.wg_ip) {
+                    let endpoint = SocketAddr::new(src_addr.ip(), static_peer.wg_port);
+                    connection = ConnectionType::Static { endpoint, admin_endpoint: src_addr };
+                }
+                else {
+                    connection = ConnectionType::Unknown;
+                }
+
                 // But the static peer gives us info about our visible address.
                 // If this is not a "local" address, then this is after a firewall
                 // and can be used for NAT traversal for other node. So store this info
@@ -433,6 +486,7 @@ impl DynamicPeer {
                 // The peer and myself are talking in the same subnet.
                 // So the peer's endpoint can be determined.
                 let endpoint = SocketAddr::new(src_addr.ip(), advertisement.local_wg_port);
+                connection = ConnectionType::Local { endpoint, admin_endpoint: src_addr };
                 local_reachable_wg_endpoint = Some(endpoint);
                 local_reachable_admin_endpoint = Some(src_addr);
             }
@@ -441,9 +495,11 @@ impl DynamicPeer {
                 // dp_visible_wg_endpoint = advertisement.my_visible_wg_endpoint;
                 // As soon as the peer is registered as DynamicPeer, the route will be adjusted
                 // accordingly
+                connection = ConnectionType::Dynamic { endpoint: advertisement.your_visible_wg_endpoint }
             }
             WireguardAddress | ReplyFromWireguardAddress => {
-                // This should happen only after successful NAT traversal
+                warn!(target: &advertisement.wg_ip.to_string(), "unexpected advertisement to wireguard address for new dynamic peer");
+                connection = ConnectionType::Unknown
             }
         }
         let mut routedb_manager = RouteDBManager::default();
@@ -454,6 +510,7 @@ impl DynamicPeer {
             local_wg_port: advertisement.local_wg_port,
             public_key: advertisement.public_key.clone(),
             name: advertisement.name,
+            connection,
             local_reachable_admin_endpoint,
             local_reachable_wg_endpoint,
             dp_visible_wg_endpoint,
@@ -491,13 +548,9 @@ impl Node for DynamicPeer {
         for ip in self.gateway_for.iter() {
             lines.push(format!("AllowedIPs = {}/32", ip));
         }
-        if let Some(endpoint) = self.local_reachable_wg_endpoint.as_ref() {
-            debug!(target: "configuration", "peer {} uses local endpoint {}", self.wg_ip, endpoint);
-            debug!(target: &self.wg_ip.to_string(), "use local endpoint {}", endpoint);
-            lines.push(format!("EndPoint = {}", endpoint));
-        } else if let Some(endpoint) = self.dp_visible_wg_endpoint.as_ref() {
-            debug!(target: "configuration", "peer {} uses visible (NAT) endpoint {}", self.wg_ip, endpoint);
-            debug!(target: &self.wg_ip.to_string(), "use visible (NAT) endpoint {}", endpoint);
+        if let Some(endpoint) = self.connection.endpoint() {
+            debug!(target: "configuration", "peer {} uses {} endpoint {}", self.wg_ip, self.connection.as_str(), endpoint);
+            debug!(target: &self.wg_ip.to_string(), "use {} endpoint {}", self.connection.as_str(), endpoint);
             lines.push(format!("EndPoint = {}", endpoint));
         }
         Some(lines)
@@ -577,10 +630,44 @@ impl Node for DynamicPeer {
 
             use crate::crypt_udp::AddressedTo::*;
             match advertisement.addressed_to {
-                StaticAddress | LocalAddress | ReplyFromStaticAddress | ReplyFromLocalAddress => {
+                StaticAddress => {
                     // For whatever reason the peer sends not via the tunnel.
                     // Was the connection dropped or endpoint is not correct ?
+                    // or a late package addressed to distant node ?
                     warn!(target: "advertisement", "has not been sent via tunnel");
+                    if advertisement.your_visible_wg_endpoint.is_some()
+                    {
+                        events.push(Event::UpdateWireguardConfiguration);
+                        self.dp_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                    }
+                    events.push(Event::SendAdvertisement {
+                        addressed_to: advertisement.addressed_to.reply(),
+                        to: src_addr,
+                        wg_ip: self.wg_ip,
+                    });
+                }
+                ReplyFromStaticAddress => {
+                    warn!(target: "advertisement", "reply has not been sent via tunnel");
+                    if self.dp_visible_wg_endpoint.is_none()
+                        && advertisement.your_visible_wg_endpoint.is_some()
+                    {
+                        events.push(Event::UpdateWireguardConfiguration);
+                        self.dp_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                    }
+                }
+                LocalAddress => {
+                    // For whatever reason the peer sends not via the tunnel.
+                    // Was the connection dropped or endpoint is not correct ?
+                    // or a late package addressed to distant node ?
+                    warn!(target: "advertisement", "has not been sent via tunnel");
+                    events.push(Event::SendAdvertisement {
+                        addressed_to: advertisement.addressed_to.reply(),
+                        to: src_addr,
+                        wg_ip: self.wg_ip,
+                    });
+                }
+                ReplyFromLocalAddress => {
+                    warn!(target: "advertisement", "reply has not been sent via tunnel");
                 }
                 WireguardAddress
                 | WireguardV6Address
@@ -588,17 +675,15 @@ impl Node for DynamicPeer {
                 | ReplyFromWireguardV6Address => {
                     // tunnel is ok. So check for visible wg endpoints
                     if self.dp_visible_wg_endpoint.is_none() {
-                        // This should be done only once and only for non local peers,
-                        // otherwise the existing public one will be overwritten
-                        warn!(target: "advertisement", "need more work");
-                        events.push(Event::ReadWireguardConfiguration);
-                    }
-
-                    if self.local_reachable_wg_endpoint.is_none()
-                        && advertisement.your_visible_wg_endpoint.is_some()
-                    {
-                        events.push(Event::UpdateWireguardConfiguration);
-                        self.local_reachable_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                        if advertisement.your_visible_wg_endpoint.is_some()
+                        {
+                            events.push(Event::UpdateWireguardConfiguration);
+                            self.dp_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                        }
+                        else {
+                            warn!(target: "advertisement", "need more work");
+                            events.push(Event::ReadWireguardConfiguration);
+                        }
                     }
                 }
             }

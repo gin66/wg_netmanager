@@ -1,4 +1,4 @@
-Todos:
+MID PRIORITY:
 * send default gateway
 * add command line option to generate a new config 
 * warn about readbility of config file if not -r--------

@@ -101,6 +101,8 @@ Admin
 - [ ] REST API
 - [ ] Web UI frontend
 
+As it works on my setup, the development will now slow down and will focus more on bugfixing.
+
 # Working Example
 
 My test setup is:
@@ -154,7 +156,7 @@ Actually, the tendency to go to one-to-one connections causes a new problem. The
 
 Not so much a problem in my setup, but still something to be addressed in the long run.
 
-# Not so good working Example
+# Another working Example
 
 A second setup is:
 
@@ -173,12 +175,6 @@ A second setup is:
                             =====Router 2====Masquerade+Firewall
                       192.168.2.x  |
 ```
-This setup does not run stable and the wg_netmanager of Router 2 residing in domain 192.168.2.x drops off.
-
-Moreover, a node accessing another node via an IP outside of wireguard IP wants to initiate a new connection.
-Currently the answer is sent back (to an already known node) to the wireguard tunnel, which cannot reach the callee.
-This way the connection will not be established.
-=> Need to revise the internal structure for dynamic peer and implement better scheme + analysis of src_addr.
 
 # Installation
 
@@ -280,3 +276,7 @@ Consequently, in the config-file the subnet has to specified. If the subnet does
 # License
 
 The code of this crate is licensed according to MIT. To learn about the licenses of included crates, please check `cargo license`.
+
+# Lessons Learned
+
+- Spent half a day figuring out, why udp socket connection has been working, tunnel in wireguard configuration on both peers have been properly setup, but tunnel was not working. At some point I have recognized, that the working nodes were in the internet and the failing ones in the local subnet. Rebooting the internet router solved this issue

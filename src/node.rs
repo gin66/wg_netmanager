@@ -673,9 +673,9 @@ impl Node for DynamicPeer {
                 | ReplyFromWireguardV6Address => {
                     // tunnel is ok. So check for visible wg endpoints
                     if self.dp_visible_wg_endpoint.is_none() {
-                        if advertisement.your_visible_wg_endpoint.is_some() {
+                        if let Some(endpoint) = advertisement.your_visible_wg_endpoint {
                             events.push(Event::UpdateWireguardConfiguration);
-                            self.dp_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                            self.dp_visible_wg_endpoint = Some(endpoint);
                         } else {
                             warn!(target: "advertisement", "need more work");
                             events.push(Event::ReadWireguardConfiguration);

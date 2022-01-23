@@ -54,6 +54,7 @@ LOW PRIORITY:
 * provide a REST interface, so by ssh'ing in any machine it is possibly to retrieve a ascii qrcode and use this as log in for pure wireguard client
 * more endpoints per peer
 * make video with watch wg showconf per vps
+* send out shutdown info to all nodes
 
 OBSOLETE:
 * Add option to set a static route to loopback to prevent leakage of packets to default gateway 

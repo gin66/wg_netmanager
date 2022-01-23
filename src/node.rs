@@ -144,6 +144,7 @@ impl Node for StaticPeer {
         if self.is_alive && now - self.lastseen > 240 {
             // seems to be dead
             self.is_alive = false;
+            info!(target: &self.static_peer.wg_ip.to_string(),"static peer is not alive");
         }
 
         if self.is_alive {
@@ -642,6 +643,7 @@ impl DistantNode {
 impl Node for DistantNode {
     fn process_local_contact(&mut self, local: LocalContactPacket) {
         debug!(target: &self.wg_ip.to_string(), "Received local contact packet");
+        self.send_count = 0;
         self.local_ip_list = Some(local.local_ip_list);
         self.local_admin_port = Some(local.local_admin_port);
         self.visible_endpoint = local.my_visible_wg_endpoint;
@@ -748,7 +750,7 @@ impl Node for DistantNode {
             // As this peer is new, send an advertisement
             info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
             events.push(Event::SendAdvertisement {
-                addressed_to: AddressedTo::WireguardAddress,
+                addressed_to: advertisement.addressed_to.reply(),
                 to: src_addr,
                 wg_ip: dp.wg_ip,
             });

@@ -30,8 +30,8 @@ use log::*;
 use crate::configuration::*;
 use crate::crypt_udp::*;
 use crate::event::Event;
+use crate::node::{DistantNode, DynamicPeer, Node, StaticPeer};
 use crate::routedb::RouteInfo;
-use crate::node::{Node,StaticPeer,DynamicPeer,DistantNode};
 
 #[derive(Debug)]
 pub enum RouteChange {
@@ -129,7 +129,8 @@ impl NetworkManager {
                 events.push(Event::UpdateRoutes);
 
                 if let Some(dp) =
-                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr) {
+                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr)
+                {
                     entry.insert(Box::new(dp));
                 }
 

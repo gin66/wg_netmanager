@@ -156,7 +156,17 @@ impl WireguardDevice for WireguardDeviceLinux {
         )?;
 
         // This is allowed to fail
-        let _ = self.execute_command(vec!["ip", "route", "add", &format!("{:?}", subnet), "dev", &self.device_name], None);
+        let _ = self.execute_command(
+            vec![
+                "ip",
+                "route",
+                "add",
+                &format!("{:?}", subnet),
+                "dev",
+                &self.device_name,
+            ],
+            None,
+        );
 
         debug!("Interface {} set ip", self.device_name);
         Ok(())

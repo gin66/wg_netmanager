@@ -4,7 +4,7 @@ use std::net::Ipv4Addr;
 use log::*;
 use serde::{Deserialize, Serialize};
 
-use crate::crypt_udp::{RouteDatabasePacket};
+use crate::crypt_udp::RouteDatabasePacket;
 use crate::event::Event;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]

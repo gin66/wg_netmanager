@@ -7,7 +7,7 @@ use log::*;
 use crate::configuration::{PublicKeyWithTime, PublicPeer, StaticConfiguration};
 use crate::crypt_udp::{AddressedTo, AdvertisementPacket, LocalContactPacket, RouteDatabasePacket};
 use crate::event::Event;
-use crate::routedb::{RouteInfo, RouteDBManager};
+use crate::routedb::{RouteDBManager, RouteInfo};
 use crate::wg_dev::map_to_ipv6;
 
 pub trait Node {
@@ -353,8 +353,7 @@ impl DynamicPeer {
                 if static_config.is_static {
                     info!("StaticAddress: needs more work");
                     connection = ConnectionType::Passive;
-                }
-                else {
+                } else {
                     warn!("StaticAddress: needs more work");
                     return None;
                 }
@@ -529,10 +528,10 @@ impl Node for DynamicPeer {
                 events.push(Event::UpdateRoutes);
 
                 if let Some(dp) =
-                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr) {
-                return (Some(Box::new(dp)), events);
-                }
-                else {
+                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr)
+                {
+                    return (Some(Box::new(dp)), events);
+                } else {
                     return (None, vec![]);
                 }
             } else {
@@ -746,11 +745,14 @@ impl Node for DistantNode {
     ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
 
-        if let Some(dp) = DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr) {
+        let reply = advertisement.addressed_to.reply();
+        if let Some(dp) =
+            DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr)
+        {
             // As this peer is new, send an advertisement
             info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
             events.push(Event::SendAdvertisement {
-                addressed_to: advertisement.addressed_to.reply(),
+                addressed_to: reply,
                 to: src_addr,
                 wg_ip: dp.wg_ip,
             });
@@ -762,8 +764,7 @@ impl Node for DistantNode {
             }
 
             (Some(Box::new(dp)), events)
-        }
-        else {
+        } else {
             (None, events)
         }
     }

@@ -10,8 +10,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::configuration::*;
 use crate::error::*;
-use crate::routedb::RouteInfo;
 use crate::node::Node;
+use crate::routedb::RouteInfo;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AddressedTo {

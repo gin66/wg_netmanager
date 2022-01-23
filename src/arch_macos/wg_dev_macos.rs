@@ -120,6 +120,9 @@ impl WireguardDevice for WireguardDeviceMacos {
             None,
         );
 
+        // This is allowed to fail
+        let _ = self.execute_command(vec!["route", "-n", "add", "-net", &format!("{:?}", subnet), ip_extend], None);
+
         debug!("Interface {} set ip", self.device_name);
         Ok(())
     }

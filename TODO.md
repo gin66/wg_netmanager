@@ -48,7 +48,6 @@ LOW PRIORITY:
 * include boringtun, if kernel does not provide wireguard interface
 	or https://git.zx2c4.com/wireguard-rs (more official)
 * How to detect a net.ipv6.bindv6only=1 system
-* Add option to set a static route to loopback to prevent leakage of packets to default gateway 
 * Try to use a SIP-router and remove the need for a static server
 * exchange info about new public listeners and update config-file
   This would allow to ssh in a machine and start wg_manager without storing the shared key on the filesystem
@@ -57,6 +56,8 @@ LOW PRIORITY:
 * make video with watch wg showconf per vps
 
 OBSOLETE:
+* Add option to set a static route to loopback to prevent leakage of packets to default gateway 
+  => Add default route to wireguard interface
 * allow the possibility to read config from stdin.
   => use /dev/stdin as filename under linux
 * eliminate the need to specify two listen ports (one could be sufficient with appropriate scheme)

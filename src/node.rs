@@ -296,23 +296,23 @@ pub enum ConnectionType {
     Dynamic {
         endpoint: Option<SocketAddr>,
     },
-    Unknown,
+    Passive,
 }
 impl ConnectionType {
     fn endpoint(&self) -> Option<SocketAddr> {
         match self {
+            ConnectionType::Passive => None,
             ConnectionType::Static { endpoint, .. } => Some(*endpoint),
             ConnectionType::Local { endpoint, .. } => Some(*endpoint),
             ConnectionType::Dynamic { endpoint } => *endpoint,
-            ConnectionType::Unknown => None,
         }
     }
     fn as_str(&self) -> &'static str {
         match self {
+            ConnectionType::Passive => "passive",
             ConnectionType::Static { .. } => "static",
             ConnectionType::Local { .. } => "local",
             ConnectionType::Dynamic { .. } => "dynamic",
-            ConnectionType::Unknown => "unknown",
         }
     }
 }
@@ -339,7 +339,7 @@ impl DynamicPeer {
         static_config: &StaticConfiguration,
         advertisement: AdvertisementPacket,
         src_addr: SocketAddr,
-    ) -> Self {
+    ) -> Option<Self> {
         let connection: ConnectionType;
         let mut local_reachable_admin_endpoint = None;
         let mut local_reachable_wg_endpoint = None;
@@ -349,8 +349,14 @@ impl DynamicPeer {
         match &advertisement.addressed_to {
             StaticAddress => {
                 // seems the peer thinks, I am a static node.
-                warn!("needs more work");
-                connection = ConnectionType::Unknown;
+                if static_config.is_static {
+                    info!("StaticAddress: needs more work");
+                    connection = ConnectionType::Passive;
+                }
+                else {
+                    warn!("StaticAddress: needs more work");
+                    return None;
+                }
             }
             ReplyFromStaticAddress => {
                 // The peer is a static node. So the defined endpoint can be used.
@@ -361,7 +367,8 @@ impl DynamicPeer {
                         admin_endpoint: src_addr,
                     };
                 } else {
-                    connection = ConnectionType::Unknown;
+                    warn!("ReplyFromStaticAddress: reply from static address, but peer is not a static peer");
+                    return None;
                 }
 
                 // But the static peer gives us info about our visible address.
@@ -402,13 +409,13 @@ impl DynamicPeer {
                 }
             }
             WireguardAddress | ReplyFromWireguardAddress => {
-                warn!(target: &advertisement.wg_ip.to_string(), "unexpected advertisement to wireguard address for new dynamic peer");
-                connection = ConnectionType::Unknown
+                warn!(target: &advertisement.wg_ip.to_string(), "unexpected advertisement to wireguard address for new dynamic peer => ignore");
+                return None;
             }
         }
         let mut routedb_manager = RouteDBManager::default();
         routedb_manager.latest_version(advertisement.routedb_version);
-        DynamicPeer {
+        Some(DynamicPeer {
             wg_ip: advertisement.wg_ip,
             local_admin_port: advertisement.local_admin_port,
             local_wg_port: advertisement.local_wg_port,
@@ -422,7 +429,7 @@ impl DynamicPeer {
             admin_port: src_addr.port(),
             lastseen: now,
             routedb_manager,
-        }
+        })
     }
 }
 impl Node for DynamicPeer {
@@ -520,9 +527,13 @@ impl Node for DynamicPeer {
                 // and replace myself together with route update
                 events.push(Event::UpdateRoutes);
 
-                let dp =
-                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr);
+                if let Some(dp) =
+                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr) {
                 return (Some(Box::new(dp)), events);
+                }
+                else {
+                    return (None, vec![]);
+                }
             } else {
                 warn!(target: "advertisement", "Received advertisement with old public key => Reject");
             }
@@ -541,7 +552,7 @@ impl Node for DynamicPeer {
                     warn!(target: "advertisement", "has not been sent via tunnel");
                     if advertisement.your_visible_wg_endpoint.is_some() {
                         events.push(Event::UpdateWireguardConfiguration);
-                        self.dp_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                        self.dp_visible_wg_endpoint = advertisement.my_visible_wg_endpoint;
                     }
                     events.push(Event::SendAdvertisement {
                         addressed_to: advertisement.addressed_to.reply(),
@@ -555,7 +566,7 @@ impl Node for DynamicPeer {
                         && advertisement.your_visible_wg_endpoint.is_some()
                     {
                         events.push(Event::UpdateWireguardConfiguration);
-                        self.dp_visible_wg_endpoint = advertisement.your_visible_wg_endpoint;
+                        self.dp_visible_wg_endpoint = advertisement.my_visible_wg_endpoint;
                     }
                 }
                 LocalAddress => {
@@ -578,7 +589,7 @@ impl Node for DynamicPeer {
                 | ReplyFromWireguardV6Address => {
                     // tunnel is ok. So check for visible wg endpoints
                     if self.dp_visible_wg_endpoint.is_none() {
-                        if let Some(endpoint) = advertisement.your_visible_wg_endpoint {
+                        if let Some(endpoint) = advertisement.my_visible_wg_endpoint {
                             events.push(Event::UpdateWireguardConfiguration);
                             self.dp_visible_wg_endpoint = Some(endpoint);
                         } else {
@@ -739,23 +750,26 @@ impl Node for DistantNode {
     ) -> (Option<Box<dyn Node>>, Vec<Event>) {
         let mut events = vec![];
 
-        let dp = DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr);
+        if let Some(dp) = DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr) {
+            // As this peer is new, send an advertisement
+            info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
+            events.push(Event::SendAdvertisement {
+                addressed_to: AddressedTo::WireguardAddress,
+                to: src_addr,
+                wg_ip: dp.wg_ip,
+            });
+            events.push(Event::UpdateWireguardConfiguration);
 
-        // As this peer is new, send an advertisement
-        info!(target: "advertisement", "Advertisement from new peer at old address: {}", src_addr);
-        events.push(Event::SendAdvertisement {
-            addressed_to: AddressedTo::WireguardAddress,
-            to: src_addr,
-            wg_ip: dp.wg_ip,
-        });
-        events.push(Event::UpdateWireguardConfiguration);
+            // if still not known, then ask wireguard
+            if dp.dp_visible_wg_endpoint.is_none() {
+                events.push(Event::ReadWireguardConfiguration);
+            }
 
-        // if still not known, then ask wireguard
-        if dp.dp_visible_wg_endpoint.is_none() {
-            events.push(Event::ReadWireguardConfiguration);
+            (Some(Box::new(dp)), events)
         }
-
-        (Some(Box::new(dp)), events)
+        else {
+            (None, events)
+        }
     }
     fn update_from_wireguard_configuration(
         &mut self,

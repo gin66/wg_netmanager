@@ -128,9 +128,10 @@ impl NetworkManager {
                 });
                 events.push(Event::UpdateRoutes);
 
-                let dp =
-                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr);
-                entry.insert(Box::new(dp));
+                if let Some(dp) =
+                    DynamicPeer::from_advertisement(now, static_config, advertisement, src_addr) {
+                    entry.insert(Box::new(dp));
+                }
 
                 events
             }

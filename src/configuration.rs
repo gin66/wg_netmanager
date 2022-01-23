@@ -103,7 +103,7 @@ impl StaticConfigurationBuilder {
         self
     }
     pub fn build(self) -> StaticConfiguration {
-        let peer_cnt = self.peers.len();
+        let is_static = self.peers.contains_key(self.wg_ip.as_ref().unwrap());
         StaticConfiguration {
             name: self.name.unwrap(),
             ip_list: self.ip_list.unwrap(),
@@ -115,8 +115,8 @@ impl StaticConfigurationBuilder {
             shared_key: self.shared_key.unwrap(),
             my_private_key: self.my_private_key.unwrap(),
             my_public_key: self.my_public_key.unwrap(),
+            is_static,
             peers: self.peers,
-            peer_cnt,
             use_tui: self.use_tui.unwrap(),
             use_existing_interface: self.use_existing_interface.unwrap(),
             network_yaml_filename: self.network_yaml_filename.unwrap(),
@@ -138,7 +138,7 @@ pub struct StaticConfiguration {
     pub my_private_key: String,
     pub my_public_key: PublicKeyWithTime,
     pub peers: HashMap<Ipv4Addr, PublicPeer>,
-    pub peer_cnt: usize,
+    pub is_static: bool,
     pub use_tui: bool,
     pub use_existing_interface: bool,
     pub network_yaml_filename: String,

@@ -30,7 +30,8 @@ use log::*;
 use crate::configuration::*;
 use crate::crypt_udp::*;
 use crate::event::Event;
-use crate::node::*;
+use crate::routedb::RouteInfo;
+use crate::node::{Node,StaticPeer,DynamicPeer,DistantNode};
 
 #[derive(Debug)]
 pub enum RouteChange {

@@ -178,17 +178,7 @@ impl WireguardDevice for WireguardDeviceLinux {
                 None,
             )?;
         } else {
-            self.execute_command(
-                vec![
-                    "ip",
-                    "route",
-                    "add",
-                    &format!("{}/32", host),
-                    "dev",
-                    &self.device_name,
-                ],
-                None,
-            )?;
+            // I have already a static route for the subnet
         }
         debug!("Interface {} set route", self.device_name);
         Ok(())
@@ -210,25 +200,17 @@ impl WireguardDevice for WireguardDeviceLinux {
                 None,
             )?;
         } else {
-            self.execute_command(
-                vec![
-                    "ip",
-                    "route",
-                    "replace",
-                    &format!("{}/32", host),
-                    "dev",
-                    &self.device_name,
-                ],
-                None,
-            )?;
+            // There is no static route for a peer
         }
         debug!("Interface {} set route", self.device_name);
         Ok(())
     }
-    fn del_route(&self, host: Ipv4Addr, _gateway: Option<Ipv4Addr>) -> BoxResult<()> {
-        debug!("Delete route to {}", host);
-        self.execute_command(vec!["ip", "route", "del", &format!("{}/32", host)], None)?;
-        debug!("Interface {} deleted route", self.device_name);
+    fn del_route(&self, host: Ipv4Addr, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
+        if gateway.is_some() {
+            debug!("Delete route to {}", host);
+            self.execute_command(vec!["ip", "route", "del", &format!("{}/32", host)], None)?;
+            debug!("Interface {} deleted route", self.device_name);
+        }
         Ok(())
     }
     fn flush_all(&self) -> BoxResult<()> {

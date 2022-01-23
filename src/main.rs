@@ -73,8 +73,7 @@ fn main() -> BoxResult<()> {
                 .short("w")
                 .long("wireguard-port")
                 .value_name("PORT")
-                .default_value("50001")
-                .help("Wireguard udp port aka Listen port, if not defined in config file")
+                .help("Wireguard udp port aka Listen port, if not defined in config file as part of endpoint")
                 .takes_value(true),
         )
         .arg(
@@ -82,8 +81,7 @@ fn main() -> BoxResult<()> {
                 .short("u")
                 .long("admin-port")
                 .value_name("PORT")
-                .default_value("55551")
-                .help("udp port for encrypted communication, if not defined in config file")
+                .help("udp port for encrypted communication")
                 .takes_value(true),
         )
         .arg(
@@ -221,8 +219,9 @@ fn main() -> BoxResult<()> {
     let wg_ip: Ipv4Addr = wg_ip_string.parse()?;
 
     // Due to default values in clap, the unwraps() before parse() are ok
-    let wg_port: u16 = matches.value_of("wireguard_port").unwrap().parse()?;
-    let admin_port: u16 = matches.value_of("admin_port").unwrap().parse()?;
+    let last = *(wg_ip.octets().last().unwrap()) as usize;
+    let wg_port: u16 = matches.value_of("wireguard_port").unwrap_or(&format!("{}",50000+last)).parse()?;
+    let admin_port: u16 = matches.value_of("admin_port").unwrap_or(&format!("{}",50500+last)).parse()?;
 
     let network = &network_conf["network"];
     let shared_key = base64::decode(

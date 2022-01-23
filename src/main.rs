@@ -220,8 +220,14 @@ fn main() -> BoxResult<()> {
 
     // Due to default values in clap, the unwraps() before parse() are ok
     let last = *(wg_ip.octets().last().unwrap()) as usize;
-    let wg_port: u16 = matches.value_of("wireguard_port").unwrap_or(&format!("{}",50000+last)).parse()?;
-    let admin_port: u16 = matches.value_of("admin_port").unwrap_or(&format!("{}",50500+last)).parse()?;
+    let wg_port: u16 = matches
+        .value_of("wireguard_port")
+        .unwrap_or(&format!("{}", 50000 + last))
+        .parse()?;
+    let admin_port: u16 = matches
+        .value_of("admin_port")
+        .unwrap_or(&format!("{}", 50500 + last))
+        .parse()?;
 
     let network = &network_conf["network"];
     let shared_key = base64::decode(

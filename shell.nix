@@ -16,7 +16,7 @@ pkgs.mkShell {
 # 2. Run `nix-build ~/src/nixpkgs -A wg-netmanager --show-trace`
 # 3. Replace fetchFromGitHub-hash
 # 4. Run `nix-build ~/src/nixpkgs -A wg-netmanager --show-trace`
-# 5. Reokace cargoSha256
+# 5. Replace cargoSha256
 # 6. Run `nix-build ~/src/nixpkgs -A wg-netmanager --show-trace`
 #    => should work now
 # 7. cd to ~/.dotfiles and run `./apply-local-system.sh switch'

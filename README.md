@@ -281,3 +281,4 @@ The code of this crate is licensed according to MIT. To learn about the licenses
 
 - Spent half a day figuring out, why udp socket connection has been working, tunnel in wireguard configuration on both peers have been properly setup, but tunnel was not working. At some point I have recognized, that the working nodes were in the internet and the failing ones in the local subnet. Rebooting the internet router solved this issue
 - Update: Apparently the router does not like the usage of the same udp-ports aka the need for translation in the router firewall.
+- Update 2: If one client in local subnet reuses the same wireguard port, the communication cannot be established. If the wireguard port is changed, it starts working again.

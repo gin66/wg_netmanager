@@ -463,8 +463,7 @@ impl Node for DynamicPeer {
             debug!(target: "configuration", "peer {} uses {} endpoint {}", self.wg_ip, self.connection.as_str(), endpoint);
             debug!(target: &self.wg_ip.to_string(), "use {} endpoint {}", self.connection.as_str(), endpoint);
             lines.push(format!("EndPoint = {}", endpoint));
-        }
-        else {
+        } else {
             debug!(target: "configuration", "dynamic peer {} without endpoint", self.wg_ip);
             debug!(target: &self.wg_ip.to_string(), "is dynamic peer without endpoint");
         }
@@ -779,17 +778,17 @@ impl Node for DistantNode {
     ) {
         if let Some(public_key) = self.public_key.as_ref() {
             if let Some(endpoint) = pubkey_to_endpoint.remove(&public_key.key) {
-                    let mut is_local = false;
+                let mut is_local = false;
 
-                    for ip in static_config.ip_list.iter() {
-                        if *ip == endpoint.ip() {
-                            is_local = true;
-                            break;
-                        }
+                for ip in self.local_ip_list.as_ref().unwrap().iter() {
+                    if *ip == endpoint.ip() {
+                        is_local = true;
+                        break;
                     }
-                    if !is_local {
-                        self.visible_endpoint = Some(endpoint);
-                    }
+                }
+                if !is_local {
+                    self.visible_endpoint = Some(endpoint);
+                }
             }
         }
     }

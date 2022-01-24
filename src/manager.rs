@@ -289,7 +289,7 @@ impl NetworkManager {
         for ri in new_routes.values() {
             if let Some(gateway) = ri.gateway.as_ref() {
                 if let Some(node) = self.all_nodes.get_mut(gateway) {
-                    warn!("gateway for {} {}", ri.to, gateway);
+                    info!("gateway for {} {}", ri.to, gateway);
                     node.add_gateway_for(ri.to);
                 }
             }

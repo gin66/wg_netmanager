@@ -128,7 +128,7 @@ impl WireguardDevice for WireguardDeviceMacos {
                 "add",
                 "-net",
                 &format!("{:?}", subnet),
-                ip_extend,
+                &ip_extend,
             ],
             None,
         );
@@ -164,7 +164,7 @@ impl WireguardDevice for WireguardDeviceMacos {
         debug!("Interface {} set route", self.device_name);
         Ok(())
     }
-    fn del_route(&self, host: Ipv4Addr, _gateway: Option<Ipv4Addr>) -> BoxResult<()> {
+    fn del_route(&self, host: Ipv4Addr, gateway: Option<Ipv4Addr>) -> BoxResult<()> {
         if gateway.is_some() {
             debug!("Delete route to {}", host);
             let _ = self.execute_command(vec!["route", "delete", &host.to_string()], None);

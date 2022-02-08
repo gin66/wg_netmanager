@@ -27,6 +27,7 @@ pub struct StaticConfigurationBuilder {
     wg_ip: Option<Ipv4Addr>,
     wg_name: Option<String>,
     wg_port: Option<u16>,
+    wg_hopping: Option<bool>,
     admin_port: Option<u16>,
     subnet: Option<ipnet::Ipv4Net>,
     shared_key: Option<Vec<u8>>,
@@ -60,6 +61,10 @@ impl StaticConfigurationBuilder {
     }
     pub fn wg_port(mut self, port: u16) -> Self {
         self.wg_port = Some(port);
+        self
+    }
+    pub fn wg_hopping(mut self, hopping: bool) -> Self {
+        self.wg_hopping = Some(hopping);
         self
     }
     pub fn admin_port(mut self, port: u16) -> Self {
@@ -110,6 +115,7 @@ impl StaticConfigurationBuilder {
             wg_ip: self.wg_ip.unwrap(),
             wg_name: self.wg_name.unwrap(),
             wg_port: self.wg_port.unwrap(),
+            wg_hopping: self.wg_hopping.unwrap(),
             admin_port: self.admin_port.unwrap(),
             subnet: self.subnet.unwrap(),
             shared_key: self.shared_key.unwrap(),
@@ -132,6 +138,7 @@ pub struct StaticConfiguration {
     pub wg_ip: Ipv4Addr,
     pub wg_name: String,
     pub wg_port: u16,
+    pub wg_hopping: bool,
     pub admin_port: u16,
     pub subnet: ipnet::Ipv4Net,
     pub shared_key: Vec<u8>,
@@ -153,11 +160,16 @@ impl StaticConfiguration {
         let mut lines: Vec<String> = vec![];
         lines.push("[Interface]".to_string());
         lines.push(format!("PrivateKey = {}", self.my_private_key));
-        let port = self
+        let port = if self.wg_hopping {
+            manager.my_local_wg_port
+        }
+        else {
+         self
             .peers
             .get(&self.wg_ip)
             .map(|peer| peer.wg_port)
-            .unwrap_or(self.wg_port);
+            .unwrap_or(self.wg_port)
+        };
         lines.push(format!("ListenPort = {}", port));
 
         for node in manager.all_nodes.values() {

@@ -283,12 +283,14 @@ fn main_loop(
                 let routedb_version = network_manager.db_version();
                 let my_visible_wg_endpoint =
                     network_manager.my_visible_wg_endpoint.as_ref().copied();
+                let my_local_wg_port = network_manager.my_local_wg_port;
                 let opt_node = network_manager.node_for(&wg_ip);
                 let advertisement = UdpPacket::advertisement_from_config(
                     static_config,
                     routedb_version,
                     addressed_to,
                     opt_node,
+                    my_local_wg_port,
                     my_visible_wg_endpoint,
                 );
                 let buf = bincode::serialize(&advertisement).unwrap();
@@ -332,6 +334,7 @@ fn main_loop(
                 debug!(target: &destination.ip().to_string(), "Send local contacts to {:?}", destination);
                 let local_contact = UdpPacket::local_contact_from_config(
                     static_config,
+                    network_manager.my_local_wg_port,
                     network_manager.my_visible_wg_endpoint,
                 );
                 trace!(target: "probing", "local contact to {:#?}", local_contact);
@@ -340,6 +343,12 @@ fn main_loop(
                 crypt_socket_v4
                     .send_to(&buf, SocketAddr::V4(destination))
                     .ok();
+            }
+            Ok(Event::WireguardPortHop) => {
+                trace!(target: "hopping", "Perform wireguard port hop");
+                let mut new_port = network_manager.my_local_wg_port;
+                new_port = (new_port - 10000 + 1) % (65535 - 10000) + 10000;
+                network_manager.my_local_wg_port = new_port;
             }
             Ok(Event::UpdateWireguardConfiguration) => {
                 info!("Update peers");

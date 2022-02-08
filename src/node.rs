@@ -145,6 +145,8 @@ impl Node for StaticPeer {
             // seems to be dead
             self.is_alive = false;
             info!(target: &self.static_peer.wg_ip.to_string(),"static peer is not alive");
+            events.push(Event::WireguardPortHop);
+            events.push(Event::UpdateWireguardConfiguration);
         }
 
         if self.is_alive {

@@ -58,6 +58,7 @@ pub struct RouteDB {
 pub struct NetworkManager {
     wg_ip: Ipv4Addr,
     pub my_visible_wg_endpoint: Option<SocketAddr>,
+    pub my_local_wg_port: u16,
     route_db: RouteDB,
     pub all_nodes: HashMap<Ipv4Addr, Box<dyn Node>>,
 }
@@ -74,6 +75,7 @@ impl NetworkManager {
         NetworkManager {
             wg_ip: static_config.wg_ip,
             my_visible_wg_endpoint: None,
+            my_local_wg_port: static_config.wg_port,
             route_db: RouteDB::default(),
             all_nodes,
         }

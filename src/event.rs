@@ -7,6 +7,7 @@ use crate::tui_display::TuiAppEvent;
 pub enum Event {
     Udp(UdpPacket, SocketAddr),
     UpdateWireguardConfiguration,
+    WireguardPortHop,
     CtrlC,
     SendAdvertisement {
         addressed_to: AddressedTo,

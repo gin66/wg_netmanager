@@ -97,12 +97,13 @@ impl UdpPacket {
         routedb_version: usize,
         addressed_to: AddressedTo,
         to_node: Option<&dyn Node>,
+        local_wg_port: u16,
         my_visible_wg_endpoint: Option<SocketAddr>,
     ) -> Self {
         UdpPacket::Advertisement(AdvertisementPacket {
             addressed_to,
             public_key: static_config.my_public_key.clone(),
-            local_wg_port: static_config.wg_port,
+            local_wg_port,
             local_admin_port: static_config.admin_port,
             wg_ip: static_config.wg_ip,
             name: static_config.name.clone(),
@@ -132,12 +133,13 @@ impl UdpPacket {
     }
     pub fn local_contact_from_config(
         static_config: &StaticConfiguration,
+        local_wg_port: u16,
         my_visible_wg_endpoint: Option<SocketAddr>,
     ) -> Self {
         UdpPacket::LocalContact(LocalContactPacket {
             public_key: static_config.my_public_key.clone(),
             local_ip_list: static_config.ip_list.clone(),
-            local_wg_port: static_config.wg_port,
+            local_wg_port,
             local_admin_port: static_config.admin_port,
             my_visible_wg_endpoint,
             wg_ip: static_config.wg_ip,

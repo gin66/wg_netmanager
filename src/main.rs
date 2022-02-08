@@ -77,6 +77,12 @@ fn main() -> BoxResult<()> {
                 .takes_value(true),
         )
         .arg(
+            Arg::with_name("wireguard_hopping")
+                .short("H")
+                .long("wireguard-hopping")
+                .help("As some router have issues with static udp-ports, change wireguard port if static server not reachable"),
+        )
+        .arg(
             Arg::with_name("admin_port")
                 .short("u")
                 .long("admin-port")
@@ -228,6 +234,7 @@ fn main() -> BoxResult<()> {
         .value_of("admin_port")
         .unwrap_or(&format!("{}", 50500 + last))
         .parse()?;
+    let wg_hopping = matches.is_present("wg_hopping");
 
     let network = &network_conf["network"];
     let shared_key = base64::decode(
@@ -289,6 +296,7 @@ fn main() -> BoxResult<()> {
         .wg_ip(wg_ip)
         .wg_name(interface)
         .wg_port(wg_port)
+        .wg_hopping(wg_hopping)
         .admin_port(admin_port)
         .subnet(subnet)
         .shared_key(shared_key)

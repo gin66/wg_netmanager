@@ -162,13 +162,11 @@ impl StaticConfiguration {
         lines.push(format!("PrivateKey = {}", self.my_private_key));
         let port = if self.wg_hopping {
             manager.my_local_wg_port
-        }
-        else {
-         self
-            .peers
-            .get(&self.wg_ip)
-            .map(|peer| peer.wg_port)
-            .unwrap_or(self.wg_port)
+        } else {
+            self.peers
+                .get(&self.wg_ip)
+                .map(|peer| peer.wg_port)
+                .unwrap_or(self.wg_port)
         };
         lines.push(format!("ListenPort = {}", port));
 

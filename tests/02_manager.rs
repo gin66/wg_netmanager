@@ -26,10 +26,11 @@ mod tests {
                 priv_key_creation_time: 0,
             },
             peers: HashMap::new(),
-            peer_cnt: 0,
             use_tui: false,
             use_existing_interface: false,
             network_yaml_filename: "".to_string(),
+            is_static: true,
+            wg_hopping: false,
             peer_yaml_filename: None,
         }
     }
@@ -63,10 +64,11 @@ mod tests {
             my_private_key: "".to_string(),
             my_public_key: public_key.clone(),
             peers: HashMap::new(),
-            peer_cnt: 1,
             use_tui: false,
             use_existing_interface: true,
             network_yaml_filename: "".to_string(),
+            is_static: true,
+            wg_hopping: false,
             peer_yaml_filename: None,
         };
         let mut mgr = NetworkManager::new(&static_config);

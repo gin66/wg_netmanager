@@ -196,42 +196,17 @@ checksum = "ccaeedb56da03b09f598226e25e80088cb4cd25f316e6e4df7d695f0feeb1403"
 
 [[package]]
 name = "crossterm"
-version = "0.20.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0ebde6a9dd5e331cd6c6f48253254d117642c31653baa475e394657c59c1f7d"
-dependencies = [
- "bitflags",
- "crossterm_winapi 0.8.0",
- "libc",
- "mio",
- "parking_lot 0.11.2",
- "signal-hook",
- "signal-hook-mio",
- "winapi",
-]
-
-[[package]]
-name = "crossterm"
 version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c85525306c4291d1b73ce93c8acf9c339f9b213aef6c1d85c3830cbf1c16325c"
 dependencies = [
  "bitflags",
- "crossterm_winapi 0.9.0",
+ "crossterm_winapi",
  "libc",
  "mio",
  "parking_lot 0.11.2",
  "signal-hook",
  "signal-hook-mio",
- "winapi",
-]
-
-[[package]]
-name = "crossterm_winapi"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a6966607622438301997d3dac0d2f6e9a90c68bb6bc1785ea98456ab93c0507"
-dependencies = [
  "winapi",
 ]
 
@@ -888,25 +863,13 @@ dependencies = [
 
 [[package]]
 name = "tui"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39c8ce4e27049eed97cfa363a5048b09d995e209994634a0efc26a14ab6c0c23"
-dependencies = [
- "bitflags",
- "cassowary",
- "crossterm 0.20.0",
- "unicode-segmentation",
- "unicode-width",
-]
-
-[[package]]
-name = "tui"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23ed0a32c88b039b73f1b6c5acbd0554bfa5b6be94467375fd947c4de3a02271"
 dependencies = [
  "bitflags",
  "cassowary",
+ "crossterm",
  "unicode-segmentation",
  "unicode-width",
 ]
@@ -923,7 +886,7 @@ dependencies = [
  "log 0.4.14",
  "parking_lot 0.12.0",
  "slog",
- "tui 0.17.0",
+ "tui",
 ]
 
 [[package]]
@@ -992,7 +955,7 @@ checksum = "fd6fbd9a79829dd1ad0cc20627bf1ed606756a7f77edff7b66b7064f9cb327c6"
 
 [[package]]
 name = "wg_netmanager"
-version = "0.4.2"
+version = "0.4.3"
 dependencies = [
  "base64",
  "bincode",
@@ -1000,7 +963,7 @@ dependencies = [
  "chrono",
  "clap",
  "crc",
- "crossterm 0.22.1",
+ "crossterm",
  "ctrlc",
  "fern",
  "ifcfg",
@@ -1012,7 +975,7 @@ dependencies = [
  "serde",
  "simple-signal",
  "tempfile",
- "tui 0.16.0",
+ "tui",
  "tui-logger",
  "yaml-rust",
 ]

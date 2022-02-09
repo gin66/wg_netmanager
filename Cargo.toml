@@ -27,7 +27,7 @@ crc = "2.1"
 log = "0.4"
 fern =  { version = "0.6", features = ["colored"]}
 chrono = "0.4"
-tui = { version = "0.16", default-features = false, features = ["crossterm"] }
+tui = { version = "0.17", default-features = false, features = ["crossterm"] }
 crossterm = "0.22.1"
 tui-logger = "0.7"
 rust-ini = "0.17"

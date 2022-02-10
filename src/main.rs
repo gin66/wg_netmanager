@@ -234,7 +234,7 @@ fn main() -> BoxResult<()> {
         .value_of("admin_port")
         .unwrap_or(&format!("{}", 50500 + last))
         .parse()?;
-    let wg_hopping = matches.is_present("wg_hopping");
+    let wg_hopping = matches.is_present("wireguard_hopping");
 
     let network = &network_conf["network"];
     let shared_key = base64::decode(

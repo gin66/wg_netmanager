@@ -345,9 +345,9 @@ fn main_loop(
                     .ok();
             }
             Ok(Event::WireguardPortHop) => {
-                trace!(target: "hopping", "Perform wireguard port hop");
                 let mut new_port = network_manager.my_local_wg_port;
                 new_port = (new_port - 10000 + 1) % (65535 - 10000) + 10000;
+                trace!(target: "hopping", "Perform wireguard port hop to {}", new_port);
                 network_manager.my_local_wg_port = new_port;
             }
             Ok(Event::UpdateWireguardConfiguration) => {

@@ -138,15 +138,17 @@ impl Node for StaticPeer {
     fn process_every_second(
         &mut self,
         now: u64,
-        _static_config: &StaticConfiguration,
+        static_config: &StaticConfiguration,
     ) -> Vec<Event> {
         let mut events = vec![];
         if self.is_alive && now - self.lastseen > 240 {
             // seems to be dead
             self.is_alive = false;
-            info!(target: &self.static_peer.wg_ip.to_string(),"static peer is not alive");
-            events.push(Event::WireguardPortHop);
-            events.push(Event::UpdateWireguardConfiguration);
+            if static_config.wg_hopping {
+                info!(target: &self.static_peer.wg_ip.to_string(),"static peer is not alive");
+                events.push(Event::WireguardPortHop);
+                events.push(Event::UpdateWireguardConfiguration);
+            }
         }
 
         if self.is_alive {

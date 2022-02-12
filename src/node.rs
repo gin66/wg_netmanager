@@ -87,6 +87,7 @@ pub struct StaticPeer {
     gateway_for: HashSet<Ipv4Addr>,
     is_alive: bool,
     lastseen: u64,
+    wg_tunnel_need_hop: Option<u64>,
     send_advertisement_seconds_count_down: usize,
     routedb_manager: RouteDBManager,
     current_ip: Option<IpAddr>,
@@ -99,6 +100,7 @@ impl StaticPeer {
             gateway_for: HashSet::new(),
             is_alive: false,
             lastseen: 0,
+            wg_tunnel_need_hop: None,
             send_advertisement_seconds_count_down: 0,
             routedb_manager: RouteDBManager::default(),
             current_ip: None,
@@ -133,7 +135,7 @@ impl Node for StaticPeer {
             if let Some(ip) = self.current_ip.as_ref() {
                 let sa: SocketAddr = SocketAddr::new(*ip, self.static_peer.wg_port);
                 lines.push(format!("EndPoint = {}", sa));
-            } 
+            }
             lines
         })
     }
@@ -154,6 +156,20 @@ impl Node for StaticPeer {
                 info!(target: &self.static_peer.wg_ip.to_string(),"static peer is not alive");
                 events.push(Event::WireguardPortHop);
                 events.push(Event::UpdateWireguardConfiguration);
+            }
+        }
+
+        if self.is_alive {
+            // need to hop, if the tunnel is not up in time
+            if let Some(hop_time) = self.wg_tunnel_need_hop {
+                if now > hop_time {
+                    self.wg_tunnel_need_hop = None;
+                    if static_config.wg_hopping {
+                        info!(target: &self.static_peer.wg_ip.to_string(),"static peer is not alive");
+                        events.push(Event::WireguardPortHop);
+                        events.push(Event::UpdateWireguardConfiguration);
+                    }
+                }
             }
         }
 
@@ -238,8 +254,15 @@ impl Node for StaticPeer {
         match &advertisement.addressed_to {
             StaticAddress | ReplyFromStaticAddress => {
                 self.current_ip = Some(src_addr.ip());
+                self.wg_tunnel_need_hop = Some(now + 240);
             }
-            _ => ()
+            WireguardAddress
+            | ReplyFromWireguardAddress
+            | WireguardV6Address
+            | ReplyFromWireguardV6Address => {
+                self.wg_tunnel_need_hop = None;
+            }
+            _ => (),
         }
 
         let mut reply_advertisement = false;

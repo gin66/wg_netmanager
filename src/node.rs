@@ -89,6 +89,7 @@ pub struct StaticPeer {
     lastseen: u64,
     send_advertisement_seconds_count_down: usize,
     routedb_manager: RouteDBManager,
+    current_ip: Option<IpAddr>,
 }
 impl StaticPeer {
     pub fn from_public_peer(peer: &PublicPeer) -> Box<dyn Node> {
@@ -100,6 +101,7 @@ impl StaticPeer {
             lastseen: 0,
             send_advertisement_seconds_count_down: 0,
             routedb_manager: RouteDBManager::default(),
+            current_ip: None,
         })
     }
 }
@@ -128,7 +130,10 @@ impl Node for StaticPeer {
             for ip in self.gateway_for.iter() {
                 lines.push(format!("AllowedIPs = {}/32", ip));
             }
-            lines.push(format!("EndPoint = {}", self.static_peer.endpoint));
+            if let Some(ip) = self.current_ip.as_ref() {
+                let sa: SocketAddr = SocketAddr::new(*ip, self.static_peer.wg_port);
+                lines.push(format!("EndPoint = {}", sa));
+            } 
             lines
         })
     }
@@ -144,6 +149,7 @@ impl Node for StaticPeer {
         if self.is_alive && now - self.lastseen > 240 {
             // seems to be dead
             self.is_alive = false;
+            self.current_ip = None;
             if static_config.wg_hopping {
                 info!(target: &self.static_peer.wg_ip.to_string(),"static peer is not alive");
                 events.push(Event::WireguardPortHop);
@@ -227,6 +233,14 @@ impl Node for StaticPeer {
         // btw the StaticPeer is actually alive
         self.is_alive = true;
         self.lastseen = now;
+
+        use AddressedTo::*;
+        match &advertisement.addressed_to {
+            StaticAddress | ReplyFromStaticAddress => {
+                self.current_ip = Some(src_addr.ip());
+            }
+            _ => ()
+        }
 
         let mut reply_advertisement = false;
         if self.public_key.is_some() {

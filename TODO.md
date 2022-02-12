@@ -1,3 +1,6 @@
+iptables -t nat -A POSTROUTING -o ppp0 -j MASQUERADE
+sysctl -w ipv4.ip_forward=10
+
 MID PRIORITY:
 * send default gateway
 * add command line option to generate a new config 
